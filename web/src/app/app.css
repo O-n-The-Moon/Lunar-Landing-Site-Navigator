@@ -85,6 +85,12 @@ select:disabled {
   font-size: 0.75rem;
   color: var(--text-muted);
 }
+.hint.error {
+  color: var(--danger);
+}
+.hint.warn {
+  color: var(--warn);
+}
 
 /* --- shell ------------------------------------------------------------------------- */
 .app {

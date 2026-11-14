@@ -90,11 +90,23 @@ describe('date controls', () => {
     await renderApp()
     const landing = screen.getByLabelText('Landing (UTC)')
     expect(landing).toHaveValue('2026-03-01T00:00')
-    fireEvent.change(landing, { target: { value: '2026-04-10T06:30' } })
-    expect(screen.getByText(/baseline mission/i)).toHaveTextContent('2026-04-10 06:30 UTC → 2026-04-24 06:30 UTC')
+    fireEvent.change(landing, { target: { value: '2026-03-02T06:30' } })
+    expect(screen.getByText(/baseline mission/i)).toHaveTextContent('2026-03-02 06:30 UTC → 2026-03-16 06:30 UTC')
   })
 
-  it('updates the duration and ignores out-of-range values', async () => {
+  it('rejects a landing outside the ephemeris and flags missions that run past it', async () => {
+    await renderApp()
+    // The fixture ephemeris covers 48 h; the default 14-day mission runs past it.
+    expect(screen.getByText(/part of the mission .* is outside the ephemeris/i)).toBeInTheDocument()
+
+    const landing = screen.getByLabelText('Landing (UTC)')
+    fireEvent.change(landing, { target: { value: '2040-01-01T00:00' } })
+    expect(landing).toHaveAttribute('aria-invalid', 'true')
+    expect(landing).toHaveAccessibleDescription(/outside the ephemeris \(2026-03-01 00:00 UTC → 2026-03-03 00:00 UTC\)/i)
+    expect(screen.getByText(/baseline mission/i)).toHaveTextContent('2026-03-01 00:00 UTC →') // unchanged
+  })
+
+  it('updates the duration, flags out-of-range values and clamps them on blur', async () => {
     const user = userEvent.setup()
     await renderApp()
     const duration = screen.getByLabelText('Duration (days)')
@@ -106,8 +118,10 @@ describe('date controls', () => {
 
     await user.clear(duration)
     await user.type(duration, '45')
-    expect(screen.getByText(/baseline mission/i)).toHaveTextContent('→ 2026-03-05 00:00 UTC') // "4" applied, "45" rejected
+    expect(duration).toHaveAccessibleDescription('Whole days, 1–30.')
     await user.tab()
-    expect(duration).toHaveValue(4)
+    expect(duration).toHaveValue(30)
+    expect(duration).toHaveAttribute('aria-invalid', 'false')
+    expect(screen.getByText(/baseline mission/i)).toHaveTextContent('→ 2026-03-31 00:00 UTC')
   })
 })
