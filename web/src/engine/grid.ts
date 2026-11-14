@@ -2,7 +2,7 @@
 import type { Ephemeris, Grid, GridCellRef, GridScores, VisibilityOpts } from './types'
 import { notImplemented } from './types'
 
-/** Sun / Earth / both % per cell over [startMs, endMs] at a 1 h step. */
+/** Sun / Earth / both % per cell over [startMs, endMs): hourly samples at startMs, startMs + 1 h, …, each standing for one hour. */
 export function scoreGrid(grid: Grid, eph: Ephemeris, startMs: number, endMs: number, opts: VisibilityOpts): GridScores {
   return notImplemented('scoreGrid', grid, eph, startMs, endMs, opts)
 }

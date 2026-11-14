@@ -28,3 +28,4 @@ cd web && node src/engine/__fixtures__/generate.mjs
 - Grid `originKm` is the lower-left corner; cell centers are at `originKm + (i + 0.5) × cellKm`; row `iy = 0` is the lowest y.
 - South polar stereographic: `x = ρ sin(lon)`, `y = ρ cos(lon)`, `ρ = 2R tan(c/2)`.
 - The PNG's top row is the highest y.
+- Grid scores sample hours `startMs … endMs − 1 h` (half-open range, 48 samples for 48 h), each sample standing for one hour.

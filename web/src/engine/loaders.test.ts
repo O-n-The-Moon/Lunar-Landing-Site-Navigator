@@ -61,6 +61,21 @@ describe('loadEphemeris', () => {
     expect(() => loadEphemeris({ ...ephManifest, dtype: 'float64-le' as 'float32-le' }, buf)).toThrow(/dtype/)
     expect(() => loadEphemeris({ ...ephManifest, startUtc: 'not a date' }, buf)).toThrow(/startUtc/)
   })
+
+  it('rejects a startUtc without an explicit UTC offset (it would parse as local time)', () => {
+    expect(() => loadEphemeris({ ...ephManifest, startUtc: '2026-01-01T00:00:00' }, f32le(values))).toThrow(/startUtc/)
+    expect(loadEphemeris({ ...ephManifest, startUtc: '2026-01-01T05:00:00+05:00' }, f32le(values)).startUtcMs).toBe(
+      Date.UTC(2026, 0, 1),
+    )
+  })
+
+  it('rejects a non-positive step or count, and bodies other than sun and earth once each', () => {
+    const buf = f32le(values)
+    expect(() => loadEphemeris({ ...ephManifest, stepS: 0 }, buf)).toThrow(/stepS/)
+    expect(() => loadEphemeris({ ...ephManifest, count: 0 }, new ArrayBuffer(0))).toThrow(/count/)
+    expect(() => loadEphemeris({ ...ephManifest, bodies: ['sun', 'sun'] }, buf)).toThrow(/bodies/)
+    expect(() => loadEphemeris({ ...ephManifest, bodies: ['earth', 'moon' as 'sun'] }, buf)).toThrow(/bodies/)
+  })
 })
 
 describe('loadGrid', () => {
@@ -88,6 +103,13 @@ describe('loadGrid', () => {
     expect(Array.from(grid.surfaceHeightM)).toEqual([-1200, 3400])
   })
 
+  it('copies the horizons so the caller may transfer or reuse its buffer', () => {
+    const buf = new Uint8Array([0, 50, 255, 10, 20, 30]).buffer
+    const grid = loadGrid(manifest, buf, heights)
+    new Uint8Array(buf)[0] = 77
+    expect(grid.horizonsU8[0]).toBe(0)
+  })
+
   it('rejects buffers whose size does not match the manifest', () => {
     expect(() => loadGrid(manifest, new ArrayBuffer(5), heights)).toThrow(/grid-horizons\.bin/)
     expect(() => loadGrid(manifest, horizons, new ArrayBuffer(2))).toThrow(/grid-heights\.bin/)
@@ -96,6 +118,12 @@ describe('loadGrid', () => {
   it('rejects an unsupported manifest', () => {
     expect(() => loadGrid({ ...manifest, schemaVersion: 2 as 1 }, horizons, heights)).toThrow(/schemaVersion/)
     expect(() => loadGrid({ ...manifest, dtype: 'uint16' as 'uint8' }, horizons, heights)).toThrow(/dtype/)
+    expect(() => loadGrid({ ...manifest, encoding: 'elevDeg = v * 0.05 - 2.0' }, horizons, heights)).toThrow(/encoding/)
+    expect(() => loadGrid({ ...manifest, projection: 'equirect' as 'polar-stereographic-south' }, horizons, heights)).toThrow(
+      /projection/,
+    )
+    expect(() => loadGrid({ ...manifest, nx: 0, ny: 0 }, new ArrayBuffer(0), new ArrayBuffer(0))).toThrow(/nx/)
+    expect(() => loadGrid({ ...manifest, azBins: 1.5 }, horizons, heights)).toThrow(/azBins/)
   })
 })
 
@@ -141,6 +169,22 @@ describe('parseSites', () => {
     const badLat = clone()
     ;(badLat.sites[0] as unknown as Record<string, unknown>).latDeg = '-84'
     expect(() => parseSites(badLat)).toThrow(/sites\[0\]\.latDeg/)
+  })
+
+  it('rejects coordinates outside the contract ranges (lat −90…90, lon −180…180)', () => {
+    const badLon = clone()
+    badLon.sites[0].lonDeg = 330
+    expect(() => parseSites(badLon)).toThrow(/sites\[0\]\.lonDeg/)
+
+    const badLat = clone()
+    badLat.sites[0].latDeg = -91
+    expect(() => parseSites(badLat)).toThrow(/sites\[0\]\.latDeg/)
+  })
+
+  it('rejects heightsM without the default 2 m observer height', () => {
+    const no2 = clone()
+    no2.heightsM = [10]
+    expect(() => parseSites(no2)).toThrow(/heightsM/)
   })
 
   it('rejects an unknown category', () => {
