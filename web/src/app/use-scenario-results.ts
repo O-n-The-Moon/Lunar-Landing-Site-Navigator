@@ -30,6 +30,8 @@ export interface ResolvedSite {
   lonDeg: number
   /** null for custom sites (the grid has no slope). */
   slopeDeg: number | null
+  /** Custom sites: distance from the entered point to the grid cell used; null for curated sites. */
+  snapDistKm: number | null
   /** Height actually used: custom (grid-snapped) sites are 2 m only. */
   observerHeightM: number
 }
@@ -82,6 +84,7 @@ export function resolveSite(ref: ScenarioSite, curated: readonly Site[], observe
       latDeg: ref.latDeg,
       lonDeg: ref.lonDeg,
       slopeDeg: null,
+      snapDistKm: ref.cell.snapDistKm,
       observerHeightM: GRID_OBSERVER_HEIGHT_M,
     }
   }
@@ -94,6 +97,7 @@ export function resolveSite(ref: ScenarioSite, curated: readonly Site[], observe
     latDeg: site.latDeg,
     lonDeg: site.lonDeg,
     slopeDeg: site.slopeDeg,
+    snapDistKm: null,
     observerHeightM,
   }
 }

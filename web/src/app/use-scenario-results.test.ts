@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { fixtureOutputs, fixtureSitesFile } from '../engine/__fixtures__'
 import { HOUR_MS, createInitialState, scenarioReducer } from './state'
-import { computeScenarioResults } from './use-scenario-results'
+import { computeScenarioResults, resolveSite } from './use-scenario-results'
 
 const curated = fixtureSitesFile.sites
 const base = createInitialState({ sites: curated })
@@ -29,5 +29,20 @@ describe('computeScenarioResults (fixture stand-in)', () => {
     const r = computeScenarioResults(s, curated)
     expect(r.sites).toHaveLength(2)
     expect(r.unavailableSiteIds).toEqual(['custom-1-2'])
+  })
+
+  it('resolves a custom site label and snap distance', () => {
+    const s = scenarioReducer(base, { type: 'addCustomSite', latDeg: -85.12, lonDeg: 30.4, cell: { ix: 1, iy: 2, snapDistKm: 0.8 } })
+    const ref = s.sites.find((x) => x.kind === 'custom')
+    expect(ref && resolveSite(ref, curated, 10)).toEqual({
+      id: 'custom-1-2',
+      kind: 'custom',
+      name: 'Custom 85.12°S 30.40°E',
+      latDeg: -85.12,
+      lonDeg: 30.4,
+      slopeDeg: null,
+      snapDistKm: 0.8,
+      observerHeightM: 2,
+    })
   })
 })

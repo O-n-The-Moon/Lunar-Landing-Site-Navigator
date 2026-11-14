@@ -7,7 +7,7 @@ import { DateControls } from './controls/date-controls'
 import { Options } from './controls/options'
 import { SitePicker } from './controls/site-picker'
 import { SlipSlider } from './controls/slip-slider'
-import { DataProvider, defaultDataSources, useCoreDataState, type DataSource } from './data'
+import { DataProvider, defaultDataSources, useCoreData, useCoreDataState, type DataSource } from './data'
 import { MapView } from './map/map-view'
 import { PanoramaPanel } from './panorama/panorama-panel'
 import { ScenarioProvider, createInitialState } from './state'
@@ -42,9 +42,7 @@ function Shell() {
         )}
       </header>
       {core.status === 'ready' ? (
-        <ScenarioProvider initialState={createInitialState({ sites: core.data.sitesFile.sites })}>
-          <Workspace />
-        </ScenarioProvider>
+        <ScenarioRoot />
       ) : core.status === 'error' ? (
         <div className="app-message" role="alert">
           <h2>Could not load mission data</h2>
@@ -59,6 +57,17 @@ function Shell() {
         </p>
       )}
     </div>
+  )
+}
+
+/** Creates the initial scenario once, from the loaded site catalog. */
+function ScenarioRoot() {
+  const { sitesFile } = useCoreData()
+  const [initialState] = useState(() => createInitialState({ sites: sitesFile.sites }))
+  return (
+    <ScenarioProvider initialState={initialState}>
+      <Workspace />
+    </ScenarioProvider>
   )
 }
 
