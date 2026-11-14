@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { MissionMetrics, Window } from '../types'
+import type { EventDelta, Window } from '../types'
 import {
   fixtureEphemeris,
   fixtureGrid,
@@ -12,6 +12,31 @@ import {
 } from './index'
 
 const H_MS = 3_600_000
+
+// Independent re-statements of the SPEC-engine metric definitions, to catch generator regressions.
+const onMs = (ws: Window[], a: number, b: number) =>
+  ws.reduce((sum, w) => sum + Math.max(0, Math.min(w.endMs, b) - Math.max(w.startMs, a)), 0)
+
+function longestGapMs(ws: Window[], a: number, b: number): number {
+  const on = ws.filter((w) => w.endMs > a && w.startMs < b)
+  const edges = [a, ...on.flatMap((w) => [Math.max(w.startMs, a), Math.min(w.endMs, b)]), b]
+  let longest = 0
+  for (let i = 0; i < edges.length; i += 2) longest = Math.max(longest, edges[i + 1] - edges[i])
+  return longest
+}
+
+function firstSetH(ws: Window[], a: number, b: number): number | null {
+  const ends = ws.filter((w) => !w.clippedEnd && w.endMs > a && w.endMs < b).map((w) => w.endMs)
+  return ends.length ? Math.round(((Math.min(...ends) - a) / H_MS) * 1e4) / 1e4 : null
+}
+
+function expectedEventDelta(a: number | null, b: number | null): EventDelta {
+  if (a === null && b === null) return { deltaH: null, change: 'none' }
+  if (a === null) return { deltaH: null, change: 'appeared' }
+  if (b === null) return { deltaH: null, change: 'disappeared' }
+  const deltaH = Math.round((b - a) * 1e4) / 1e4
+  return { deltaH, change: deltaH === 0 ? 'none' : 'shifted' }
+}
 
 describe('contract fixtures', () => {
   it('ephemeris covers 48 h hourly with Sun at ~1 AU and Earth at ~383,000 km', () => {
@@ -37,6 +62,14 @@ describe('contract fixtures', () => {
       fixtureGrid.horizonsU8.subarray(c * azBins, (c + 1) * azBins).every((v) => v === 255),
     )
     expect(noDataCells).toEqual([7 * nx + 7])
+  })
+
+  it('fixture-ridge lies inside the grid extent (for snapping and marker tests)', () => {
+    const { originKm, cellKm, nx, ny, sphereRadiusKm } = fixtureGrid.manifest
+    const ridge = fixtureSitesFile.sites.find((s) => s.id === 'fixture-ridge')
+    const colatRad = ((90 + (ridge?.latDeg ?? 0)) * Math.PI) / 180
+    const rhoKm = 2 * sphereRadiusKm * Math.tan(colatRad / 2)
+    expect(rhoKm).toBeLessThan(Math.min(-originKm[0], -originKm[1], originKm[0] + nx * cellKm, originKm[1] + ny * cellKm))
   })
 
   it('PGDA layers share the grid extent', () => {
@@ -99,12 +132,34 @@ describe('output fixtures', () => {
     }
     const numeric = ['sunlitPct', 'earthPct', 'bothPct', 'longestSunGapH', 'longestEarthGapH', 'meanSunFraction'] as const
     for (const k of numeric) expect(metricDelta[k]).toBeCloseTo(slipped[k] - baseline[k], 3)
-    const nullable = (k: keyof MissionMetrics & ('firstSunsetH' | 'firstEarthsetH')) => {
-      const [a, b] = [baseline[k], slipped[k]]
-      return a === null || b === null ? null : b - a
+    for (const k of ['firstSunsetH', 'firstEarthsetH'] as const) {
+      expect(metricDelta[k]).toEqual(expectedEventDelta(baseline[k], slipped[k]))
     }
-    expect(metricDelta.firstSunsetH).toBe(nullable('firstSunsetH'))
-    expect(metricDelta.firstEarthsetH).toBe(nullable('firstEarthsetH'))
+  })
+
+  it.each(sites)('%s: metrics match a recomputation from the windows', (_, { windows, metrics }) => {
+    for (const m of Object.values(metrics)) {
+      const [a, b] = [m.landingMs, m.landingMs + m.durationH * H_MS]
+      const pct = (ws: Window[]) => (100 * onMs(ws, a, b)) / (b - a)
+      expect(m.sunlitPct).toBeCloseTo(pct(windows.sun), 3)
+      expect(m.earthPct).toBeCloseTo(pct(windows.earth), 3)
+      expect(m.bothPct).toBeCloseTo(pct(windows.both), 3)
+      expect(m.longestSunGapH).toBeCloseTo(longestGapMs(windows.sun, a, b) / H_MS, 3)
+      expect(m.longestEarthGapH).toBeCloseTo(longestGapMs(windows.earth, a, b) / H_MS, 3)
+      expect(m.firstSunsetH).toBe(firstSetH(windows.sun, a, b))
+      expect(m.firstEarthsetH).toBe(firstSetH(windows.earth, a, b))
+    }
+  })
+
+  it('the plateau shows the slip story: Earth never sets at baseline, sets after the slip', () => {
+    expect(fixtureOutputs['fixture-plateau'].metricDelta.firstEarthsetH.change).toBe('appeared')
+  })
+
+  it.each(sites)('%s: ctx carries the fixture ephemeris, a unit ENU frame and the 2 m mask', (id, { ctx, samples }) => {
+    expect(samples.ctx).toBe(ctx)
+    expect(ctx.eph).toBe(fixtureEphemeris)
+    for (const v of [ctx.frame.east, ctx.frame.north, ctx.frame.up]) expect(Math.hypot(...v)).toBeCloseTo(1, 9)
+    expect(ctx.horizonMaskDeg).toBe(fixtureSitesFile.sites.find((s) => s.id === id)?.horizonElevDeg['2'])
   })
 
   it('exercise sunsets, an Earthset and an Earthrise somewhere', () => {

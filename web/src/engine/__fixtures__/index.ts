@@ -8,6 +8,8 @@ import type {
   MetricDelta,
   MissionMetrics,
   PgdaLayersManifest,
+  SiteContext,
+  SiteFrame,
   SiteSamples,
   ValidationFile,
   VisibilityOpts,
@@ -66,6 +68,8 @@ export interface FixtureScenario {
 }
 
 export interface FixtureSiteOutputs {
+  /** fixtureEphemeris + the site's frame and 2 m mask (frame precomputed, since siteFrame is still a stub). */
+  ctx: SiteContext
   samples: SiteSamples
   windows: DetectedWindows
   metrics: { baseline: MissionMetrics; slipped: MissionMetrics }
@@ -73,10 +77,13 @@ export interface FixtureSiteOutputs {
   metricDelta: MetricDelta
 }
 
-type JsonSamples = { [K in keyof SiteSamples]: SiteSamples[K] extends Float64Array ? number[] : SiteSamples[K] }
+type JsonSamples = {
+  [K in Exclude<keyof SiteSamples, 'ctx'>]: SiteSamples[K] extends Float64Array ? number[] : SiteSamples[K]
+}
 
-function toSamples(s: JsonSamples): SiteSamples {
+function toSamples(s: JsonSamples, ctx: SiteContext): SiteSamples {
   return {
+    ctx,
     stepMin: s.stepMin,
     tUtcMs: Float64Array.from(s.tUtcMs),
     sunAzDeg: Float64Array.from(s.sunAzDeg),
@@ -89,9 +96,9 @@ function toSamples(s: JsonSamples): SiteSamples {
   }
 }
 
-const outputs = outputsJson as {
+const outputs = outputsJson as unknown as {
   scenario: FixtureScenario
-  sites: Record<string, Omit<FixtureSiteOutputs, 'samples'> & { samples: JsonSamples }>
+  sites: Record<string, Omit<FixtureSiteOutputs, 'samples' | 'ctx'> & { frame: SiteFrame; samples: JsonSamples }>
 }
 
 /** Baseline landing at the range start, 24 h mission, slipped by +12 h. */
@@ -99,7 +106,17 @@ export const fixtureScenario: FixtureScenario = outputs.scenario
 
 /** Keyed by site id, observer height 2 m, 10-min samples over the scenario range. */
 export const fixtureOutputs: Record<string, FixtureSiteOutputs> = Object.fromEntries(
-  Object.entries(outputs.sites).map(([id, o]) => [id, { ...o, samples: toSamples(o.samples) }]),
+  Object.entries(outputs.sites).map(([id, { frame, samples, ...rest }]) => {
+    const site = fixtureSitesFile.sites.find((s) => s.id === id)
+    if (!site) throw new Error(`outputs.json: unknown site ${id}`)
+    const ctx: SiteContext = {
+      eph: fixtureEphemeris,
+      frame,
+      horizonMaskDeg: site.horizonElevDeg[String(fixtureScenario.opts.observerHeightM)],
+      azStepDeg: fixtureSitesFile.azStepDeg,
+    }
+    return [id, { ...rest, ctx, samples: toSamples(samples, ctx) }]
+  }),
 )
 
 const toF32 = (xs: (number | null)[]) => Float32Array.from(xs, (x) => x ?? NaN)

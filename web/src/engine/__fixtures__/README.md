@@ -7,15 +7,15 @@ Import the typed versions from `src/engine/__fixtures__` (`index.ts`):
 | Export | What |
 |---|---|
 | `fixtureEphemeris` (+ manifest, raw bin) | 48 h, hourly (49 samples) from 2026-03-01T00:00Z. Sun ~1 AU, Earth ~383,000 km with libration |
-| `fixtureSitesFile` | 2 sites (`fixture-plateau` ≈ 84.8°S, `fixture-ridge` ≈ 89.5°S), 720-bin masks at 2 m and 10 m |
+| `fixtureSitesFile` | 2 sites (`fixture-plateau` ≈ 84.8°S, `fixture-ridge` 89.9°S, inside the fixture grid), 720-bin masks at 2 m and 10 m |
 | `fixtureGrid` (+ manifest, raw bins) | 8 × 8 cells at 2 km around the pole, 360 az bins; cell (ix 7, iy 7) is no-data (255) |
 | `fixturePgdaLayers`, `fixturePgdaPngUrls` | 8 × 8 grayscale PNGs (value = %) on the grid extent |
 | `fixtureValidation` | Horizons rows/summary and PGDA rows/summary, including one > 5 pp outlier with an explanation |
 | `fixtureScenario` | Baseline landing at range start, 24 h mission, slip +12 h, default `VisibilityOpts` |
-| `fixtureOutputs[siteId]` | `samples` (10 min), `windows`, `metrics.{baseline,slipped}`, `metricDelta` |
+| `fixtureOutputs[siteId]` | `ctx` (real `SiteContext`; frame precomputed), `samples` (10 min), `windows`, `metrics.{baseline,slipped}`, `metricDelta` |
 | `fixtureGridScores` | Grid scores over the 48 h range (NaN = no data) |
 
-What the outputs exercise: sunsets and sunrises at both sites; at the plateau Earth sets after the slip; at the ridge Earth rises after the slip; `firstEarthsetH` null; a no-data grid cell.
+What the outputs exercise: sunsets and sunrises at both sites; at the plateau Earth sets after the slip; at the ridge Earth rises after the slip; `firstEarthsetH` null at baseline, so its delta is `change: 'appeared'`; a no-data grid cell.
 
 ## Regenerate
 

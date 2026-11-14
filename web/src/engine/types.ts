@@ -209,6 +209,8 @@ export const DEFAULT_VISIBILITY_OPTS: Readonly<VisibilityOpts> = {
 
 /** Parallel arrays, one entry per sample time. */
 export interface SiteSamples {
+  /** The context the samples were taken from, so detectWindows can refine events between samples. */
+  ctx: SiteContext
   stepMin: number
   tUtcMs: Float64Array
   sunAzDeg: Float64Array
@@ -257,15 +259,28 @@ export interface MissionMetrics {
   meanSunFraction: number
 }
 
-/** `b − a` per metric (a = baseline, b = slipped). Null when either side is null. */
+/**
+ * How a "first event" metric changed from baseline (a) to slipped (b):
+ * `appeared` = a never happens, b does; `disappeared` = a happens, b never does;
+ * `shifted` = both happen at different times; `none` = equal, or neither happens.
+ */
+export type EventChange = 'none' | 'appeared' | 'disappeared' | 'shifted'
+
+export interface EventDelta {
+  /** `b − a` in hours; null unless both events happen. */
+  deltaH: number | null
+  change: EventChange
+}
+
+/** `b − a` per metric (a = baseline, b = slipped). */
 export interface MetricDelta {
   sunlitPct: number
   earthPct: number
   bothPct: number
   longestSunGapH: number
   longestEarthGapH: number
-  firstSunsetH: number | null
-  firstEarthsetH: number | null
+  firstSunsetH: EventDelta
+  firstEarthsetH: EventDelta
   meanSunFraction: number
 }
 

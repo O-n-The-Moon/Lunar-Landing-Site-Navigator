@@ -137,7 +137,7 @@ const SITE_DEFS = [
     id: 'fixture-ridge',
     name: 'Fixture Ridge (synthetic)',
     category: 'reference',
-    latDeg: -89.45,
+    latDeg: -89.9, // ~3 km from the pole: inside the 8 × 8 fixture grid
     lonDeg: -137.3,
     surfaceHeightM: 1980,
     slopeDeg: 11.5,
@@ -258,11 +258,20 @@ function missionMetrics(samples, wins, landingMs, durationH) {
     meanSunFraction: round(inMission.reduce((x, y) => x + y, 0) / inMission.length),
   }
 }
+function eventDelta(a, b) {
+  if (a === null || b === null) {
+    return { deltaH: null, change: a === b ? 'none' : a === null ? 'appeared' : 'disappeared' }
+  }
+  const deltaH = round(b - a, 4)
+  return { deltaH, change: deltaH === 0 ? 'none' : 'shifted' }
+}
 function diffMetrics(a, b) {
-  const d = (k) => (a[k] === null || b[k] === null ? null : round(b[k] - a[k], 4))
-  return Object.fromEntries(
-    ['sunlitPct', 'earthPct', 'bothPct', 'longestSunGapH', 'longestEarthGapH', 'firstSunsetH', 'firstEarthsetH', 'meanSunFraction'].map((k) => [k, d(k)]),
-  )
+  const d = (k) => round(b[k] - a[k], 4)
+  return {
+    ...Object.fromEntries(['sunlitPct', 'earthPct', 'bothPct', 'longestSunGapH', 'longestEarthGapH', 'meanSunFraction'].map((k) => [k, d(k)])),
+    firstSunsetH: eventDelta(a.firstSunsetH, b.firstSunsetH),
+    firstEarthsetH: eventDelta(a.firstEarthsetH, b.firstEarthsetH),
+  }
 }
 
 const SCENARIO = { startMs: START_MS, endMs: START_MS + HOURS * H_MS, baselineLandingMs: START_MS, slipH: 12, durationH: 24, opts: OPTS }
@@ -272,7 +281,9 @@ for (const site of sites) {
   const windows = detectWindows(samples)
   const baseline = missionMetrics(samples, windows, SCENARIO.baselineLandingMs, SCENARIO.durationH)
   const slipped = missionMetrics(samples, windows, SCENARIO.baselineLandingMs + SCENARIO.slipH * H_MS, SCENARIO.durationH)
-  outputs.sites[site.id] = { samples, windows, metrics: { baseline, slipped }, metricDelta: diffMetrics(baseline, slipped) }
+  const f = siteFrame(site.latDeg, site.lonDeg, site.surfaceHeightM, OPTS.observerHeightM)
+  const frame = { latDeg: site.latDeg, lonDeg: site.lonDeg, positionKm: f.pos, east: f.east, north: f.north, up: f.up }
+  outputs.sites[site.id] = { frame, samples, windows, metrics: { baseline, slipped }, metricDelta: diffMetrics(baseline, slipped) }
 }
 writeJson('outputs.json', outputs)
 

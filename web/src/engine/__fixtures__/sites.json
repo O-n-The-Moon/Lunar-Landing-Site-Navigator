@@ -1468,7 +1468,7 @@
       "id": "fixture-ridge",
       "name": "Fixture Ridge (synthetic)",
       "category": "reference",
-      "latDeg": -89.45,
+      "latDeg": -89.9,
       "lonDeg": -137.3,
       "surfaceHeightM": 1980,
       "slopeDeg": 11.5,
