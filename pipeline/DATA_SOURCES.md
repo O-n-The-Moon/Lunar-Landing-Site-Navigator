@@ -87,6 +87,11 @@ can read these layers as fractions; PNG resampling belongs to #25.
 
 ### Visibility definitions and unresolved Open Question 2
 
+Tracked in [follow-up issue #57](https://github.com/O-n-The-Moon/Lunar-Landing-Site-Navigator/issues/57),
+a prerequisite for PGDA validation #20. The issue owner authorized separating this
+scientific confirmation from T3's fetch/sampler deliverables. The uncertainty
+remains explicit; this scope clarification does not change validation criteria.
+
 The selected **labels** define the fraction of timesteps when **any part of the
 Sun/Earth disk** is visible. Product 69 describes hourly sampling over ~18.6 years
 and specifically cautions that any-Earth-disk visibility can be optimistic for
