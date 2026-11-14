@@ -22,9 +22,13 @@
     "shipping-and-launch": "off"
   },
   "permissions": {
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(gh pr merge:*)"
+    ],
     "deny": [
       "Skill(skill:agent-skills:shipping-and-launch)",
-      "Skill(skill:agent-skills:deprecation-and-migration)"   
+      "Skill(skill:agent-skills:deprecation-and-migration)"
     ]
   }
 }
