@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   fixtureEphemerisBin,
@@ -16,6 +16,7 @@ import {
   fixtureDataSource,
   useCoreDataState,
   useGrid,
+  usePgdaLayers,
   type DataSource,
 } from './data'
 
@@ -86,8 +87,18 @@ function CoreStatus() {
 }
 
 function GridStatus() {
-  const grid = useGrid()
-  return <p>grid {grid.status}</p>
+  const { state, retry } = useGrid()
+  return (
+    <p>
+      grid {state.status}
+      {state.status === 'error' && <button onClick={retry}>retry grid</button>}
+    </p>
+  )
+}
+
+function PgdaStatus() {
+  const { state } = usePgdaLayers()
+  return <p>pgda {state.status}</p>
 }
 
 describe('DataProvider', () => {
@@ -129,5 +140,49 @@ describe('DataProvider', () => {
     )
     await waitFor(() => expect(screen.getAllByText('grid ready')).toHaveLength(2))
     expect(source.loadGrid).toHaveBeenCalledTimes(1)
+  })
+
+  it('loads PGDA layers once for several consumers', async () => {
+    const fixtures = fixtureDataSource()
+    const source: DataSource = { ...fixtures, loadPgda: vi.fn(fixtures.loadPgda) }
+    render(
+      <DataProvider source={source}>
+        <PgdaStatus />
+        <PgdaStatus />
+      </DataProvider>,
+    )
+    await waitFor(() => expect(screen.getAllByText('pgda ready')).toHaveLength(2))
+    expect(source.loadPgda).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries a failed grid load on request', async () => {
+    const fixtures = fixtureDataSource()
+    const loadGrid = vi.fn<DataSource['loadGrid']>().mockRejectedValueOnce(new Error('grid.json: HTTP 503'))
+    loadGrid.mockImplementation(fixtures.loadGrid)
+    render(
+      <DataProvider source={{ ...fixtures, loadGrid }}>
+        <GridStatus />
+      </DataProvider>,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'retry grid' }))
+    expect(await screen.findByText('grid ready')).toBeInTheDocument()
+    expect(loadGrid).toHaveBeenCalledTimes(2)
+  })
+
+  it('loads again in a new provider that reuses the same source', async () => {
+    const source = fixtureDataSource()
+    const first = render(
+      <DataProvider source={source}>
+        <GridStatus />
+      </DataProvider>,
+    )
+    await screen.findByText('grid ready')
+    first.unmount()
+    render(
+      <DataProvider source={source}>
+        <GridStatus />
+      </DataProvider>,
+    )
+    expect(await screen.findByText('grid ready')).toBeInTheDocument()
   })
 })

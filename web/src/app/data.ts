@@ -175,40 +175,57 @@ export function defaultDataSources(): { source: DataSource; fallback?: DataSourc
 }
 
 // --- React binding -----------------------------------------------------------------
+// Two contexts: core data is stable after startup, while lazy loads update often (grid progress),
+// so progress updates must not re-render everything that only reads core data.
 
-interface DataContextValue {
+interface CoreContextValue {
   core: LoadState<CoreData>
   /** Kind of the source in use (the fallback once it has taken over). */
   kind: DataSource['kind']
   /** Why the fallback is in use, or null. */
   fallbackReason: string | null
+}
+
+interface LazyContextValue {
   grid: LoadState<Grid>
   pgda: LoadState<PgdaData>
   requestGrid: () => void
   requestPgda: () => void
 }
 
-const DataContext = createContext<DataContextValue | null>(null)
+/** A lazily loaded resource plus a retry for the error state. */
+export interface LazyResource<T> {
+  state: LoadState<T>
+  /** Starts the load again after an error; no-op while loading or once loaded. */
+  retry: () => void
+}
 
-type Lazy = 'grid' | 'pgda'
-/** Lazy loads already started, per source; outside React so concurrent requests in one commit dedupe. */
-const lazyStarted = new WeakMap<DataSource, Set<Lazy>>()
+const CoreContext = createContext<CoreContextValue | null>(null)
+const LazyContext = createContext<LazyContextValue | null>(null)
 
-/** Returns false if `what` was already started for `source`; otherwise marks it started. */
-function startOnce(source: DataSource, what: Lazy): boolean {
-  let started = lazyStarted.get(source)
-  if (!started) lazyStarted.set(source, (started = new Set()))
+type LazyKind = 'grid' | 'pgda'
+/**
+ * Lazy loads already started, keyed by a per-provider object. Kept outside React state so two
+ * consumers asking in the same commit start only one load.
+ */
+const lazyStarted = new WeakMap<object, Set<LazyKind>>()
+
+/** Returns false if `what` was already started for this provider; otherwise marks it started. */
+function startOnce(key: object, what: LazyKind): boolean {
+  let started = lazyStarted.get(key)
+  if (!started) lazyStarted.set(key, (started = new Set()))
   if (started.has(what)) return false
   started.add(what)
   return true
 }
-const allowRetry = (source: DataSource, what: Lazy) => lazyStarted.get(source)?.delete(what)
+const allowRetry = (key: object, what: LazyKind) => lazyStarted.get(key)?.delete(what)
 
 export function DataProvider({ source, fallback, children }: { source: DataSource; fallback?: DataSource; children: ReactNode }) {
   const [active, setActive] = useState<{ source: DataSource; fallbackReason: string | null }>({ source, fallbackReason: null })
   const [core, setCore] = useState<LoadState<CoreData>>({ status: 'loading', progress: null })
   const [grid, setGrid] = useState<LoadState<Grid>>({ status: 'idle' })
   const [pgda, setPgda] = useState<LoadState<PgdaData>>({ status: 'idle' })
+  const [lazyKey] = useState(() => ({}))
 
   useEffect(() => {
     let cancelled = false
@@ -241,67 +258,86 @@ export function DataProvider({ source, fallback, children }: { source: DataSourc
   }, [source, fallback])
 
   const requestGrid = useCallback(() => {
-    if (!startOnce(active.source, 'grid')) return
+    if (!startOnce(lazyKey, 'grid')) return
     setGrid({ status: 'loading', progress: 0 })
-    active.source
-      .loadGrid((progress) => setGrid({ status: 'loading', progress }))
-      .then(
-        (data) => setGrid({ status: 'ready', data }),
-        (e) => {
-          allowRetry(active.source, 'grid') // a later request retries
-          setGrid({ status: 'error', message: errorMessage(e) })
-        },
-      )
-  }, [active.source])
+    // The body arrives in many small chunks; only re-render when the whole percent changes.
+    let lastPct: number | null = 0
+    const onProgress = (progress: number | null) => {
+      const pct = progress === null ? null : Math.round(progress * 100)
+      if (pct === lastPct) return
+      lastPct = pct
+      setGrid({ status: 'loading', progress })
+    }
+    active.source.loadGrid(onProgress).then(
+      (data) => setGrid({ status: 'ready', data }),
+      (e) => {
+        allowRetry(lazyKey, 'grid')
+        setGrid({ status: 'error', message: errorMessage(e) })
+      },
+    )
+  }, [active.source, lazyKey])
 
   const requestPgda = useCallback(() => {
-    if (!startOnce(active.source, 'pgda')) return
+    if (!startOnce(lazyKey, 'pgda')) return
     setPgda({ status: 'loading', progress: null })
     active.source.loadPgda().then(
       (data) => setPgda({ status: 'ready', data }),
       (e) => {
-        allowRetry(active.source, 'pgda')
+        allowRetry(lazyKey, 'pgda')
         setPgda({ status: 'error', message: errorMessage(e) })
       },
     )
-  }, [active.source])
+  }, [active.source, lazyKey])
 
-  const value = useMemo<DataContextValue>(
-    () => ({ core, kind: active.source.kind, fallbackReason: active.fallbackReason, grid, pgda, requestGrid, requestPgda }),
-    [core, active, grid, pgda, requestGrid, requestPgda],
+  const coreValue = useMemo<CoreContextValue>(
+    () => ({ core, kind: active.source.kind, fallbackReason: active.fallbackReason }),
+    [core, active],
   )
-  return createElement(DataContext.Provider, { value }, children)
+  const lazyValue = useMemo<LazyContextValue>(
+    () => ({ grid, pgda, requestGrid, requestPgda }),
+    [grid, pgda, requestGrid, requestPgda],
+  )
+  return createElement(
+    CoreContext.Provider,
+    { value: coreValue },
+    createElement(LazyContext.Provider, { value: lazyValue }, children),
+  )
 }
 
-function useDataContext(): DataContextValue {
-  const ctx = useContext(DataContext)
+function useCoreContext(): CoreContextValue {
+  const ctx = useContext(CoreContext)
+  if (!ctx) throw new Error('data hooks must be used inside <DataProvider>')
+  return ctx
+}
+
+function useLazyContext(): LazyContextValue {
+  const ctx = useContext(LazyContext)
   if (!ctx) throw new Error('data hooks must be used inside <DataProvider>')
   return ctx
 }
 
 /** Startup data status, plus which source is in use. */
-export function useCoreDataState(): Pick<DataContextValue, 'core' | 'kind' | 'fallbackReason'> {
-  const { core, kind, fallbackReason } = useDataContext()
-  return { core, kind, fallbackReason }
+export function useCoreDataState(): CoreContextValue {
+  return useCoreContext()
 }
 
 /** Core data; only call below the point where `useCoreDataState().core` is ready (the App gates this). */
 export function useCoreData(): CoreData {
-  const { core } = useDataContext()
+  const { core } = useCoreContext()
   if (core.status !== 'ready') throw new Error('useCoreData called before core data loaded')
   return core.data
 }
 
 /** The horizon grid; starts loading on first use. */
-export function useGrid(): LoadState<Grid> {
-  const { grid, requestGrid } = useDataContext()
+export function useGrid(): LazyResource<Grid> {
+  const { grid, requestGrid } = useLazyContext()
   useEffect(requestGrid, [requestGrid])
-  return grid
+  return { state: grid, retry: requestGrid }
 }
 
 /** PGDA v0 map layers; start loading on first use. */
-export function usePgdaLayers(): LoadState<PgdaData> {
-  const { pgda, requestPgda } = useDataContext()
+export function usePgdaLayers(): LazyResource<PgdaData> {
+  const { pgda, requestPgda } = useLazyContext()
   useEffect(requestPgda, [requestPgda])
-  return pgda
+  return { state: pgda, retry: requestPgda }
 }

@@ -3,7 +3,7 @@
 import { useGrid } from '../data'
 
 export function MapView() {
-  const grid = useGrid()
+  const { state: grid, retry } = useGrid()
   return (
     <section className="placeholder" aria-label="Opportunity map">
       <h3>Opportunity map</h3>
@@ -14,6 +14,11 @@ export function MapView() {
         {grid.status === 'ready' && `Horizon grid loaded: ${grid.data.manifest.nx} × ${grid.data.manifest.ny} cells`}
         {grid.status === 'error' && `Could not load the horizon grid: ${grid.message}`}
       </p>
+      {grid.status === 'error' && (
+        <button type="button" onClick={retry}>
+          Retry
+        </button>
+      )}
     </section>
   )
 }
