@@ -40,6 +40,7 @@ cd web && npm ci && npm run dev | npm test | npm run lint | npm run build
 - **Stay inside the issue's "Files owned by this issue" list.** Touching others' files → say so in the PR.
 - **Data contract** (`SPEC.md` → Data Contract) changes need team agreement first. Don't change it inside a feature PR.
 - New ideas → `SPEC.md` "Out of Scope (Deferred)". Don't build features that aren't in the spec or an issue.
+- **Agents:** commit freely on the issue branch (small, frequent commits). **Never `git push` or `gh pr merge` unless the user explicitly says so in this session.** Opening a PR (`gh pr create`) for an already-pushed branch is fine. (Claude Code also asks for confirmation via `.claude/settings.json`.)
 - See `CONTRIBUTING.md`.
 
 ## Session handoffs
