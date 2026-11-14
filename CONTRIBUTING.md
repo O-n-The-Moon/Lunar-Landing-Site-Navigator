@@ -29,7 +29,7 @@ Long agent sessions degrade. When yours hits **~40–50% context** (check with `
 - **Where:** your own folder, `handoffs/<github-handle>/<YYYY-MM-DD-HHMM>-<issue#>-<slug>.md` (no conflicts)
 - **Precise:** files and lines, exact commands and results, decisions and why, what failed, ordered next steps. The next session must not need to guess.
 - **Start the next session with:** "Read `handoffs/<handle>/<file>` and continue."
-- **Organize:** commit handoffs on your issue branch; when the issue closes, move them to `handoffs/<github-handle>/archive/`.
+- **Local only:** `handoffs/` is gitignored (except the template), so handoffs never get pushed. Create your folder yourself (`mkdir -p handoffs/<github-handle>/archive`); when an issue closes, move its handoffs to `archive/`. If a teammate must take over your issue, paste your latest handoff into the issue as a comment.
 
 ## Commit messages
 Short, imperative, reference the issue: `Add numba horizon ray-march (#8)`.

@@ -9,6 +9,10 @@
 .claude/settings.local.json
 CLAUDE.local.md
 
+# AI session handoffs: local only (only the template is tracked)
+handoffs/*
+!handoffs/TEMPLATE.md
+
 # Dependencies
 node_modules/
 .venv/
