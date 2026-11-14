@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "frame": "MOON_ME",
+  "abcorr": "LT+S",
+  "observer": "MOON",
+  "startUtc": "2026-03-01T00:00:00Z",
+  "stepS": 3600,
+  "count": 49,
+  "bodies": [
+    "sun",
+    "earth"
+  ],
+  "units": "km",
+  "dtype": "float32-le",
+  "layout": "[t][body][xyz]",
+  "kernels": [
+    "synthetic-fixture"
+  ]
+}

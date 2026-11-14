@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "source": "synthetic test fixture (stands in for PGDA product 69)",
+  "resolutionM": 2000,
+  "observerHeightM": null,
+  "projection": "polar-stereographic-south",
+  "originKm": [
+    -8,
+    -8
+  ],
+  "cellKm": 2,
+  "nx": 8,
+  "ny": 8,
+  "encoding": "8-bit grayscale, value = percent; top PNG row = highest y",
+  "layers": {
+    "sun": "pgda-sun.png",
+    "earth": "pgda-earth.png"
+  }
+}

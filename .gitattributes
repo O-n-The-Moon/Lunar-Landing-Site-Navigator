@@ -1,0 +1,3 @@
+# Data-contract binaries: never apply line-ending conversion or text diffs.
+*.bin binary
+*.png binary
