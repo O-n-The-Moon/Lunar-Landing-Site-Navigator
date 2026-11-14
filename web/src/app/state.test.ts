@@ -4,12 +4,14 @@ import {
   DEFAULT_DURATION_H,
   DEFAULT_LANDING_MS,
   HOUR_MS,
+  MAP_LAYERS,
   MAX_SITES,
   SLIP_RANGE_H,
   createInitialState,
   missionEndMs,
   scenarioReducer,
   slippedLandingMs,
+  type MapLayer,
   type ScenarioAction,
   type ScenarioState,
 } from './state'
@@ -151,6 +153,8 @@ describe('options', () => {
 
   it('sets the map layer', () => {
     expect(run(empty, { type: 'setMapLayer', layer: 'score-both' }).mapLayer).toBe('score-both')
+    expect(run(empty, { type: 'setMapLayer', layer: 'nope' as MapLayer })).toBe(empty)
+    expect(MAP_LAYERS).toEqual(['pgda-sun', 'pgda-earth', 'score-sun', 'score-earth', 'score-both'])
   })
 })
 
@@ -178,6 +182,35 @@ describe('replace', () => {
     expect(next.durationH).toBe(24)
     expect(next.slipH).toBe(SLIP_RANGE_H.max)
     expect(next.cursorMs).toBe(slippedLandingMs(next))
+  })
+
+  it('drops malformed sites and fields from untrusted input (e.g. a shared URL) instead of throwing', () => {
+    const untrusted = {
+      ...empty,
+      sites: [
+        { kind: 'custom', id: 'x', latDeg: -85, lonDeg: 30 }, // no cell
+        { kind: 'custom', id: 'x', latDeg: -85, lonDeg: 30, cell: { ix: 1.5, iy: 2, snapDistKm: 0.1 } },
+        { kind: 'custom', id: 'x', latDeg: -85, lonDeg: 30, cell: { ix: -1, iy: 2, snapDistKm: 0.1 } },
+        { kind: 'custom', id: 'x', latDeg: NaN, lonDeg: 30, cell: cell(1, 2) },
+        { kind: 'weird', id: 'w' },
+        { kind: 'curated', id: '' },
+        { kind: 'curated', id: 7 },
+        null,
+        { kind: 'custom', id: 'ignored', latDeg: -85, lonDeg: 30, cell: cell(1, 2) },
+      ],
+      mapLayer: 'not-a-layer',
+      observerHeightM: 5,
+    } as unknown as ScenarioState
+    const next = run(empty, { type: 'replace', state: untrusted })
+    expect(next.sites).toEqual([{ kind: 'custom', id: 'custom-1-2', latDeg: -85, lonDeg: 30, cell: cell(1, 2) }])
+    expect(next.mapLayer).toBe(empty.mapLayer)
+    expect(next.observerHeightM).toBe(empty.observerHeightM)
+  })
+
+  it('survives a non-array sites field', () => {
+    const next = run(empty, { type: 'replace', state: { ...empty, sites: 'a,b' } as unknown as ScenarioState })
+    expect(next.sites).toEqual([])
+    expect(next.focusedSiteId).toBeNull()
   })
 
   it('keeps a valid focused site that is not first', () => {
