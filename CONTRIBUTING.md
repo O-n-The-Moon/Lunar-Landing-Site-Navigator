@@ -23,6 +23,14 @@
 
 Using an AI coding agent? It reads [`AGENTS.md`](AGENTS.md) / [`CLAUDE.md`](CLAUDE.md). Keep those short and up to date when conventions change.
 
+## AI session handoffs (~40–50% context)
+Long agent sessions degrade. When yours hits **~40–50% context** (check with `/context` in Claude Code), have the agent write a handoff and start a fresh session.
+- **Template:** [`handoffs/TEMPLATE.md`](handoffs/TEMPLATE.md)
+- **Where:** your own folder, `handoffs/<github-handle>/<YYYY-MM-DD-HHMM>-<issue#>-<slug>.md` (no conflicts)
+- **Precise:** files and lines, exact commands and results, decisions and why, what failed, ordered next steps. The next session must not need to guess.
+- **Start the next session with:** "Read `handoffs/<handle>/<file>` and continue."
+- **Organize:** commit handoffs on your issue branch; when the issue closes, move them to `handoffs/<github-handle>/archive/`.
+
 ## Commit messages
 Short, imperative, reference the issue: `Add numba horizon ray-march (#8)`.
 

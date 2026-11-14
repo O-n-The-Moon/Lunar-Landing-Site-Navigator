@@ -42,6 +42,11 @@ cd web && npm ci && npm run dev | npm test | npm run lint | npm run build
 - New ideas → `SPEC.md` "Out of Scope (Deferred)". Don't build features that aren't in the spec or an issue.
 - See `CONTRIBUTING.md`.
 
+## Session handoffs
+- When the session reaches **~40–50% context** (or before stopping mid-task), **stop and write a handoff** from `handoffs/TEMPLATE.md` to `handoffs/<github-handle>/<YYYY-MM-DD-HHMM>-<issue#>-<slug>.md`. Then start a fresh session.
+- Be precise: exact files/lines, commands, verification results, decisions + reasons, failed attempts, ordered next steps. The next session must be able to continue from the file alone.
+- A new session on an issue first reads the **newest** handoff for that issue. Commit handoffs on your issue branch. When the issue closes, move its handoffs to `handoffs/<github-handle>/archive/`. Only write in your own folder.
+
 ## Testing
 - Every exported engine function has a Vitest test. TS must match `golden.json` (az/el ≤ 1e-3°).
 - Pipeline: pytest with synthetic DEMs (flat sphere → dip angle, cone → known elevation).
