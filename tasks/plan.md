@@ -110,4 +110,4 @@ Source spec: [`SPEC.md`](../SPEC.md) (+ `SPEC-data-pipeline.md`, `SPEC-engine.md
 
 ## Open Questions
 - Project board: add all issues to [Project #1](https://github.com/orgs/O-n-The-Moon/projects/1) (needs `gh auth refresh -s project`).
-- Branch protection on `main` (require PR + 1 approval)? Not enabled yet.
+- Branch protection: enabled (PR required, 0 approvals, squash-only). Make `ci` a required check via #46.
