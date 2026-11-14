@@ -19,7 +19,6 @@
     "deprecation-and-migration": "off",
     "documentation-and-adrs": "off",
     "doubt-driven-development": "off",
-    "frontend-ui-engineering": "off",
     "observability-and-instrumentation": "off",
     "performance-optimization": "off",
     "security-and-hardening": "off",

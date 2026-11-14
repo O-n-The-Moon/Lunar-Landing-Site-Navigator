@@ -39,6 +39,8 @@ Source spec: [`SPEC.md`](../SPEC.md) (+ `SPEC-data-pipeline.md`, `SPEC-engine.md
 | #5 | Curated site catalog | P0 | — |
 | #6 | Ephemeris + Python geometry | P0-crit | #4 |
 | #7 | App shell, full state, placeholders | P0-crit | #3 |
+| #46 | Make `ci` a required check on `main` | P0 | #2 |
+| #47 | Agent skill guide in CLAUDE.md | P0 | — |
 | **#41** | **Checkpoint 0** | | all above |
 
 ### Phase 1: One real site end-to-end (h3–16)
