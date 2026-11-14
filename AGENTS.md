@@ -36,7 +36,7 @@ cd web && npm ci && npm run dev | npm test | npm run lint | npm run build
 - Visual components are **prop-driven** and testable with fixtures.
 
 ## Workflow (enforced)
-- Every change: **GitHub issue → branch `<issue#>-<short-desc>` → PR with `Closes #N` → 1 approval → squash merge.** `main` is protected; never push to it directly.
+- Every change: **GitHub issue → branch `<issue#>-<short-desc>` → PR with `Closes #N` → checks pass → squash merge** (no approval required). `main` is protected; never push to it directly.
 - **Stay inside the issue's "Files owned by this issue" list.** Touching others' files → say so in the PR.
 - **Data contract** (`SPEC.md` → Data Contract) changes need team agreement first. Don't change it inside a feature PR.
 - New ideas → `SPEC.md` "Out of Scope (Deferred)". Don't build features that aren't in the spec or an issue.
