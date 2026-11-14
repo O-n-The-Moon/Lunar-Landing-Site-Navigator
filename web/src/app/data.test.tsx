@@ -1,5 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   fixtureEphemerisBin,
   fixtureEphemerisManifest,
@@ -18,6 +18,8 @@ import {
   useGrid,
   type DataSource,
 } from './data'
+
+afterEach(cleanup)
 
 const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } })
 const bin = (b: ArrayBuffer) => new Response(b, { headers: { 'content-type': 'application/octet-stream' } })
