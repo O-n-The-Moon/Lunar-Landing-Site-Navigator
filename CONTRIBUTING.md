@@ -19,7 +19,7 @@
    cd pipeline && uv run pytest && uv run ruff check . && uv run ruff format --check .
    cd web && npm test && npm run lint && npm run build
    ```
-8. **Review:** one teammate approves (a quick look is fine at a hackathon). **Squash merge only.** Merge commits and rebase merges are disabled in repo settings, and `main` is protected (PR + 1 approval required, no direct or force pushes). Branches auto-delete after merge.
+8. **Review:** approvals are **not required** (hackathon speed). You may squash-merge your own PR once checks pass, but ask a teammate to look at anything touching the data contract or shared files. **Squash merge only.** Merge commits and rebase merges are disabled in repo settings, and `main` is protected (PR required, no direct or force pushes). Branches auto-delete after merge.
 
 Using an AI coding agent? It reads [`AGENTS.md`](AGENTS.md) / [`CLAUDE.md`](CLAUDE.md). Keep those short and up to date when conventions change.
 

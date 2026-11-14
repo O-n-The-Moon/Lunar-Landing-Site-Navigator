@@ -13,24 +13,18 @@
   },
   "skillOverrides": {
     "api-and-interface-design": "off",
-    "ci-cd-and-automation": "off",
-    "code-review-and-quality": "off",
     "constraint-driven-development": "off",
     "deprecation-and-migration": "off",
     "documentation-and-adrs": "off",
     "doubt-driven-development": "off",
-    "frontend-ui-engineering": "off",
     "observability-and-instrumentation": "off",
-    "performance-optimization": "off",
     "security-and-hardening": "off",
-    "shipping-and-launch": "off",
-    "source-driven-development": "off"
+    "shipping-and-launch": "off"
   },
   "permissions": {
     "deny": [
       "Skill(skill:agent-skills:shipping-and-launch)",
-      "Skill(skill:agent-skills:deprecation-and-migration)",
-      "Skill(skill:agent-skills:ci-cd-and-automation)"
+      "Skill(skill:agent-skills:deprecation-and-migration)"   
     ]
   }
 }
