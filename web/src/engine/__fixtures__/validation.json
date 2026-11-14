@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "horizons": {
+    "rows": [
+      {
+        "siteId": "fixture-plateau",
+        "tUtcMs": 1772344800000,
+        "body": "sun",
+        "oursAzDeg": 76.9111,
+        "oursElevDeg": 2.3859,
+        "horizonsAzDeg": 76.9131,
+        "horizonsElevDeg": 2.3849,
+        "azErrDeg": 0.002,
+        "elevErrDeg": 0.001
+      },
+      {
+        "siteId": "fixture-plateau",
+        "tUtcMs": 1772344800000,
+        "body": "earth",
+        "oursAzDeg": 333.3506,
+        "oursElevDeg": 4.4495,
+        "horizonsAzDeg": 333.3566,
+        "horizonsElevDeg": 4.4455,
+        "azErrDeg": 0.006,
+        "elevErrDeg": 0.004
+      },
+      {
+        "siteId": "fixture-plateau",
+        "tUtcMs": 1772431200000,
+        "body": "sun",
+        "oursAzDeg": 64.7514,
+        "oursElevDeg": 3.4255,
+        "horizonsAzDeg": 64.7544,
+        "horizonsElevDeg": 3.4225,
+        "azErrDeg": 0.003,
+        "elevErrDeg": 0.003
+      },
+      {
+        "siteId": "fixture-plateau",
+        "tUtcMs": 1772431200000,
+        "body": "earth",
+        "oursAzDeg": 334.4449,
+        "oursElevDeg": 5.9582,
+        "horizonsAzDeg": 334.4519,
+        "horizonsElevDeg": 5.9522,
+        "azErrDeg": 0.007,
+        "elevErrDeg": 0.006
+      },
+      {
+        "siteId": "fixture-ridge",
+        "tUtcMs": 1772344800000,
+        "body": "sun",
+        "oursAzDeg": 243.243,
+        "oursElevDeg": 0.9507,
+        "horizonsAzDeg": 243.248,
+        "horizonsElevDeg": 0.9497,
+        "azErrDeg": 0.005,
+        "elevErrDeg": 0.001
+      },
+      {
+        "siteId": "fixture-ridge",
+        "tUtcMs": 1772344800000,
+        "body": "earth",
+        "oursAzDeg": 139.9466,
+        "oursElevDeg": -0.6314,
+        "horizonsAzDeg": 139.9556,
+        "horizonsElevDeg": -0.6354,
+        "azErrDeg": 0.009,
+        "elevErrDeg": 0.004
+      },
+      {
+        "siteId": "fixture-ridge",
+        "tUtcMs": 1772431200000,
+        "body": "sun",
+        "oursAzDeg": 231.0536,
+        "oursElevDeg": 0.8484,
+        "horizonsAzDeg": 231.0596,
+        "horizonsElevDeg": 0.8454,
+        "azErrDeg": 0.006,
+        "elevErrDeg": 0.003
+      },
+      {
+        "siteId": "fixture-ridge",
+        "tUtcMs": 1772431200000,
+        "body": "earth",
+        "oursAzDeg": 141.1042,
+        "oursElevDeg": 0.8249,
+        "horizonsAzDeg": 141.1142,
+        "horizonsElevDeg": 0.8189,
+        "azErrDeg": 0.01,
+        "elevErrDeg": 0.006
+      }
+    ],
+    "summary": {
+      "n": 8,
+      "maxAzErrDeg": 0.01,
+      "maxElevErrDeg": 0.006,
+      "meanAzErrDeg": 0.006,
+      "meanElevErrDeg": 0.0035
+    }
+  },
+  "pgda": {
+    "rows": [
+      {
+        "siteId": "fixture-plateau",
+        "oursSunPct": 60.4,
+        "pgdaSunPct": 58,
+        "sunDiffPp": 2.4,
+        "oursEarthPct": 62.9,
+        "pgdaEarthPct": 64,
+        "earthDiffPp": -1.1,
+        "explanation": null
+      },
+      {
+        "siteId": "fixture-ridge",
+        "oursSunPct": 74.2,
+        "pgdaSunPct": 81,
+        "sunDiffPp": -6.8,
+        "oursEarthPct": 43.5,
+        "pgdaEarthPct": 42,
+        "earthDiffPp": 1.5,
+        "explanation": "Synthetic outlier: ridge-top site where a 2 km cell under-resolves the local horizon."
+      }
+    ],
+    "summary": {
+      "thresholdPp": 5,
+      "sitesWithinThreshold": 1,
+      "sitesTotal": 2,
+      "maxAbsSunDiffPp": 6.8,
+      "maxAbsEarthDiffPp": 1.5
+    }
+  }
+}
