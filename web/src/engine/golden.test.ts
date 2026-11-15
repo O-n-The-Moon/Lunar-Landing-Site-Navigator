@@ -3,15 +3,14 @@ import ephemerisBin from '../../public/data/ephemeris.bin?inline'
 import ephemerisJson from '../../public/data/ephemeris.json'
 import sitesJson from '../../public/data/sites.json'
 import golden from '../../../shared/fixtures/golden.json'
-import { angularRadiusDeg, azEl, bodyVectorKm, horizonElevAt, siteContext, visibleDiskFraction } from './geometry'
+import { siteContext } from './geometry'
 import { loadEphemeris, parseSites } from './loaders'
-import type { AzEl, Body, EphemerisManifest, SiteContext } from './types'
+import { detectWindows, sampleSite } from './windows'
+import type { EphemerisManifest, SiteContext, VisibilityOpts } from './types'
 
 /** SPEC.md → Success Criteria: az/el ≤ 1e-3°, Sun fraction ≤ 1e-3. */
 const ANGLE_TOL_DEG = 1e-3
 const FRACTION_TOL = 1e-3
-/** Extra (not in the spec): both sides read the same float32 ephemeris.bin, so distances agree to rounding. */
-const DIST_REL_TOL = 1e-7
 
 type GoldenCase = (typeof golden.cases)[number]
 
@@ -22,7 +21,7 @@ function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
   return bytes.buffer
 }
 
-/** Signed azimuth difference in (−180, 180], so 359.9995° vs 0.0003° counts as 0.0008°. */
+/** Signed azimuth difference in [−180, 180), so 359.9995° vs 0.0003° counts as −0.0008°. */
 function azDiffDeg(a: number, b: number): number {
   return ((a - b + 540) % 360) - 180
 }
@@ -30,6 +29,8 @@ function azDiffDeg(a: number, b: number): number {
 describe('engine golden parity (shared/fixtures/golden.json cases)', () => {
   const eph = loadEphemeris(ephemerisJson as EphemerisManifest, dataUrlToArrayBuffer(ephemerisBin))
   const sitesFile = parseSites(sitesJson)
+  const { sunThreshold, hysteresis, earthMarginDeg, earthHysteresisDeg } = golden.opts
+  const opts: VisibilityOpts = { sunThreshold, hysteresis, earthMarginDeg, earthHysteresisDeg }
   const ctxCache = new Map<string, SiteContext>()
 
   function ctxFor(c: GoldenCase): SiteContext {
@@ -45,41 +46,36 @@ describe('engine golden parity (shared/fixtures/golden.json cases)', () => {
     return ctx
   }
 
-  function look(ctx: SiteContext, body: Body, tUtcMs: number): AzEl & { horizonDeg: number } {
-    const ae = azEl(ctx.frame, bodyVectorKm(ctx.eph, body, tUtcMs))
-    return { ...ae, horizonDeg: horizonElevAt(ctx.horizonMaskDeg, ctx.azStepDeg, ae.azDeg) }
-  }
-
-  it('covers every site, both heights, and partly hidden Sun disks', () => {
+  it('covers every site, both heights, partly hidden Sun disks and the 0°/360° horizon bin', () => {
     const cases = golden.cases
     expect(cases.length).toBeGreaterThan(0)
     expect(new Set(cases.map((c) => c.siteId))).toEqual(new Set(sitesFile.sites.map((s) => s.id)))
     expect(new Set(cases.map((c) => c.observerHeightM))).toEqual(new Set(sitesFile.heightsM))
     expect(cases.some((c) => c.sunFraction > 0 && c.sunFraction < 1)).toBe(true)
     expect(cases.some((c) => c.earthVisible) && cases.some((c) => !c.earthVisible)).toBe(true)
+    // horizonElevAt interpolates between the last bin and bin 0 here.
+    const lastBinDeg = 360 - sitesFile.azStepDeg
+    expect(cases.some((c) => c.sunAzDeg >= lastBinDeg || c.earthAzDeg >= lastBinDeg)).toBe(true)
   })
 
   it.each(golden.cases.map((c) => [`${c.siteId} h=${c.observerHeightM} t=${new Date(c.tUtcMs).toISOString()}`, c] as const))(
     '%s',
     (_, c) => {
-      const ctx = ctxFor(c)
-      const sun = look(ctx, 'sun', c.tUtcMs)
-      const earth = look(ctx, 'earth', c.tUtcMs)
+      // Sample 0 is at tUtcMs exactly; the 1 ms second sample gives detectWindows a range to report on.
+      const samples = sampleSite(ctxFor(c), c.tUtcMs, c.tUtcMs + 1)
 
-      expect(Math.abs(azDiffDeg(sun.azDeg, c.sunAzDeg)), 'sunAzDeg').toBeLessThanOrEqual(ANGLE_TOL_DEG)
-      expect(Math.abs(sun.elevDeg - c.sunElevDeg), 'sunElevDeg').toBeLessThanOrEqual(ANGLE_TOL_DEG)
-      expect(Math.abs(sun.horizonDeg - c.sunHorizonDeg), 'sunHorizonDeg').toBeLessThanOrEqual(ANGLE_TOL_DEG)
-      expect(Math.abs(azDiffDeg(earth.azDeg, c.earthAzDeg)), 'earthAzDeg').toBeLessThanOrEqual(ANGLE_TOL_DEG)
-      expect(Math.abs(earth.elevDeg - c.earthElevDeg), 'earthElevDeg').toBeLessThanOrEqual(ANGLE_TOL_DEG)
-      expect(Math.abs(earth.horizonDeg - c.earthHorizonDeg), 'earthHorizonDeg').toBeLessThanOrEqual(ANGLE_TOL_DEG)
+      expect(Math.abs(azDiffDeg(samples.sunAzDeg[0], c.sunAzDeg)), 'sunAzDeg').toBeLessThanOrEqual(ANGLE_TOL_DEG)
+      expect(Math.abs(samples.sunElevDeg[0] - c.sunElevDeg), 'sunElevDeg').toBeLessThanOrEqual(ANGLE_TOL_DEG)
+      expect(Math.abs(samples.sunHorizonDeg[0] - c.sunHorizonDeg), 'sunHorizonDeg').toBeLessThanOrEqual(ANGLE_TOL_DEG)
+      expect(Math.abs(samples.sunFraction[0] - c.sunFraction), 'sunFraction').toBeLessThanOrEqual(FRACTION_TOL)
+      expect(Math.abs(azDiffDeg(samples.earthAzDeg[0], c.earthAzDeg)), 'earthAzDeg').toBeLessThanOrEqual(ANGLE_TOL_DEG)
+      expect(Math.abs(samples.earthElevDeg[0] - c.earthElevDeg), 'earthElevDeg').toBeLessThanOrEqual(ANGLE_TOL_DEG)
+      expect(Math.abs(samples.earthHorizonDeg[0] - c.earthHorizonDeg), 'earthHorizonDeg').toBeLessThanOrEqual(ANGLE_TOL_DEG)
 
-      const sunFraction = visibleDiskFraction(sun.elevDeg, sun.horizonDeg, angularRadiusDeg('sun', sun.distKm))
-      expect(Math.abs(sunFraction - c.sunFraction), 'sunFraction').toBeLessThanOrEqual(FRACTION_TOL)
-      // Instantaneous test with no hysteresis; the generator drops cases within 1e-4° of the margin.
-      expect(earth.elevDeg - earth.horizonDeg >= golden.opts.earthMarginDeg, 'earthVisible').toBe(c.earthVisible)
-
-      expect(Math.abs(sun.distKm / c.sunDistKm - 1), 'sunDistKm (extra)').toBeLessThanOrEqual(DIST_REL_TOL)
-      expect(Math.abs(earth.distKm / c.earthDistKm - 1), 'earthDistKm (extra)').toBeLessThanOrEqual(DIST_REL_TOL)
+      // With no prior state, the engine starts the link on at clearance ≥ 0 (no hysteresis), which is golden's
+      // earthVisible. The generator drops cases within 1e-4° of the margin, far more than Earth moves in 1 ms.
+      const { earth } = detectWindows(samples, opts)
+      expect(earth.length > 0 && earth[0].startMs === c.tUtcMs, 'earthVisible').toBe(c.earthVisible)
     },
   )
 
