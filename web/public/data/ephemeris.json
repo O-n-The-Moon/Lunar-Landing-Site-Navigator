@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "frame": "MOON_ME",
+  "abcorr": "LT+S",
+  "observer": "MOON",
+  "startUtc": "2026-01-01T00:00:00Z",
+  "stepS": 3600,
+  "count": 61368,
+  "bodies": [
+    "sun",
+    "earth"
+  ],
+  "units": "km",
+  "dtype": "float32-le",
+  "layout": "[t][body][xyz]",
+  "kernels": [
+    "naif0012.tls",
+    "de440s.bsp",
+    "moon_pa_de440_200625.bpc",
+    "moon_de440_250416.tf",
+    "pck00011.tpc"
+  ]
+}

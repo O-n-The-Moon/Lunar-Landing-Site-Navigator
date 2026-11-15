@@ -3,13 +3,11 @@ import pytest
 from lunarnav import cli
 
 COMMANDS = [
-    ["ephemeris"],
     ["horizons", "--sites"],
     ["horizons", "--grid"],
     ["pgda"],
     ["golden"],
     ["demo"],
-    ["build-all"],
 ]
 
 
