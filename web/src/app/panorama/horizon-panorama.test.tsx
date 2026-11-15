@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { angularRadiusDeg, horizonElevAt, type Window } from '../../engine'
 import { fixtureOutputs } from '../../engine/__fixtures__'
@@ -13,6 +13,7 @@ import {
   type PanoramaBody,
 } from './horizon-panorama'
 import { renderedRidge, renderedRidgeYAt } from './test-helpers'
+import { missionTracks, type MissionTracks, type TrackPoint } from './tracks'
 
 afterEach(cleanup)
 
@@ -229,5 +230,228 @@ describe('HorizonPanorama', () => {
     const off = screen.getByText(/Earth below −5°/)
     expect(off.getAttribute('text-anchor')).toBe('start')
     expect(Number(off.getAttribute('x'))).toBeGreaterThanOrEqual(0)
+  })
+})
+
+describe('HorizonPanorama re-centering', () => {
+  const plotW = azToX(360)
+  const renderCentered = (centerAzDeg: number, sun: Partial<PanoramaBody> = {}) =>
+    render(
+      <HorizonPanorama
+        siteName="Fixture plateau"
+        horizonMaskDeg={ctx.horizonMaskDeg}
+        azStepDeg={ctx.azStepDeg}
+        observerHeightM={ctx.observerHeightM}
+        sun={{ ...bodyAt(0, 'sun'), ...sun }}
+        earth={bodyAt(0, 'earth')}
+        centerAzDeg={centerAzDeg}
+      />,
+    )
+
+  it('draws the body at the center azimuth in the middle of the plot', () => {
+    renderCentered(37.3, { azDeg: 37.3 })
+    expect(disk('sun').cx).toBeCloseTo(plotW / 2, 9)
+    cleanup()
+    renderCentered(300, { azDeg: 37.3 }) // left edge 120°: 37.3° is 277.3° to its right
+    expect(disk('sun').cx).toBeCloseTo(azToX(277.3), 9)
+  })
+
+  it('rotates the terrain silhouette with the view, seamless at both edges', () => {
+    const centerAzDeg = 123.25 // left edge 303.25°, between mask bins
+    const leftAzDeg = centerAzDeg + 180
+    renderCentered(centerAzDeg)
+    const ridge = renderedRidge()
+    const clamp = (e: number) => Math.min(ELEV_MAX_DEG, Math.max(ELEV_MIN_DEG, e))
+    expect(ridge[0][0]).toBe(0)
+    expect(ridge.at(-1)?.[0]).toBe(plotW)
+    expect(ridge[0][1]).toBeCloseTo(ridge.at(-1)?.[1] ?? NaN, 9)
+    // One vertex per mask bin plus the two edge points; x strictly increasing.
+    expect(ridge).toHaveLength(ctx.horizonMaskDeg.length + 2)
+    for (let k = 1; k < ridge.length; k++) expect(ridge[k][0]).toBeGreaterThan(ridge[k - 1][0])
+    for (const [x, y] of ridge) {
+      const az = leftAzDeg + x / AZ_UNITS_PER_DEG
+      expect(y).toBeCloseTo(elevToY(clamp(horizonElevAt(ctx.horizonMaskDeg, ctx.azStepDeg, az))), 6)
+    }
+  })
+
+  it('moves the azimuth labels with the view', () => {
+    renderCentered(90) // left edge 270° (W), so N is a quarter of the way across
+    const n = screen.getAllByText('N')
+    expect(n).toHaveLength(1)
+    expect(Number(n[0].getAttribute('x'))).toBeCloseTo(azToX(90), 9)
+    expect(screen.getAllByText('W').map((el) => Number(el.getAttribute('x')))).toEqual([0, plotW])
+  })
+})
+
+describe('HorizonPanorama mission tracks', () => {
+  const plotW = azToX(360)
+  const fullTracks = missionTracks(samples, windows, { startMs: samples.tUtcMs[0], endMs: samples.tUtcMs.at(-1) ?? 0 })
+  const renderTracks = (tracks: MissionTracks, centerAzDeg?: number) =>
+    render(
+      <HorizonPanorama
+        siteName="Fixture plateau"
+        horizonMaskDeg={ctx.horizonMaskDeg}
+        azStepDeg={ctx.azStepDeg}
+        observerHeightM={ctx.observerHeightM}
+        sun={bodyAt(0, 'sun')}
+        earth={bodyAt(0, 'earth')}
+        tracks={tracks}
+        centerAzDeg={centerAzDeg}
+      />,
+    )
+  /** Subpaths of a rendered track path, as point lists. */
+  const subpaths = (sel: string) =>
+    (document.querySelector(sel)?.getAttribute('d') ?? '')
+      .split('M')
+      .filter((s) => s.trim())
+      .map((s) => [...s.matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]))
+
+  it.each(['sun', 'earth'] as const)('draws the %s track: solid where visible, dashed where not, every sample on it', (body) => {
+    renderTracks(fullTracks)
+    const pts = fullTracks[body]
+    const on = subpaths(`path[data-track="${body}-visible"]`)
+    const off = subpaths(`path[data-track="${body}-hidden"]`)
+    expect(document.querySelector(`path[data-track="${body}-hidden"]`)?.getAttribute('stroke-dasharray')).toBeTruthy()
+    expect(document.querySelector(`path[data-track="${body}-visible"]`)?.getAttribute('stroke-dasharray')).toBeNull()
+    // Each subpath is a run of consecutive samples; each segment [i, i+1] is drawn once, styled by sample i's state.
+    const near = (q: number[], i: number) =>
+      Math.abs(q[0] - azToX(pts[i].azDeg)) < 0.006 && Math.abs(q[1] - elevToY(pts[i].elevDeg)) < 0.006
+    const drawn = new Set<number>()
+    let segments = 0
+    for (const [style, paths] of [[true, on], [false, off]] as const) {
+      for (const sp of paths) {
+        const start = pts.findIndex((_, i) => i + sp.length <= pts.length && sp.every((q, k) => near(q, i + k)))
+        expect(start).toBeGreaterThan(-1)
+        for (let k = 0; k + 1 < sp.length; k++) {
+          expect(pts[start + k].visible).toBe(style)
+          drawn.add(start + k)
+          segments++
+        }
+      }
+    }
+    expect(drawn.size).toBe(segments)
+    const wraps = pts.slice(1).filter((p, i) => Math.abs(p.azDeg - pts[i].azDeg) > 180).length
+    expect(segments).toBe(pts.length - 1 - wraps)
+  })
+
+  it('breaks a track where it crosses the plot edge instead of drawing a line across the plot', () => {
+    const p = (azDeg: number, visible: boolean): TrackPoint => ({ tUtcMs: 0, azDeg, elevDeg: 1, horizonDeg: 0, visible })
+    renderTracks({ sun: [p(359.8, true), p(359.9, true), p(0.05, true), p(0.15, true)], earth: [], dayTicks: [] })
+    const sp = subpaths('path[data-track="sun-visible"]')
+    expect(sp).toHaveLength(2)
+    for (const s of sp) expect(Math.abs(s[0][0] - s[1][0])).toBeLessThan(plotW / 2)
+  })
+
+  it('marks landing and each mission day on the Sun track', () => {
+    renderTracks(fullTracks)
+    const ticks = document.querySelectorAll('line[data-day-tick]')
+    expect(ticks).toHaveLength(fullTracks.dayTicks.length)
+    expect(fullTracks.dayTicks.length).toBeGreaterThanOrEqual(2)
+    const t1 = fullTracks.dayTicks[1]
+    expect(Number(ticks[1].getAttribute('x1'))).toBeCloseTo(azToX(t1.azDeg), 1)
+    expect(screen.getByText('L')).toBeTruthy()
+    expect(screen.getByText('L+1d')).toBeTruthy()
+    expect(screen.getByText(/days after landing/)).toBeTruthy()
+  })
+
+  const r2 = (v: number) => Math.round(v * 100) / 100
+  it('labels only every other day tick on a long mission, so labels stay readable', () => {
+    const dayTicks = Array.from({ length: 31 }, (_, day) => ({ day, tUtcMs: day * 86_400_000, azDeg: day * 11, elevDeg: 1 }))
+    renderTracks({ sun: [], earth: [], dayTicks })
+    expect(document.querySelectorAll('line[data-day-tick]')).toHaveLength(31)
+    expect(screen.getByText('L')).toBeTruthy()
+    expect(screen.getByText('L+2d')).toBeTruthy()
+    expect(screen.getByText('L+30d')).toBeTruthy()
+    expect(screen.queryByText('L+1d')).toBeNull()
+    expect(screen.queryByText('L+29d')).toBeNull()
+  })
+
+  it('moves the tracks with a re-centered view', () => {
+    const first = fullTracks.sun[0]
+    renderTracks(fullTracks, first.azDeg)
+    // The first sample starts a subpath (in whichever style it has), at the middle of the plot.
+    const style = first.visible ? 'visible' : 'hidden'
+    expect(subpaths(`path[data-track="sun-${style}"]`)[0][0]).toEqual([plotW / 2, r2(elevToY(first.elevDeg))])
+  })
+})
+
+describe('HorizonPanorama hover readout', () => {
+  const tracks = missionTracks(samples, windows, { startMs: samples.tUtcMs[0], endMs: samples.tUtcMs.at(-1) ?? 0 })
+  const renderHover = (centerAzDeg?: number, trackData: MissionTracks = tracks) =>
+    render(
+      <HorizonPanorama
+        siteName="Fixture plateau"
+        horizonMaskDeg={ctx.horizonMaskDeg}
+        azStepDeg={ctx.azStepDeg}
+        observerHeightM={ctx.observerHeightM}
+        sun={bodyAt(0, 'sun')}
+        earth={bodyAt(0, 'earth')}
+        tracks={trackData}
+        centerAzDeg={centerAzDeg}
+      />,
+    )
+  /** The SVG as laid out in these tests: offset on the page and at half size (2 viewBox units per CSS px). */
+  const LAYOUT = { left: 40, top: 100, unitsPerPx: 2 }
+  /** Pointer event at plot coordinates (viewBox units), converted to client px through LAYOUT. */
+  function hoverAt(x: number, y: number, type: 'pointerMove' | 'pointerDown' = 'pointerMove') {
+    const svg = screen.getByRole('img', { name: /horizon panorama/ })
+    const [vx, vy, vw, vh] = (svg.getAttribute('viewBox') ?? '').split(' ').map(Number)
+    const { left, top, unitsPerPx: k } = LAYOUT
+    svg.getBoundingClientRect = () => ({
+      left, top, width: vw / k, height: vh / k, right: left + vw / k, bottom: top + vh / k, x: left, y: top, toJSON: () => ({}),
+    })
+    fireEvent[type](svg, { clientX: left + (x - vx) / k, clientY: top + (y - vy) / k })
+    return svg
+  }
+  const readout = () => document.querySelector('[data-hover-readout]')?.textContent ?? ''
+
+  it('on a track: shows that sample\'s body, UTC time, az, elevation, terrain horizon and state', () => {
+    renderHover()
+    const p = tracks.sun[Math.floor(tracks.sun.length / 2)]
+    hoverAt(azToX(p.azDeg) + 0.05, elevToY(p.elevDeg) - 0.05)
+    const time = new Date(p.tUtcMs).toISOString().slice(0, 16).replace('T', ' ')
+    expect(readout()).toContain(`Sun · ${time} UTC`)
+    const deg = (d: number, k: number) => `${d < 0 ? '−' : ''}${Math.abs(d).toFixed(k)}°`
+    expect(readout()).toContain(`az ${deg(p.azDeg, 1)}`)
+    expect(readout()).toContain(`elev ${deg(p.elevDeg, 2)}`)
+    expect(readout()).toContain(`terrain ${deg(p.horizonDeg, 2)}`)
+    expect(readout()).toMatch(p.visible ? /· lit$/ : /· blocked$/)
+    expect(document.querySelector('circle[data-hover-point]')).toBeTruthy()
+  })
+
+  it('off the tracks: shows the pointer az / elevation and the terrain horizon there, no time', () => {
+    const centerAzDeg = 200 // left edge 20°
+    renderHover(centerAzDeg)
+    // Top of the plot, far from both tracks (they stay within a few degrees of the horizon).
+    const x = azToX(100)
+    hoverAt(x, elevToY(11.5))
+    const az = 20 + 100
+    const terrain = horizonElevAt(ctx.horizonMaskDeg, ctx.azStepDeg, az)
+    expect(readout()).toBe(`Pointer · az ${az.toFixed(1)}° · elev 11.50° · terrain ${terrain < 0 ? '−' : ''}${Math.abs(terrain).toFixed(2)}°`)
+    expect(document.querySelector('circle[data-hover-point]')).toBeNull()
+  })
+
+  it('snaps to a track sample within 12 screen px, not beyond', () => {
+    const p: TrackPoint = { tUtcMs: Date.UTC(2026, 2, 1, 6), azDeg: 100, elevDeg: 2, horizonDeg: 0, visible: true }
+    renderHover(undefined, { sun: [p], earth: [], dayTicks: [] })
+    const px = LAYOUT.unitsPerPx
+    hoverAt(azToX(100), elevToY(2) - 10 * px)
+    expect(readout()).toMatch(/^Sun · 2026-03-01 06:00 UTC/)
+    hoverAt(azToX(100), elevToY(2) - 14 * px)
+    expect(readout()).toMatch(/^Pointer · az 100\.0°/)
+  })
+
+  it('shows the readout on a tap (pointer down), not only on hover', () => {
+    renderHover()
+    hoverAt(azToX(100), elevToY(11.5), 'pointerDown')
+    expect(readout()).toMatch(/^Pointer/)
+  })
+
+  it('clears the readout when the pointer leaves the plot', () => {
+    renderHover()
+    const svg = hoverAt(azToX(100), elevToY(11.5))
+    expect(readout()).toMatch(/^Pointer/)
+    fireEvent.pointerLeave(svg)
+    expect(readout()).toMatch(/^Hover/)
   })
 })

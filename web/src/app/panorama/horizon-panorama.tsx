@@ -1,10 +1,11 @@
-import { useId } from 'react'
+import { useId, useMemo, useState, type PointerEvent } from 'react'
+import { horizonElevAt } from '../../engine'
+import type { DayTick, MissionTracks, TrackPoint } from './tracks'
 
 // Unrolled 360° horizon panorama for one site (SPEC-app P0-5), not a fisheye: at the pole everything sits within
-// a few degrees of the horizon. x = azimuth 0–360 (N at the left), y = elevation −5…+12°, vertically exaggerated
+// a few degrees of the horizon. x = azimuth over 360° (N at the edges unless re-centered), y = elevation −5…+12°, vertically exaggerated
 // (labelled). Sun and Earth disks are drawn to angular scale on both axes, so they are tall ovals here.
 // Prop-driven: positions, radii and lit state come from the engine (via the panel); this component does no physics.
-// Mission tracks, hover readout and re-centering come in T22 #23.
 
 /** Panorama elevation range, degrees. */
 export const ELEV_MIN_DEG = -5
@@ -16,10 +17,24 @@ const EXAGGERATION = ELEV_UNITS_PER_DEG / AZ_UNITS_PER_DEG
 
 const PLOT_W = 360 * AZ_UNITS_PER_DEG
 const PLOT_H = (ELEV_MAX_DEG - ELEV_MIN_DEG) * ELEV_UNITS_PER_DEG
-const PAD = { left: 36, right: 8, top: 22, bottom: 26 }
+// Right padding fits half an azimuth label ("315°") at the right edge, which a re-centered view can put there.
+const PAD = { left: 36, right: 20, top: 22, bottom: 26 }
+const VIEW_W = PLOT_W + PAD.left + PAD.right
+const VIEW_H = PLOT_H + PAD.top + PAD.bottom
+/** The hover readout snaps to a track sample within this many screen pixels of the pointer. */
+const HOVER_SNAP_PX = 12
 const FONT = 12
 
+/** x of an azimuth measured from the plot's left edge (0…360°). */
 export const azToX = (azDeg: number) => azDeg * AZ_UNITS_PER_DEG
+/** d mod 360 in [0, 360); exact (no round trip through +360) for d already in range. */
+const mod360 = (d: number) => {
+  const r = d % 360
+  const v = r < 0 ? r + 360 : r
+  return v >= 360 ? 0 : v // a tiny negative r rounds up to 360
+}
+/** Plot x of an azimuth, for a view whose left edge is at `leftAzDeg`: always in [0, PLOT_W). */
+const screenX = (azDeg: number, leftAzDeg: number) => azToX(mod360(azDeg - leftAzDeg))
 export const elevToY = (elevDeg: number) => (ELEV_MAX_DEG - elevDeg) * ELEV_UNITS_PER_DEG
 const clampElev = (e: number) => Math.min(ELEV_MAX_DEG, Math.max(ELEV_MIN_DEG, e))
 
@@ -43,6 +58,10 @@ export interface HorizonPanoramaProps {
   observerHeightM: number
   sun: PanoramaBody
   earth: PanoramaBody
+  /** Azimuth at the middle of the plot. Default 180° (S): N at both edges. */
+  centerAzDeg?: number
+  /** Sun / Earth tracks over the mission, with day ticks; omit to draw none. */
+  tracks?: MissionTracks
 }
 
 const AZ_TICKS = [
@@ -54,22 +73,39 @@ const AZ_TICKS = [
   [225, '225°'],
   [270, 'W'],
   [315, '315°'],
-  [360, 'N'],
 ] as const
 const ELEV_TICKS = [-5, 0, 5, 10]
 const fmtDeg = (d: number, digits = 1) => `${d < 0 ? '−' : ''}${Math.abs(d).toFixed(digits)}°`
+const formatUtc = (ms: number) => `${new Date(ms).toISOString().slice(0, 16).replace('T', ' ')} UTC`
 
 const BODIES = [
   { key: 'sun', label: 'Sun', color: 'var(--warn)', on: 'lit', off: 'blocked' },
   { key: 'earth', label: 'Earth', color: 'var(--accent)', on: 'in view', off: 'not in view' },
 ] as const
 
-/** Filled silhouette: one point per mask bin plus the 360° wrap, closed along the bottom edge. */
-function terrainPath(maskDeg: ArrayLike<number>, azStepDeg: number): string {
+/**
+ * Filled silhouette, closed along the bottom edge: the horizon at the left edge, one point per mask bin strictly
+ * inside the plot (left to right), and the same left-edge horizon again at the right edge (the 360° wrap).
+ */
+function terrainPath(maskDeg: ArrayLike<number>, azStepDeg: number, leftAzDeg: number): string {
   const y = (e: number) => elevToY(clampElev(e))
-  let d = `M0,${y(maskDeg[0])}`
-  for (let i = 1; i < maskDeg.length; i++) d += ` L${azToX(i * azStepDeg)},${y(maskDeg[i])}`
-  return `${d} L${PLOT_W},${y(maskDeg[0])} L${PLOT_W},${PLOT_H} L0,${PLOT_H} Z`
+  const edgeY = y(horizonElevAt(maskDeg, azStepDeg, leftAzDeg))
+  const pts: [number, number][] = []
+  for (let i = 0; i < maskDeg.length; i++) {
+    const x = screenX(i * azStepDeg, leftAzDeg)
+    if (x > 0 && x < PLOT_W) pts.push([x, y(maskDeg[i])])
+  }
+  pts.sort((a, b) => a[0] - b[0])
+  let d = `M0,${edgeY}`
+  for (const [x, py] of pts) d += ` L${x},${py}`
+  return `${d} L${PLOT_W},${edgeY} L${PLOT_W},${PLOT_H} L0,${PLOT_H} Z`
+}
+
+/** Azimuth labels at their plot x; a label on the left edge is repeated on the right edge. */
+function azTicks(leftAzDeg: number): { x: number; label: string }[] {
+  const ticks: { x: number; label: string }[] = AZ_TICKS.map(([az, label]) => ({ x: screenX(az, leftAzDeg), label }))
+  const atEdge = ticks.find((t) => t.x === 0)
+  return atEdge ? [...ticks, { x: PLOT_W, label: atEdge.label }] : ticks
 }
 
 /** Earth fill: a lit blue sphere with a green landmass, clipped to the disk. Only drawn while Earth is in view. */
@@ -95,15 +131,160 @@ function EarthFill({ id, cx, cy, rx, ry }: { id: string; cx: number; cy: number;
   )
 }
 
+/** Day ticks: ±this many viewBox units around the track; at most this many labelled. */
+const DAY_TICK_HALF = 6
+const MAX_DAY_LABELS = 16
+const TRACK_DASH = '5 3'
+const dayLabel = (day: number) => (day === 0 ? 'L' : `L+${day}d`)
+const r2 = (v: number) => Math.round(v * 100) / 100
+
+/**
+ * A track as two path strings: segments starting at a visible sample (`visible`) and the rest (`hidden`). Segment
+ * [i, i+1] takes sample i's state (state is known per sample only). A segment that would jump across the plot (the
+ * track crossing the 0°/360° edge of the view) is left out, so the line breaks at the edge.
+ */
+function trackPaths(pts: readonly TrackPoint[], leftAzDeg: number): { visible: string; hidden: string } {
+  const out = { visible: '', hidden: '' }
+  let prev: 'visible' | 'hidden' | null = null
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1]
+    const b = pts[i]
+    const xa = screenX(a.azDeg, leftAzDeg)
+    const xb = screenX(b.azDeg, leftAzDeg)
+    if (Math.abs(xb - xa) > PLOT_W / 2) {
+      prev = null
+      continue
+    }
+    const style = a.visible ? 'visible' : 'hidden'
+    if (style !== prev) out[style] += `M${r2(xa)},${r2(elevToY(a.elevDeg))}`
+    out[style] += `L${r2(xb)},${r2(elevToY(b.elevDeg))}`
+    prev = style
+  }
+  return out
+}
+
+function Track({ pts, body, color, leftAzDeg }: { pts: readonly TrackPoint[]; body: 'sun' | 'earth'; color: string; leftAzDeg: number }) {
+  // Re-projected only when the view turns (Sun/Earth centering), not on every cursor or pointer move.
+  const { visible, hidden } = useMemo(() => trackPaths(pts, leftAzDeg), [pts, leftAzDeg])
+  return (
+    <g fill="none" stroke={color}>
+      <path data-track={`${body}-hidden`} d={hidden} strokeWidth={1.25} strokeDasharray={TRACK_DASH} strokeOpacity={0.85} vectorEffect="non-scaling-stroke" />
+      <path data-track={`${body}-visible`} d={visible} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+    </g>
+  )
+}
+
+/** Short vertical marks across the Sun track at landing and each mission day, labelled "L", "L+1d", … */
+function DayTicks({ ticks, leftAzDeg }: { ticks: readonly DayTick[]; leftAzDeg: number }) {
+  const every = Math.max(1, Math.ceil(ticks.length / MAX_DAY_LABELS))
+  return (
+    <g>
+      {ticks.map((t) => {
+        const x = screenX(t.azDeg, leftAzDeg)
+        const y = elevToY(t.elevDeg)
+        return (
+          <g key={t.day}>
+            <line data-day-tick={t.day} x1={x} x2={x} y1={y - DAY_TICK_HALF} y2={y + DAY_TICK_HALF} stroke="var(--text)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+            {t.day % every === 0 && (
+              <text x={x} y={y - DAY_TICK_HALF - 2} textAnchor="middle" fontSize={FONT - 2} fill="var(--text)">
+                {dayLabel(t.day)}
+              </text>
+            )}
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+function LineSwatch({ color, dashed }: { color: string; dashed: boolean }) {
+  return (
+    <svg width="22" height="8" aria-hidden="true" style={{ verticalAlign: 'middle' }}>
+      <line x1={1} x2={21} y1={4} y2={4} stroke={color} strokeWidth={dashed ? 1.25 : 2} strokeDasharray={dashed ? TRACK_DASH : undefined} />
+    </svg>
+  )
+}
+
+/** Key for the track styles and day ticks (the dashes, not just the colors, carry the state). */
+function TrackLegend() {
+  return (
+    <p className="muted" style={{ margin: 0, fontSize: '0.75rem', display: 'flex', flexWrap: 'wrap', columnGap: 'var(--space-3)' }}>
+      {BODIES.map(({ key, label, color, on, off }) => (
+        <span key={key}>
+          {label} track: <LineSwatch color={color} dashed={false} /> {on} <LineSwatch color={color} dashed /> {off}
+        </span>
+      ))}
+      <span>Ticks on the Sun track: L = landing, L+Nd = N days after landing</span>
+    </p>
+  )
+}
+
+/** Pointer position in plot (viewBox) units, and how many units one screen pixel spans. */
+interface HoverPos {
+  x: number
+  y: number
+  unitsPerPx: number
+}
+
+type Readout =
+  | { kind: 'track'; body: (typeof BODIES)[number]; p: TrackPoint; x: number; y: number }
+  | { kind: 'sky'; azDeg: number; elevDeg: number; horizonDeg: number; x: number }
+
+/** The track sample nearest the pointer (within HOVER_SNAP_PX on screen), else the pointer's own sky position. */
+function readoutAt(
+  h: HoverPos,
+  tracks: MissionTracks | undefined,
+  leftAzDeg: number,
+  maskDeg: ArrayLike<number>,
+  azStepDeg: number,
+): Readout {
+  let best: Readout | null = null
+  let bestD2 = (HOVER_SNAP_PX * h.unitsPerPx) ** 2
+  for (const body of BODIES) {
+    for (const p of tracks?.[body.key] ?? []) {
+      const x = screenX(p.azDeg, leftAzDeg)
+      const y = elevToY(p.elevDeg)
+      const d2 = (x - h.x) ** 2 + (y - h.y) ** 2
+      if (d2 < bestD2) {
+        bestD2 = d2
+        best = { kind: 'track', body, p, x, y }
+      }
+    }
+  }
+  if (best) return best
+  const azDeg = mod360(leftAzDeg + h.x / AZ_UNITS_PER_DEG)
+  const elevDeg = ELEV_MAX_DEG - h.y / ELEV_UNITS_PER_DEG
+  return { kind: 'sky', azDeg, elevDeg, horizonDeg: horizonElevAt(maskDeg, azStepDeg, azDeg), x: h.x }
+}
+
+function readoutText(r: Readout | null): string {
+  if (!r) return 'Hover the panorama for azimuth, elevation and terrain horizon; on a track, its time.'
+  if (r.kind === 'sky') return `Pointer · az ${fmtDeg(r.azDeg)} · elev ${fmtDeg(r.elevDeg, 2)} · terrain ${fmtDeg(r.horizonDeg, 2)}`
+  const { body, p } = r
+  return `${body.label} · ${formatUtc(p.tUtcMs)} · az ${fmtDeg(p.azDeg)} · elev ${fmtDeg(p.elevDeg, 2)} · terrain ${fmtDeg(p.horizonDeg, 2)} · ${p.visible ? body.on : body.off}`
+}
+
+/** Crosshair at the hovered azimuth, plus a dot on the snapped track sample. */
+function HoverMarker({ r }: { r: Readout }) {
+  return (
+    <g pointerEvents="none">
+      <line x1={r.x} x2={r.x} y1={0} y2={PLOT_H} stroke="var(--text)" strokeOpacity={0.5} strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />
+      {r.kind === 'track' && (
+        <circle data-hover-point="" cx={r.x} cy={r.y} r={4} fill="none" stroke={r.body.color} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+      )}
+    </g>
+  )
+}
+
 /** Disk semi-axes in viewBox units: true angular radius on both axes, so the terrain blocks it at its true width. */
 const diskRadii = (b: PanoramaBody) => ({ rx: b.radiusDeg * AZ_UNITS_PER_DEG, ry: b.radiusDeg * ELEV_UNITS_PER_DEG })
 /** Any part of the disk inside the elevation range (the plot clip trims the rest). */
 const diskInRange = (b: PanoramaBody) => b.elevDeg + b.radiusDeg >= ELEV_MIN_DEG && b.elevDeg - b.radiusDeg <= ELEV_MAX_DEG
 
 /** Disk center(s) on screen: a disk crossing 0°/360° is also drawn at the other edge. Null when off the plot. */
-function diskCopies(b: PanoramaBody): { xs: number[]; cy: number; rx: number; ry: number } | null {
+function diskCopies(b: PanoramaBody, leftAzDeg: number): { xs: number[]; cy: number; rx: number; ry: number } | null {
   if (!diskInRange(b)) return null
-  const x = azToX(b.azDeg)
+  const x = screenX(b.azDeg, leftAzDeg)
   const { rx, ry } = diskRadii(b)
   const xs = [x]
   if (x + rx > PLOT_W) xs.push(x - PLOT_W)
@@ -120,11 +301,12 @@ function edgeAnchor(x: number): { x: number; textAnchor: 'start' | 'middle' | 'e
 }
 
 /** Disks are drawn inside the plot clip; this places the text labels, which are not clipped. */
-function BodyLabel({ b, label, color }: { b: PanoramaBody; label: string; color: string }) {
+function BodyLabel({ b, label, color, leftAzDeg }: { b: PanoramaBody; label: string; color: string; leftAzDeg: number }) {
+  const x = screenX(b.azDeg, leftAzDeg)
   if (!diskInRange(b)) {
     const below = b.elevDeg < ELEV_MIN_DEG
     return (
-      <text {...edgeAnchor(azToX(b.azDeg))} y={below ? PLOT_H - 4 : FONT} fontSize={FONT} fill={color}>
+      <text {...edgeAnchor(x)} y={below ? PLOT_H - 4 : FONT} fontSize={FONT} fill={color}>
         {below ? `${label} below ${fmtDeg(ELEV_MIN_DEG, 0)} ↓` : `${label} above +${ELEV_MAX_DEG}° ↑`}
       </text>
     )
@@ -134,7 +316,7 @@ function BodyLabel({ b, label, color }: { b: PanoramaBody; label: string; color:
   // Above the disk, or below it when that would leave the plot top; always inside the plot.
   const y = Math.min(PLOT_H - 4, Math.max(FONT, cy - ry - 4 - FONT >= 0 ? cy - ry - 4 : cy + ry + FONT))
   return (
-    <text {...edgeAnchor(azToX(b.azDeg))} y={y} fontSize={FONT} fill={color}>
+    <text {...edgeAnchor(x)} y={y} fontSize={FONT} fill={color}>
       {label}
     </text>
   )
@@ -144,8 +326,14 @@ function BodyLabel({ b, label, color }: { b: PanoramaBody; label: string; color:
  * Disk fill, drawn UNDER the terrain so a ridge visibly cuts into a partly blocked disk. Only while visible
  * (Sun lit / Earth in view); a not-visible disk has no fill.
  */
-function BodyFill({ b, body, color, idPrefix }: { b: PanoramaBody; body: 'sun' | 'earth'; color: string; idPrefix: string }) {
-  const d = diskCopies(b)
+function BodyFill({ b, body, color, idPrefix, leftAzDeg }: {
+  b: PanoramaBody
+  body: 'sun' | 'earth'
+  color: string
+  idPrefix: string
+  leftAzDeg: number
+}) {
+  const d = diskCopies(b, leftAzDeg)
   if (!d || !b.visible) return null
   return (
     <>
@@ -161,8 +349,8 @@ function BodyFill({ b, body, color, idPrefix }: { b: PanoramaBody; body: 'sun' |
 }
 
 /** Disk outline, drawn OVER the terrain: solid when visible, dashed when not (so a hidden disk stays findable). */
-function BodyOutline({ b, body, color }: { b: PanoramaBody; body: 'sun' | 'earth'; color: string }) {
-  const d = diskCopies(b)
+function BodyOutline({ b, body, color, leftAzDeg }: { b: PanoramaBody; body: 'sun' | 'earth'; color: string; leftAzDeg: number }) {
+  const d = diskCopies(b, leftAzDeg)
   if (!d) return null
   return (
     <>
@@ -185,7 +373,30 @@ function BodyOutline({ b, body, color }: { b: PanoramaBody; body: 'sun' | 'earth
   )
 }
 
-export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerHeightM, sun, earth }: HorizonPanoramaProps) {
+export function HorizonPanorama({
+  siteName,
+  horizonMaskDeg,
+  azStepDeg,
+  observerHeightM,
+  sun,
+  earth,
+  centerAzDeg = 180,
+  tracks,
+}: HorizonPanoramaProps) {
+  const leftAzDeg = mod360(centerAzDeg - 180)
+  const [hover, setHover] = useState<HoverPos | null>(null)
+  const terrainD = useMemo(() => terrainPath(horizonMaskDeg, azStepDeg, leftAzDeg), [horizonMaskDeg, azStepDeg, leftAzDeg])
+  const readout = hover ? readoutAt(hover, tracks, leftAzDeg, horizonMaskDeg, azStepDeg) : null
+  // The SVG keeps its aspect ratio (width 100%, height auto), so one scale maps both axes from CSS px to viewBox units.
+  // This relies on height: auto; a fixed height would letterbox the drawing and need getScreenCTM() instead.
+  const onPointer = (e: PointerEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    if (!(r.width > 0)) return
+    const unitsPerPx = VIEW_W / r.width
+    const x = (e.clientX - r.left) * unitsPerPx - PAD.left
+    const y = (e.clientY - r.top) * unitsPerPx - PAD.top
+    setHover(x >= 0 && x <= PLOT_W && y >= 0 && y <= PLOT_H ? { x, y, unitsPerPx } : null)
+  }
   // useId() contains characters that aren't safe in url(#…) references (":r0:" in React 18, "«r0»" in 19).
   const idPrefix = useId().replace(/[^a-zA-Z0-9_-]/g, '')
   const captionId = `${idPrefix}-caption`
@@ -209,9 +420,12 @@ export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerH
         role="img"
         aria-label={`${siteName} horizon panorama`}
         aria-describedby={captionId}
-        viewBox={`${-PAD.left} ${-PAD.top} ${PLOT_W + PAD.left + PAD.right} ${PLOT_H + PAD.top + PAD.bottom}`}
+        viewBox={`${-PAD.left} ${-PAD.top} ${VIEW_W} ${VIEW_H}`}
         width="100%"
-        style={{ display: 'block', height: 'auto' }}
+        style={{ display: 'block', height: 'auto', cursor: 'crosshair' }}
+        onPointerMove={onPointer}
+        onPointerDown={onPointer} // a tap fires no pointermove
+        onPointerLeave={() => setHover(null)}
       >
         <rect x={0} y={0} width={PLOT_W} height={PLOT_H} fill="var(--surface-2)" />
         {ELEV_TICKS.map((e) => (
@@ -230,8 +444,8 @@ export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerH
             </text>
           </g>
         ))}
-        {AZ_TICKS.map(([az, label]) => (
-          <text key={az} x={azToX(az)} y={PLOT_H + FONT + 6} textAnchor="middle" fontSize={FONT} fill="var(--text-muted)">
+        {azTicks(leftAzDeg).map(({ x, label }) => (
+          <text key={`${label}-${x}`} x={x} y={PLOT_H + FONT + 6} textAnchor="middle" fontSize={FONT} fill="var(--text-muted)">
             {label}
           </text>
         ))}
@@ -242,14 +456,14 @@ export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerH
         </defs>
         <g clipPath={`url(#${idPrefix}-plot)`}>
           {BODIES.map(({ key, color }) => (
-            <BodyFill key={key} b={bodies[key]} body={key} color={color} idPrefix={idPrefix} />
+            <BodyFill key={key} b={bodies[key]} body={key} color={color} idPrefix={idPrefix} leftAzDeg={leftAzDeg} />
           ))}
         </g>
         {/* Fill ~3:1 against the sky (--surface-2) and the ridge line well above, so the silhouette reads as a
             solid shape (WCAG 1.4.11), while dashed disks behind the terrain stay visible on it (Sun ~3:1, Earth ~2.4:1). */}
         <path
           data-terrain=""
-          d={terrainPath(horizonMaskDeg, azStepDeg)}
+          d={terrainD}
           fill="var(--text-muted)"
           fillOpacity={0.65}
           stroke="var(--text)"
@@ -257,13 +471,22 @@ export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerH
           strokeWidth={1}
           vectorEffect="non-scaling-stroke"
         />
+        {tracks && (
+          <g clipPath={`url(#${idPrefix}-plot)`}>
+            {BODIES.map(({ key, color }) => (
+              <Track key={key} pts={tracks[key]} body={key} color={color} leftAzDeg={leftAzDeg} />
+            ))}
+            <DayTicks ticks={tracks.dayTicks} leftAzDeg={leftAzDeg} />
+          </g>
+        )}
         <g clipPath={`url(#${idPrefix}-plot)`}>
           {BODIES.map(({ key, color }) => (
-            <BodyOutline key={key} b={bodies[key]} body={key} color={color} />
+            <BodyOutline key={key} b={bodies[key]} body={key} color={color} leftAzDeg={leftAzDeg} />
           ))}
         </g>
+        {readout && <HoverMarker r={readout} />}
         {BODIES.map(({ key, label, color }) => (
-          <BodyLabel key={key} b={bodies[key]} label={label} color={color} />
+          <BodyLabel key={key} b={bodies[key]} label={label} color={color} leftAzDeg={leftAzDeg} />
         ))}
         <text x={0} y={-8} fontSize={FONT} fill="var(--text-muted)">
           Vertical exaggeration {EXAGGERATION}×
@@ -272,6 +495,12 @@ export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerH
           Terrain horizon at {observerHeightM} m observer height · elevation 0° = local spherical horizontal
         </text>
       </svg>
+      {/* Always rendered (placeholder when idle) so the layout doesn't jump. Pointer-only: the same values at the
+          cursor time are in the caption, which the keyboard-operable timeline cursor drives. */}
+      <p data-hover-readout="" className="num" style={{ margin: 0, fontSize: '0.75rem' }}>
+        {readoutText(readout)}
+      </p>
+      {tracks && <TrackLegend />}
       <p className="muted" style={{ margin: 0, fontSize: '0.75rem' }}>
         Sun / Earth disks to angular scale on both axes (ovals because of the {EXAGGERATION}× vertical exaggeration). Lit / in view
         follow the timeline's rules (Sun visible-disk threshold, Earth clearance margin, with hysteresis), so a disk can

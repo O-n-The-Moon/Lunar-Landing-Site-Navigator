@@ -56,4 +56,30 @@ describe('PanoramaPanel', () => {
     }
     expect(blockedHiddenSteps).toBeGreaterThan(0)
   })
+
+  it('draws the mission tracks and re-centers on the Sun or Earth, following the cursor', async () => {
+    const panel = await renderApp()
+    fireEvent.change(screen.getByLabelText(/duration/i), { target: { value: '1' } })
+    expect(panel.querySelector('path[data-track="sun-visible"]')?.getAttribute('d')).toMatch(/^M/)
+    expect(panel.querySelector('path[data-track^="earth-"]')).toBeTruthy()
+    expect(panel.querySelectorAll('line[data-day-tick]').length).toBeGreaterThanOrEqual(2)
+
+    const group = within(panel).getByRole('radiogroup', { name: /center/i })
+    expect(within(group).getByRole('radio', { name: /N at edges/i })).toHaveProperty('checked', true)
+    const diskX = (body: string) => Number(panel.querySelector(`ellipse[data-body="${body}"]`)?.getAttribute('cx'))
+    const mid = 180 * 3 // AZ_UNITS_PER_DEG
+    const slider = within(screen.getByRole('region', { name: 'Timeline' })).getAllByRole('slider')[0]
+    for (const body of ['Sun', 'Earth'] as const) {
+      fireEvent.click(within(group).getByRole('radio', { name: body }))
+      expect(diskX(body.toLowerCase())).toBeCloseTo(mid, 6)
+      const trackD = () => panel.querySelector('path[data-track^="sun-"]')?.getAttribute('d')
+      const terrainD = () => panel.querySelector('path[data-terrain]')?.getAttribute('d')
+      const before = [trackD(), terrainD()]
+      fireEvent.keyDown(slider, { key: 'PageUp' }) // +12 h: the body moves, the view follows it
+      expect(diskX(body.toLowerCase())).toBeCloseTo(mid, 6)
+      // Tracks and terrain are re-projected with the view, not left at the old center.
+      expect(trackD()).not.toBe(before[0])
+      expect(terrainD()).not.toBe(before[1])
+    }
+  })
 })
