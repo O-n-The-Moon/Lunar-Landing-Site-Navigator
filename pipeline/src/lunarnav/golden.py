@@ -26,6 +26,7 @@ from lunarnav.geometry import angular_radius_deg, az_el, visible_disk_fraction
 
 SEED = 20260101
 N_CASES = 240
+PARTIAL_PER_SITE = 3  # per site and height, where such instants exist
 H_MS = 3_600_000
 MIN_MS = 60_000
 DURATION_H = 14 * 24
@@ -182,30 +183,58 @@ def _coverage_ms(eph: Ephemeris) -> tuple[int, int]:
     return eph.start_ms, eph.start_ms + (eph.count - 1) * eph.step_ms
 
 
+def _case(
+    inputs: Inputs, site: dict[str, Any], height_m: int, t_ms: int
+) -> dict[str, Any]:
+    s = _site_state(inputs, site, height_m, np.array([float(t_ms)]))
+    v = {key: float(arr[0]) for key, arr in s.items()}
+    clearance = v["earthElevDeg"] - v["earthHorizonDeg"]
+    return {
+        "siteId": site["id"],
+        "observerHeightM": height_m,
+        "tUtcMs": t_ms,
+        **{key: _round(val) for key, val in v.items()},
+        "earthVisible": bool(clearance >= OPTS["earthMarginDeg"]),
+    }
+
+
+def _partial_sun_times(
+    inputs: Inputs, site: dict[str, Any], height_m: int, rng: np.random.Generator
+) -> list[int]:
+    """Off-the-hour instants where the Sun disk is partly hidden (0 < fraction < 1)."""
+    lo, hi = _coverage_ms(inputs.ephemeris)
+    grid = np.arange(lo, hi, 3 * H_MS, dtype=np.float64)
+    grid += 7 * MIN_MS  # off the hourly grid
+    fraction = _site_state(inputs, site, height_m, grid)["sunFraction"]
+    partial = np.flatnonzero((fraction > 0.02) & (fraction < 0.98))
+    if partial.size == 0:
+        return []
+    pick = rng.choice(partial, size=min(PARTIAL_PER_SITE, partial.size), replace=False)
+    return [int(grid[i]) for i in np.sort(pick)]
+
+
 def build_cases(inputs: Inputs) -> list[dict[str, Any]]:
+    """Random site x time cases, then extra grazing-Sun cases for the disk formula."""
     rng = np.random.default_rng(SEED)
     sites = inputs.sites["sites"]
     heights = sorted(set(SITE_HEIGHTS_M))
     lo, hi = _coverage_ms(inputs.ephemeris)
     times = rng.integers(lo, hi, size=N_CASES, endpoint=True)
-    margin = OPTS["earthMarginDeg"]
-    cases = []
-    for k in range(N_CASES):
-        site = sites[k % len(sites)]
-        height_m = heights[(k // len(sites)) % len(heights)]
-        t = int(times[k])
-        s = _site_state(inputs, site, height_m, np.array([float(t)]))
-        v = {key: float(arr[0]) for key, arr in s.items()}
-        clearance = v["earthElevDeg"] - v["earthHorizonDeg"]
-        cases.append(
-            {
-                "siteId": site["id"],
-                "observerHeightM": height_m,
-                "tUtcMs": t,
-                **{key: _round(val) for key, val in v.items()},
-                "earthVisible": bool(clearance >= margin),
-            }
+    cases = [
+        _case(
+            inputs,
+            sites[k % len(sites)],
+            heights[(k // len(sites)) % len(heights)],
+            int(times[k]),
         )
+        for k in range(N_CASES)
+    ]
+    for site in sites:
+        for height_m in heights:
+            cases += [
+                _case(inputs, site, height_m, t)
+                for t in _partial_sun_times(inputs, site, height_m, rng)
+            ]
     return cases
 
 
@@ -275,9 +304,17 @@ def build_golden(inputs: Inputs) -> dict[str, Any]:
         "opts": OPTS,
         "notes": {
             "cases": "tUtcMs -> az/el, horizon, Sun fraction; earthVisible = "
-            "earthElevDeg - earthHorizonDeg >= earthMarginDeg (no hysteresis).",
-            "scenarios": "1-minute reference with engine hysteresis; totals over "
-            "[landing, landing + durationH); hourly series sampled on the hour.",
+            "earthElevDeg - earthHorizonDeg >= earthMarginDeg (no hysteresis). "
+            "The first 240 are uniform random site x time; the rest are extra "
+            "instants with the Sun disk partly hidden (0 < sunFraction < 1).",
+            "scenarios": "Brute-force 1-minute walk with engine hysteresis. Totals "
+            "are minute counts over the half-open range [landing, landing + "
+            "durationH): clip engine windows (closed range) at durationH before "
+            "comparing. hourly.* has durationH + 1 samples taken on the hour "
+            "(landing + i hours), so a window edge within a minute of an hour may "
+            "flip that hourly flag. Compare event times and totals with the engine "
+            "at about 1 minute per event (10 min total tolerance in SPEC-engine), "
+            "not exactly. Gaps include those clipped by the mission window ends.",
         },
         "cases": build_cases(inputs),
         "scenarios": [_scenario(inputs, *sc) for sc in SCENARIOS],

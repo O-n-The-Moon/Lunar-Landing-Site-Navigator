@@ -1,12 +1,12 @@
 """Golden vector generator: independent checks of the reference, no SPICE needed."""
 
+import itertools
 import json
 
 import numpy as np
 import pytest
 
 from lunarnav import golden, io
-from lunarnav.geometry import az_el
 
 pytestmark = pytest.mark.skipif(
     not (io.EPHEMERIS_BIN.is_file() and io.SITES_JSON.is_file()),
@@ -85,6 +85,7 @@ def test_run_stats_on_a_known_pattern():
 def test_case_count_schema_and_ranges(built):
     cases = built["cases"]
     assert len(cases) >= 200
+    assert len({(c["siteId"], c["tUtcMs"]) for c in cases}) == len(cases)
     keys = {
         "siteId",
         "observerHeightM",
@@ -121,32 +122,83 @@ def test_cases_cover_sites_heights_and_both_visibility_outcomes(built, data):
     assert any(c["tUtcMs"] % H_MS for c in cases)
 
 
-def test_cases_recompute_from_first_principles(built, data):
+def _independent(case, eph, site):
+    """Re-derive a case without lunarnav.geometry: own ENU math and numeric disk area."""
+    t = case["tUtcMs"]
+    x = (t - eph.start_ms) / H_MS
+    i = min(int(np.floor(x)), eph.count - 2)
+    vec = eph.positions_km[i] + (x - i) * (
+        eph.positions_km[i + 1] - eph.positions_km[i]
+    )
+    lat = np.radians(max(-89.999, min(89.999, site["latDeg"])))
+    lon = np.radians(site["lonDeg"])
+    up = np.array([np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)])
+    east = np.array([-np.sin(lon), np.cos(lon), 0.0])
+    north = np.cross(up, east)
+    pos = (1737.4 + (site["surfaceHeightM"] + case["observerHeightM"]) / 1000) * up
+    mask = site["horizonElevDeg"][str(case["observerHeightM"])]
+    out = {}
+    for name, body, radius_km in (
+        ("sun", vec[0], 695_700.0),
+        ("earth", vec[1], 6_371.0),
+    ):
+        d = body - pos
+        e, n, u = d @ east, d @ north, d @ up
+        az = np.degrees(np.arctan2(e, n)) % 360
+        el = np.degrees(np.arctan2(u, np.hypot(e, n)))
+        pos_bin = (az / 0.5) % 720
+        i0 = int(pos_bin)
+        h = mask[i0] + (mask[(i0 + 1) % 720] - mask[i0]) * (pos_bin - i0)
+        out[name] = (
+            az,
+            el,
+            float(np.linalg.norm(d)),
+            h,
+            np.degrees(np.arcsin(radius_km / np.linalg.norm(d))),
+        )
+    return out
+
+
+def _disk_fraction_numeric(center_above_deg, radius_deg):
+    """Visible share of a disk above a straight horizon, by integrating columns."""
+    xs = np.linspace(-radius_deg, radius_deg, 40001)
+    half = np.sqrt(np.maximum(radius_deg**2 - xs**2, 0.0))
+    visible = np.clip(np.minimum(2 * half, center_above_deg + half), 0, None)
+    return float(np.trapezoid(visible, xs) / (np.pi * radius_deg**2))
+
+
+def test_all_cases_match_an_independent_derivation(built, data):
     eph = data.ephemeris
     sites = {s["id"]: s for s in data.sites["sites"]}
-    for c in built["cases"][:25]:
-        s = sites[c["siteId"]]
-        t = np.array([c["tUtcMs"]])
-        x = (c["tUtcMs"] - eph.start_ms) / H_MS
-        i = min(int(np.floor(x)), eph.count - 2)
-        sun = eph.positions_km[i, 0] + (x - i) * (
-            eph.positions_km[i + 1, 0] - eph.positions_km[i, 0]
-        )
-        az, el, dist = az_el(
-            sun, s["latDeg"], s["lonDeg"], s["surfaceHeightM"] + c["observerHeightM"]
-        )
-        assert c["sunAzDeg"] == pytest.approx(float(az), abs=1e-8)
-        assert c["sunElevDeg"] == pytest.approx(float(el), abs=1e-8)
-        assert c["sunDistKm"] == pytest.approx(float(dist), abs=1e-5)
-        assert golden.body_vectors_km(eph, t).shape == (1, 2, 3)
-
-
-def test_earth_visible_uses_the_margin(built):
     margin = built["opts"]["earthMarginDeg"]
     for c in built["cases"]:
-        clearance = c["earthElevDeg"] - c["earthHorizonDeg"]
+        ind = _independent(c, eph, sites[c["siteId"]])
+        sun_az, sun_el, sun_d, sun_h, sun_r = ind["sun"]
+        earth_az, earth_el, earth_d, earth_h, _ = ind["earth"]
+        label = (c["siteId"], c["tUtcMs"])
+        for got, want in (
+            (c["sunAzDeg"], sun_az),
+            (c["earthAzDeg"], earth_az),
+        ):
+            assert abs((got - want + 180) % 360 - 180) < 1e-7, label
+        assert c["sunElevDeg"] == pytest.approx(sun_el, abs=1e-7), label
+        assert c["earthElevDeg"] == pytest.approx(earth_el, abs=1e-7), label
+        assert c["sunDistKm"] == pytest.approx(sun_d, abs=1e-4), label
+        assert c["earthDistKm"] == pytest.approx(earth_d, abs=1e-4), label
+        assert c["sunHorizonDeg"] == pytest.approx(sun_h, abs=1e-7), label
+        assert c["earthHorizonDeg"] == pytest.approx(earth_h, abs=1e-7), label
+        # Straight-horizon disk area, integrated numerically (engine/formula parity).
+        want_fraction = _disk_fraction_numeric(sun_el - sun_h, sun_r)
+        assert c["sunFraction"] == pytest.approx(want_fraction, abs=1e-3), label
+        clearance = earth_el - earth_h
         if abs(clearance - margin) > 1e-6:
-            assert c["earthVisible"] == (clearance >= margin)
+            assert c["earthVisible"] == (clearance >= margin), label
+
+
+def test_enough_cases_have_a_partly_hidden_sun(built):
+    partial = [c for c in built["cases"] if 0.02 < c["sunFraction"] < 0.98]
+    assert len(partial) >= 40
+    assert len({c["siteId"] for c in partial}) >= 6
 
 
 def test_scenarios_are_three_14_day_hourly(built):
@@ -175,11 +227,19 @@ def test_scenarios_have_real_dynamics(built):
 
 
 def test_scenario_totals_agree_with_hourly_series(built):
+    # An hourly sample can misplace each window edge by < 1 h, so the hourly count
+    # may differ from the exact total by at most the number of edges.
     for sc in built["scenarios"]:
-        hourly_sun_h = sum(sc["hourly"]["sunlit"][:-1])
-        assert sc["totals"]["sunlitH"] == pytest.approx(
-            hourly_sun_h, abs=sc["durationH"] * 0.02
-        )
+        for key, total in (
+            ("sunlit", "sunlitH"),
+            ("earthLink", "earthH"),
+            ("both", "bothH"),
+        ):
+            series = sc["hourly"][key]
+            edges = sum(a != b for a, b in itertools.pairwise(series)) + 2
+            assert abs(sum(series[:-1]) - sc["totals"][total]) <= edges, (sc["id"], key)
+        t = sc["totals"]
+        assert t["bothH"] <= min(t["sunlitH"], t["earthH"]) + 1e-9
 
 
 def test_generation_is_deterministic(data, built):
