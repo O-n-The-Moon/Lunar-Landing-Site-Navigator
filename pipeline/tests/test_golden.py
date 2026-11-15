@@ -9,6 +9,7 @@ import pytest
 from lunarnav import golden, io
 
 H_MS = 3_600_000
+BORDERLINE_ID = "connecting-ridge-2029-04-borderline"
 
 
 @pytest.fixture(scope="module")
@@ -196,9 +197,33 @@ def test_enough_cases_have_a_partly_hidden_sun(built):
     assert len({c["siteId"] for c in partial}) >= 6
 
 
-def test_scenarios_are_three_14_day_hourly(built):
+def test_margin_exclusion_covers_parity_drift():
+    # Parity lets elev and horizon each differ by 1e-3 deg (SPEC.md), so the TS
+    # clearance can drift by 2e-3 deg; closer cases could flip earthVisible.
+    assert golden.MARGIN_EXCLUSION_DEG >= 2 * 1e-3
+
+
+def test_lead_in_starts_48_h_before_landing_in_whole_10_min_steps(data):
+    # Mirrors missionMetrics in web/src/engine/metrics.ts.
+    eph = data.ephemeris
+    landing = eph.start_ms + 100 * H_MS
+    assert golden.lead_in_start_ms(eph, landing) == landing - 48 * H_MS
+    near = eph.start_ms + 25 * golden.MIN_MS
+    assert golden.lead_in_start_ms(eph, near) == eph.start_ms + 5 * golden.MIN_MS
+    assert golden.lead_in_start_ms(eph, eph.start_ms) == eph.start_ms
+
+
+def test_borderline_scenario_takes_its_landing_state_from_the_lead_in(built):
+    sc = next(s for s in built["scenarios"] if s["id"] == BORDERLINE_ID)
+    f0 = sc["hourly"]["sunFraction"][0]
+    assert 0.45 < f0 < 0.55
+    # Seeding the hysteresis at landing would pick the midpoint state instead.
+    assert sc["hourly"]["sunlit"][0] != int(f0 >= 0.5)
+
+
+def test_scenarios_are_four_14_day_hourly(built):
     scenarios = built["scenarios"]
-    assert len(scenarios) == 3
+    assert len(scenarios) == 4
     for sc in scenarios:
         assert sc["durationH"] == 14 * 24
         n = 14 * 24 + 1
