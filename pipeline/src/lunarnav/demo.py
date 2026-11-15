@@ -81,7 +81,7 @@ def site_losses(
                     site_id, first_day + i, slip, float(base[i]),
                     float(base[i] - drop[i]), float(drop[i]),
                 )  # fmt: skip
-        if best is not None:
+        if best is not None and best.drop_pct > 0:
             out.append(best)
     return sorted(out, key=lambda r: (-r.drop_pct, r.site_id))
 
@@ -131,6 +131,8 @@ def replace_section(doc: str, body: str) -> str:
     pattern = re.compile(re.escape(START) + r".*?" + re.escape(END), re.DOTALL)
     if pattern.search(doc):
         return pattern.sub(lambda _: block, doc)
+    if START in doc or END in doc:
+        raise ValueError("docs/demo.md has a demo marker without its pair; fix by hand")
     return doc.rstrip("\n") + "\n\n" + block + "\n"
 
 
@@ -208,8 +210,8 @@ def render_section(
             f"{opts['observerHeightM']} m, Sun threshold {opts['sunThreshold']}, Earth "
             f"margin {opts['earthMarginDeg']}° (app defaults). Ranking score is "
             f"**Both** (Sun and Earth link). The search uses hourly samples; the numbers "
-            f"below are the 1-minute reference (`golden.py`) and match the app's engine "
-            f"within its 10-minute tolerance."
+            f"below are the 1-minute reference (`golden.py`) and agree with the TS engine "
+            f"to the parity tolerances in SPEC.md (checked against `golden.json`)."
         ),
         "",
         "### Rank flips: the best site changes after a slip",
@@ -217,13 +219,20 @@ def render_section(
     ]
     for n, f in enumerate(flips, 1):
         slipped = f.base_day + f.slip_days
+        w0, l0 = (
+            _refined(inputs, i, f.base_day)["bothPct"]
+            for i in (f.winner_id, f.loser_id)
+        )
+        w1, l1 = (
+            _refined(inputs, i, slipped)["bothPct"] for i in (f.winner_id, f.loser_id)
+        )
         lines += [
             (
                 f"**{n}. {names[f.winner_id]} vs {names[f.loser_id]}**: "
                 f"slip {f.slip_days} days, landing {_day_iso(inputs, f.base_day)[:10]} "
                 f"→ {_day_iso(inputs, slipped)[:10]}. Gap in Both %: "
-                f"{f.base_gap_pct:+.1f} → {f.slip_gap_pct:+.1f} "
-                f"(swing {f.swing_pct:.1f} points)."
+                f"{w0 - l0:+.1f} → {w1 - l1:+.1f} "
+                f"(swing {abs((w0 - l0) - (w1 - l1)):.1f} points)."
             ),
             "",
             HEADER,
@@ -242,11 +251,13 @@ def render_section(
     lines += ["### Largest single-site losses", ""]
     for n, r in enumerate(losses, 1):
         slipped = r.base_day + r.slip_days
+        b0 = _refined(inputs, r.site_id, r.base_day)["bothPct"]
+        b1 = _refined(inputs, r.site_id, slipped)["bothPct"]
         lines += [
             (
                 f"**{n}. {names[r.site_id]}**: slip {r.slip_days} days from "
-                f"{_day_iso(inputs, r.base_day)[:10]}, Both {r.base_pct:.1f}% → "
-                f"{r.slip_pct:.1f}% (−{r.drop_pct:.1f} points)."
+                f"{_day_iso(inputs, r.base_day)[:10]}, Both {b0:.1f}% → "
+                f"{b1:.1f}% (−{b0 - b1:.1f} points)."
             ),
             "",
             HEADER,

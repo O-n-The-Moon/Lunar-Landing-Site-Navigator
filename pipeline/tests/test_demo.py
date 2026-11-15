@@ -75,3 +75,37 @@ def test_replace_section_creates_markers_when_missing():
     out = demo.replace_section("# Demo\n", "body")
     assert out.startswith("# Demo\n")
     assert f"{demo.START}\nbody\n{demo.END}" in out
+
+
+def test_site_losses_respect_first_day_offset():
+    both = {"a": np.array([100.0, 0.0, 90.0, 40.0, 0.0])}
+    best = demo.site_losses(both, max_slip_days=2, first_day=2, last_base_day=2)[0]
+    # Day 0 is excluded: the best drop starting at day 2 is 90 -> 0 (slip 2).
+    assert (best.base_day, best.slip_days) == (2, 2)
+    assert best.drop_pct == pytest.approx(90.0)
+
+
+def test_site_losses_skip_sites_that_never_drop():
+    both = {"dead": np.zeros(4), "rising": np.array([0.0, 10.0, 20.0, 30.0])}
+    assert demo.site_losses(both, 2, 0, 1) == []
+
+
+def test_rank_flips_clip_last_base_day_to_the_data():
+    both = {"a": np.array([80.0, 0.0]), "b": np.array([40.0, 40.0])}
+    flips = demo.rank_flips(both, max_slip_days=5, first_day=0, last_base_day=99)
+    assert [(f.base_day, f.slip_days) for f in flips] == [(0, 1)]
+
+
+def test_rank_flips_apply_first_day_offset_and_min_winner_pct():
+    both = {
+        "a": np.array([30.0, 30.0, 80.0, 0.0]),
+        "b": np.array([10.0, 10.0, 40.0, 40.0]),
+    }
+    got = demo.rank_flips(both, 2, first_day=1, last_base_day=2, min_winner_pct=50.0)
+    assert [(f.base_day, f.slip_days) for f in got] == [(2, 1)]
+    assert demo.rank_flips(both, 2, 1, 2, min_winner_pct=90.0) == []
+
+
+def test_replace_section_refuses_a_block_with_a_missing_end_marker():
+    with pytest.raises(ValueError):
+        demo.replace_section(f"# Demo\n{demo.START}\nhalf edited\n", "body")
