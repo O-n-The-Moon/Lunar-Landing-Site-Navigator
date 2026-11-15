@@ -23,9 +23,13 @@
   gap: var(--space-2);
   margin-top: var(--space-1);
 }
-.slip-summary output {
+.slip-date {
   white-space: nowrap;
 }
 .slip-total {
   color: var(--text);
+}
+/* The warning's live region stays mounted; when empty, cancel the fieldset's gap above it. */
+.slip-warning:empty {
+  margin-top: calc(-1 * var(--space-1));
 }

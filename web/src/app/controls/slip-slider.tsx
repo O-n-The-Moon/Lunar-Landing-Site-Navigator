@@ -1,5 +1,5 @@
 // Slip slider (SPEC-app P0-2): −30…+90 days in 1-day steps, plus a fine ±12 h, around the baseline landing.
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import type { Ephemeris } from '../../engine'
 import { useCoreData } from '../data'
 import { HOUR_MS, SLIP_RANGE_H, slippedLandingMs, useScenario, useScenarioDispatch } from '../state'
@@ -12,8 +12,15 @@ const FINE_H = 12
 const DAY_MIN = SLIP_RANGE_H.min / 24
 const DAY_MAX = SLIP_RANGE_H.max / 24
 
-/** Splits a slip into whole days (what the day slider shows) and a fine part within ±12 h (ties go to the fine part). */
-export function splitSlipH(slipH: number): { days: number; hours: number } {
+/**
+ * Splits a slip into whole days (what the day slider shows) and a fine part within ±12 h. A slip of d × 24 ± 12 h
+ * has two splits; `preferDays` (the days the user last chose) picks it when it fits, so the slider being moved
+ * doesn't jump. Otherwise ties go to the fine part.
+ */
+export function splitSlipH(slipH: number, preferDays?: number): { days: number; hours: number } {
+  if (preferDays !== undefined && Math.abs(slipH - preferDays * 24) <= FINE_H) {
+    return { days: preferDays, hours: slipH - preferDays * 24 }
+  }
   let days = Math.trunc(slipH / 24) || 0 // `|| 0` turns −0 into 0
   let hours = slipH - days * 24
   if (hours > FINE_H) [days, hours] = [days + 1, hours - 24]
@@ -50,9 +57,15 @@ export function SlipSlider() {
   const fineId = useId()
   const warningId = useId()
 
-  const { days, hours } = splitSlipH(slipH)
-  const setSlip = (h: number) => dispatch({ type: 'setSlip', slipH: h })
+  // The days the user last chose, so a ±12 h fine value keeps that split (see splitSlipH).
+  const [preferDays, setPreferDays] = useState<number | undefined>(undefined)
+  const { days, hours } = splitSlipH(slipH, preferDays)
+  const setSlip = (h: number, nextDays?: number) => {
+    setPreferDays(nextDays)
+    dispatch({ type: 'setSlip', slipH: h })
+  }
   const slippedMs = slippedLandingMs(scenario)
+  const outcome = `slip ${formatSlipH(slipH)}, lands ${formatUtc(slippedMs)}`
   const outside = !missionInCoverage(ephemeris, slippedMs, durationH)
   const covered = outside ? coveredSlipRangeH(ephemeris, landingMs, durationH) : null
 
@@ -68,13 +81,16 @@ export function SlipSlider() {
           max={DAY_MAX}
           step={1}
           value={days}
-          aria-valuetext={`${signed(days)} days`}
-          onChange={(e) => setSlip(Number(e.target.value) * 24 + hours)}
+          aria-valuetext={`${signed(days)} days (${outcome})`}
+          onChange={(e) => {
+            const d = Number(e.target.value)
+            setSlip(d * 24 + hours, d)
+          }}
         />
         <span className="num slip-value">{signed(days)} d</span>
       </div>
       <div className="slip-row">
-        <label htmlFor={fineId}>Fine</label>
+        <label htmlFor={fineId}>Fine (hours)</label>
         <input
           id={fineId}
           type="range"
@@ -83,8 +99,8 @@ export function SlipSlider() {
           max={Math.min(FINE_H, SLIP_RANGE_H.max - days * 24)}
           step={1}
           value={hours}
-          aria-valuetext={`${signed(hours)} hours`}
-          onChange={(e) => setSlip(days * 24 + Number(e.target.value))}
+          aria-valuetext={`${signed(hours)} hours (${outcome})`}
+          onChange={(e) => setSlip(days * 24 + Number(e.target.value), days)}
         />
         <span className="num slip-value">{signed(hours)} h</span>
       </div>
@@ -94,23 +110,26 @@ export function SlipSlider() {
             <>No slip: baseline landing</>
           ) : (
             <>
-              Slip <output className="num slip-total">{formatSlipH(slipH)}</output>
+              Slip <span className="num slip-total">{formatSlipH(slipH)}</span>
             </>
           )}{' '}
-          → <output className="num">{formatUtc(slippedMs)}</output>
+          → <span className="num slip-date">{formatUtc(slippedMs)}</span>
         </p>
         <button type="button" onClick={() => setSlip(0)} disabled={slipH === 0}>
           Reset
         </button>
       </div>
-      {outside && (
-        <p id={warningId} className="hint warn" role="status">
-          Slipped mission is outside the ephemeris; affected sites show no data.{' '}
-          {covered
-            ? `Covered slips: ${formatSlipH(covered.min)} … ${formatSlipH(covered.max)}.`
-            : 'No slip keeps this mission inside it.'}
-        </p>
-      )}
+      {/* Always mounted: a live region inserted together with its text is often not announced. */}
+      <p id={warningId} className="hint warn slip-warning" role="status">
+        {outside && (
+          <>
+            Slipped mission is outside the ephemeris; affected sites show no data.{' '}
+            {covered
+              ? `Covered slips: ${formatSlipH(covered.min)} … ${formatSlipH(covered.max)}.`
+              : 'No slip keeps this mission inside it.'}
+          </>
+        )}
+      </p>
     </fieldset>
   )
 }

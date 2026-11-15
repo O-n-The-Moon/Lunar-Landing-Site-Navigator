@@ -20,6 +20,17 @@ describe('splitSlipH', () => {
   ])('%i h → %i d %i h (fine part within ±12 h)', (slipH, days, hours) => {
     expect(splitSlipH(slipH)).toEqual({ days, hours })
   })
+
+  it.each([
+    [36, 2, 2, -12],
+    [36, 1, 1, 12],
+    [-36, -2, -2, 12],
+    [12, 1, 1, -12],
+    // Too far from the preferred days: fall back to the plain split.
+    [72, 0, 3, 0],
+  ])('%i h with %i d preferred → %i d %i h', (slipH, preferDays, days, hours) => {
+    expect(splitSlipH(slipH, preferDays)).toEqual({ days, hours })
+  })
 })
 
 describe('formatSlipH', () => {
@@ -66,19 +77,37 @@ describe('SlipSlider', () => {
     fireEvent.change(days, { target: { value: '3' } })
     expect(group).toHaveTextContent('+3 d')
     expect(group).toHaveTextContent('2026-03-04 00:00 UTC')
-    expect(days).toHaveAttribute('aria-valuetext', '+3 days')
+    // The slider's own value text carries the outcome, so the readouts needn't be live regions.
+    expect(days).toHaveAttribute('aria-valuetext', '+3 days (slip +3 d, lands 2026-03-04 00:00 UTC)')
 
     fireEvent.change(fine, { target: { value: '-6' } })
     expect(group).toHaveTextContent('+2 d 18 h')
     expect(group).toHaveTextContent('2026-03-03 18:00 UTC')
     expect(days).toHaveValue('3')
     expect(fine).toHaveValue('-6')
-    expect(fine).toHaveAttribute('aria-valuetext', '−6 hours')
+    expect(fine).toHaveAttribute('aria-valuetext', '−6 hours (slip +2 d 18 h, lands 2026-03-03 18:00 UTC)')
+    // Not live regions: announcing them on every drag step would queue up behind the value text.
+    expect(within(group).getAllByRole('status')).toHaveLength(1) // only the coverage warning
 
     // Moving the days keeps the fine offset.
     fireEvent.change(days, { target: { value: '-2' } })
     expect(group).toHaveTextContent('−2 d 6 h')
     expect(fine).toHaveValue('-6')
+  })
+
+  it('keeps the slider being moved where the user put it at a fine value of ±12 h', async () => {
+    const { days, fine } = await renderSlip()
+    // 2 d − 12 h = 36 h, which could also read 1 d + 12 h: the days slider must not jump.
+    fireEvent.change(days, { target: { value: '2' } })
+    fireEvent.change(fine, { target: { value: '-12' } })
+    expect(days).toHaveValue('2')
+    expect(fine).toHaveValue('-12')
+    // From 0 d − 12 h, one day step lands on +12 h, which could also read 0 d + 12 h.
+    fireEvent.click(screen.getByRole('button', { name: /reset/i }))
+    fireEvent.change(fine, { target: { value: '-12' } })
+    fireEvent.change(days, { target: { value: '1' } })
+    expect(days).toHaveValue('1')
+    expect(fine).toHaveValue('-12')
   })
 
   it('stops the fine slider at the ends of the slip range', async () => {
@@ -115,5 +144,22 @@ describe('SlipSlider', () => {
     expect(warning()).toHaveAttribute('role', 'status')
     expect(warning()).toHaveTextContent(/covered slips: 0 h … \+1 d/i)
     expect(group).toHaveAccessibleDescription(/outside the ephemeris/i)
+  })
+
+  it('rounds the covered slips inward for a landing between whole hours', async () => {
+    const { group, days } = await renderSlip()
+    fireEvent.change(screen.getByLabelText(/landing/i), { target: { value: '2026-03-01T00:30' } })
+    fireEvent.change(days, { target: { value: '2' } })
+    // Earliest: +0 h (−1 h would land before the ephemeris). Latest: +23 h (+24 h would end 30 min past it).
+    expect(within(group).getByText(/outside the ephemeris/i)).toHaveTextContent(/covered slips: 0 h … \+23 h/i)
+  })
+
+  it('keeps the warning live region mounted so its text is announced when it appears', async () => {
+    const { group, days } = await renderSlip()
+    const region = within(group).getByRole('status')
+    expect(region).toBeEmptyDOMElement()
+    fireEvent.change(days, { target: { value: '2' } })
+    expect(within(group).getByRole('status')).toBe(region)
+    expect(region).toHaveTextContent(/outside the ephemeris/i)
   })
 })
