@@ -5,8 +5,11 @@ import { detectWindows, sampleSite } from './windows'
 const MIN_MS = 60_000
 const H_MS = 3_600_000
 const STEP_MIN = 10
-/** Sampling starts up to this long before landing, so the hysteresis state at landing comes from history, not the seed. */
-const PRE_ROLL_H = 24
+/**
+ * Sampling starts up to this long before landing, so the hysteresis state at landing comes from history, not the
+ * seed. Longer than the longest in-band Sun run seen at the curated sites (~35 h).
+ */
+const PRE_ROLL_H = 48
 
 /** Time on, longest off run and first on→off transition of one state, clipped to the half-open [landingMs, endMs). */
 function stateStats(wins: Window[], landingMs: number, endMs: number) {
@@ -30,7 +33,7 @@ function stateStats(wins: Window[], landingMs: number, endMs: number) {
 /**
  * Metrics over the half-open mission [landingMs, landingMs + durationH): % of the mission sunlit / Earth link /
  * both, longest off-periods (including ones cut by the mission ends), hours to the first sunset / Earthset, and
- * the time-weighted mean Sun visible fraction. Samples every 10 min from up to 24 h before landing.
+ * the time-weighted mean Sun visible fraction. Samples every 10 min from up to 48 h before landing.
  * Throws RangeError for durationH ≤ 0 or a mission outside the ephemeris coverage (via sampleSite).
  */
 export function missionMetrics(ctx: SiteContext, landingMs: number, durationH: number, opts: VisibilityOpts): MissionMetrics {
