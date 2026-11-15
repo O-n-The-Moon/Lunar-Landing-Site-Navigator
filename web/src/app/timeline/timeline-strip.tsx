@@ -34,7 +34,17 @@ export function formatInH(h: number | null): string | null {
 }
 
 const formatUtc = (ms: number) => `${new Date(ms).toISOString().slice(0, 16).replace('T', ' ')} UTC`
-const isIn = (ws: Window[], t: number) => ws.some((w) => w.startMs <= t && t < w.endMs)
+/** Half-open [start, end), except a window clipped at the range end still includes that end. */
+const isIn = (ws: Window[], t: number) =>
+  ws.some((w) => w.startMs <= t && (t < w.endMs || (w.clippedEnd && t === w.endMs)))
+const KEY_STEP_MS: Record<string, number> = {
+  ArrowRight: H_MS,
+  ArrowUp: H_MS,
+  ArrowLeft: -H_MS,
+  ArrowDown: -H_MS,
+  PageUp: 12 * H_MS,
+  PageDown: -12 * H_MS,
+}
 
 /** "Sunset in 5h 12m" while up, "Sunrise in …" while down, or "No sunset in mission". */
 function eventText(up: boolean, inH: number | null, setName: string, riseName: string): string {
@@ -85,9 +95,8 @@ export function TimelineStrip({ siteName, windows, range, cursorMs, onCursorChan
     if (e.currentTarget.hasPointerCapture?.(e.pointerId)) moveTo(e)
   }
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const step: Record<string, number> = { ArrowRight: H_MS, ArrowUp: H_MS, ArrowLeft: -H_MS, ArrowDown: -H_MS, PageUp: 12 * H_MS, PageDown: -12 * H_MS }
     let next: number | null = null
-    if (e.key in step) next = clampMs(cursorMs + step[e.key])
+    if (e.key in KEY_STEP_MS) next = clampMs(cursorMs + KEY_STEP_MS[e.key])
     else if (e.key === 'Home') next = range.startMs
     else if (e.key === 'End') next = range.endMs
     if (next === null) return

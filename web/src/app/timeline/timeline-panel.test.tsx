@@ -10,7 +10,8 @@ describe('TimelinePanel', () => {
     render(<App dataSources={{ source: fixtureDataSource() }} />)
     const panel = await screen.findByRole('region', { name: 'Timeline' })
     const sliders = within(panel).getAllByRole('slider')
-    expect(sliders.length).toBeGreaterThan(0)
+    // ≥ 2 strips, or "all strips move together" below proves nothing.
+    expect(sliders.length).toBeGreaterThanOrEqual(2)
     const before = Number(sliders[0].getAttribute('aria-valuenow'))
     fireEvent.keyDown(sliders[0], { key: 'ArrowRight' })
     // Every strip reads the one scenario cursor, so all of them move.

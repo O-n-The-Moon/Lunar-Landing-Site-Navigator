@@ -63,6 +63,41 @@ describe('TimelineStrip', () => {
     expect(screen.getByText(earthText)).toBeInTheDocument()
   })
 
+  it('places a known window at hand-computed x (hours 6–12 of 24 → 250…500 of 1000)', () => {
+    const w: DetectedWindows = {
+      sun: [{ startMs: range.startMs + 6 * H_MS, endMs: range.startMs + 12 * H_MS, clippedStart: false, clippedEnd: false }],
+      earth: [],
+      both: [],
+    }
+    const { container } = renderStrip(range.startMs, w)
+    expect(STRIP_VIEW_W).toBe(1000)
+    expect(bandRects(container, 'sun')).toEqual([{ x: 250, w: 250 }])
+  })
+
+  it('reads "Sunset in" while up and "Sunrise in" while down, at known times', () => {
+    const w: DetectedWindows = {
+      sun: [{ startMs: range.startMs + 6 * H_MS, endMs: range.startMs + 12 * H_MS, clippedStart: false, clippedEnd: false }],
+      earth: [],
+      both: [],
+    }
+    renderStrip(range.startMs + 2 * H_MS, w)
+    expect(screen.getByText('Sunrise in 4h 0m')).toBeInTheDocument()
+    cleanup()
+    renderStrip(range.startMs + 9 * H_MS + 30 * 60_000, w)
+    expect(screen.getByText('Sunset in 2h 30m')).toBeInTheDocument()
+  })
+
+  it('treats a window clipped at the mission end as still up when the cursor is at the end', () => {
+    const w: DetectedWindows = {
+      sun: [{ startMs: range.startMs + 20 * H_MS, endMs: range.endMs, clippedStart: false, clippedEnd: true }],
+      earth: [{ startMs: range.startMs, endMs: range.endMs, clippedStart: true, clippedEnd: true }],
+      both: [],
+    }
+    renderStrip(range.endMs, w)
+    expect(screen.getByText('No sunset in mission')).toBeInTheDocument()
+    expect(screen.getByText('No Earthset in mission')).toBeInTheDocument()
+  })
+
   it('says when an event does not happen during the mission', () => {
     const always: DetectedWindows = {
       sun: [{ startMs: range.startMs, endMs: range.endMs, clippedStart: true, clippedEnd: true }],
