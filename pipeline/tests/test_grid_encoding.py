@@ -139,23 +139,62 @@ def test_main_uses_contract_paths(monkeypatch, tmp_path):
     assert calls["paths"]["horizons"].name == "grid-horizons.bin"
 
 
+def _containing_cell(lat_deg, lon_deg):
+    """Single-cell origin of the 2 km contract cell containing a site, and its center."""
+    x_km, y_km = lat_lon_to_xy_km(lat_deg, lon_deg)
+    ix, iy = int(np.floor((x_km + 182) / 2)), int(np.floor((y_km + 182) / 2))
+    origin_km = (-182.0 + 2 * ix, -182.0 + 2 * iy)
+    center_km = (origin_km[0] + 1, origin_km[1] + 1)
+    assert abs(center_km[0] - x_km) <= 1 and abs(center_km[1] - y_km) <= 1
+    return origin_km, center_km
+
+
 # Placeholder coordinates from SPEC-data-pipeline section 3 until sites.yaml
 # (#5) lands; rerun against the curated catalog then.
-SPEC_PLACEHOLDER_SITES = [(-89.45, -137.3), (-84.79, 29.2)]
+RIDGE = (-89.45, -137.3)  # Shackleton-de Gerlache connecting ridge (narrow crest)
+IM2 = (-84.79, 29.2)  # IM-2 Athena, Mons Mouton plateau
 
 
 @pytest.mark.skipif(not DEMS_PRESENT, reason="LOLA DEMs not fetched")
-@pytest.mark.parametrize("lat_deg,lon_deg", SPEC_PLACEHOLDER_SITES)
+@pytest.mark.parametrize(
+    "lat_deg,lon_deg",
+    [
+        IM2,
+        pytest.param(
+            *RIDGE,
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason=(
+                    "Known limitation (#24): the 2 km cell center is ~0.8 km off "
+                    "the narrow ridge crest and 96 m lower, so its horizon is "
+                    "~4.8 deg higher than the crest site's. Grid cells are "
+                    "cell-center samples by contract; ridge-crest sites must use "
+                    "their own sites.json mask, not the grid."
+                ),
+            ),
+        ),
+    ],
+)
 def test_grid_cell_matches_site_mask(lat_deg, lon_deg):
     terrain = DemStack()
-    x_km, y_km = lat_lon_to_xy_km(lat_deg, lon_deg)
-    ix, iy = int(np.floor((x_km + 182) / 2)), int(np.floor((y_km + 182) / 2))
-    origin_km = (-182 + 2 * ix, -182 + 2 * iy)
+    origin_km, _ = _containing_cell(lat_deg, lon_deg)
     horizons_u8, _ = build_grid(terrain, origin_km, 2.0, nx=1, ny=1)
     cell_deg = decode_elev_deg(horizons_u8[0, 0])
     site_deg = compute_horizon_deg(terrain, lat_deg, lon_deg, 2, 720)[::2]
     assert np.median(np.abs(cell_deg - site_deg)) < 0.5
-    # Sanity: the cell center really is the containing cell.
-    cx, cy = origin_km[0] + 1, origin_km[1] + 1
-    assert abs(cx - x_km) <= 1 and abs(cy - y_km) <= 1
-    assert xy_km_to_lat_lon(cx, cy)[0] < -84
+
+
+@pytest.mark.skipif(not DEMS_PRESENT, reason="LOLA DEMs not fetched")
+@pytest.mark.parametrize("lat_deg,lon_deg", [IM2, RIDGE])
+def test_grid_cell_equals_horizon_at_its_center(lat_deg, lon_deg):
+    """The grid is exact at cell centers: only the 0.1 deg encoding differs."""
+    terrain = DemStack()
+    origin_km, center_km = _containing_cell(lat_deg, lon_deg)
+    horizons_u8, _ = build_grid(terrain, origin_km, 2.0, nx=1, ny=1)
+    center_lat_deg, center_lon_deg = xy_km_to_lat_lon(*center_km)
+    assert center_lat_deg < -84
+    center_deg = compute_horizon_deg(
+        terrain, float(center_lat_deg), float(center_lon_deg), 2, GRID_AZ_BINS
+    )
+    decoded = decode_elev_deg(horizons_u8[0, 0])
+    assert np.max(np.abs(decoded - np.clip(center_deg, -5, 20.4))) <= 0.05 + 1e-9
