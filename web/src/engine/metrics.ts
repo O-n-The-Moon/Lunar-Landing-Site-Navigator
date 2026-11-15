@@ -5,11 +5,13 @@ import { detectWindows, sampleSite } from './windows'
 const MIN_MS = 60_000
 const H_MS = 3_600_000
 const STEP_MIN = 10
+const STEP_MS = STEP_MIN * MIN_MS
 /**
  * Sampling starts up to this long before landing, so the hysteresis state at landing comes from history, not the
  * seed. Longer than the longest in-band Sun run seen at the curated sites (~35 h).
  */
 const PRE_ROLL_H = 48
+const PRE_ROLL_STEPS = (PRE_ROLL_H * 60) / STEP_MIN
 
 /** Time on, longest off run and first on→off transition of one state, clipped to the half-open [landingMs, endMs). */
 function stateStats(wins: Window[], landingMs: number, endMs: number) {
@@ -24,7 +26,8 @@ function stateStats(wins: Window[], landingMs: number, endMs: number) {
     onMs += stopMs - startMs
     longestGapMs = Math.max(longestGapMs, startMs - prevEndMs)
     prevEndMs = stopMs
-    // A transition exactly at endMs is outside the half-open mission.
+    // A transition exactly at endMs is outside the half-open mission. A clipped end is always the last sample
+    // (endMs), so the clippedEnd check only guards against that changing.
     if (firstOffMs === null && !w.clippedEnd && w.endMs < endMs) firstOffMs = w.endMs
   }
   return { onMs, longestGapMs: Math.max(longestGapMs, endMs - prevEndMs), firstOffMs }
@@ -34,15 +37,20 @@ function stateStats(wins: Window[], landingMs: number, endMs: number) {
  * Metrics over the half-open mission [landingMs, landingMs + durationH): % of the mission sunlit / Earth link /
  * both, longest off-periods (including ones cut by the mission ends), hours to the first sunset / Earthset, and
  * the time-weighted mean Sun visible fraction. Samples every 10 min from up to 48 h before landing.
- * Throws RangeError for durationH ≤ 0 or a mission outside the ephemeris coverage (via sampleSite).
+ * Throws RangeError for a non-finite landingMs, durationH ≤ 0, or a mission outside the ephemeris coverage.
  */
 export function missionMetrics(ctx: SiteContext, landingMs: number, durationH: number, opts: VisibilityOpts): MissionMetrics {
+  if (!Number.isFinite(landingMs)) throw new RangeError(`landingMs must be finite, got ${landingMs}`)
   const endMs = landingMs + durationH * H_MS
   // Checked on endMs: a tiny positive durationH can round back to landingMs.
   if (!(Number.isFinite(durationH) && endMs > landingMs)) throw new RangeError(`durationH must be positive, got ${durationH}`)
-  const stepMs = STEP_MIN * MIN_MS
-  const preSteps = Math.max(0, Math.min((PRE_ROLL_H * 60) / STEP_MIN, Math.floor((landingMs - ctx.eph.startUtcMs) / stepMs)))
-  const samples = sampleSite(ctx, landingMs - preSteps * stepMs, endMs, STEP_MIN)
+  const { startUtcMs, stepMs, count } = ctx.eph
+  // Checked before sampling, so a huge durationH fails without allocating the whole range.
+  if (landingMs < startUtcMs || endMs > startUtcMs + (count - 1) * stepMs) {
+    throw new RangeError(`mission [${landingMs}, ${endMs}] is outside the ephemeris coverage`)
+  }
+  const preSteps = Math.min(PRE_ROLL_STEPS, Math.floor((landingMs - startUtcMs) / STEP_MS))
+  const samples = sampleSite(ctx, landingMs - preSteps * STEP_MS, endMs, STEP_MIN)
   const windows = detectWindows(samples, opts)
   const durationMs = endMs - landingMs
   const pct = (ms: number) => (100 * ms) / durationMs

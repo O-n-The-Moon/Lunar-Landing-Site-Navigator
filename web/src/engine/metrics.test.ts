@@ -9,6 +9,7 @@ import { diffMetrics, missionMetrics } from './metrics'
 import { DEFAULT_VISIBILITY_OPTS } from './types'
 import type { EphemerisManifest, MissionMetrics, SiteContext, Vec3, VisibilityOpts } from './types'
 
+const MIN_MS = 60_000
 const H_MS = 3_600_000
 const T0 = Date.UTC(2026, 0, 1)
 /** Events are refined to 1 min; allow one more for the slightly nonlinear angle between hourly ephemeris points. */
@@ -70,7 +71,19 @@ describe('missionMetrics', () => {
   })
 
   it('reports the time-weighted mean visible fraction', () => {
-    expect(missionMetrics(ctx, T0 + 2 * H_MS, 8, opts).meanSunFraction).toBeCloseTo(0.75, 2)
+    // SPEC-engine → Testing: fraction ≤ 1e-3.
+    expect(Math.abs(missionMetrics(ctx, T0 + 2 * H_MS, 8, opts).meanSunFraction - 0.75)).toBeLessThanOrEqual(1e-3)
+  })
+
+  it('weights a short last interval by its actual length', () => {
+    // 2 h 5 min, Sun fully up throughout: the last sample interval is 5 min, not 10.
+    expect(missionMetrics(ctx, T0 + 2 * H_MS, 2 + 5 / 60, opts).meanSunFraction).toBeCloseTo(1, 12)
+  })
+
+  it('handles a landing off the 10-min grid of the ephemeris start', () => {
+    // 25 min after the coverage start: the lead-in must stop at whole steps inside the coverage.
+    const m = missionMetrics(ctx, T0 + 25 * MIN_MS, 5, opts)
+    expect(Math.abs((m.firstSunsetH ?? NaN) - (4.5 - 25 / 60))).toBeLessThan(EVENT_TOL_H)
   })
 
   it('clips a gap at landing and ignores a sunset before landing', () => {
@@ -102,15 +115,45 @@ describe('missionMetrics', () => {
 
   it('takes the state at landing from before landing, not from the hysteresis seed', () => {
     // Sun high until 2 h, then held just below center: inside the hysteresis band and below its midpoint.
-    // Landing 30 h into that hold (real polar data has in-band runs of ~35 h).
+    // Landing 41 h into that hold (real polar data has in-band runs of ~35 h; the lead-in is 48 h).
     const lowDeg = -0.01
     const f = visibleDiskFraction(lowDeg, 0, angularRadiusDeg('sun', 149_600_000))
     expect(f).toBeGreaterThan(0.45)
     expect(f).toBeLessThan(0.5)
-    const held = syntheticCtx([5, 5, 5, ...new Array<number>(40).fill(lowDeg)], new Array<number>(43).fill(5))
-    const m = missionMetrics(held, T0 + 33 * H_MS, 4, opts)
+    const held = syntheticCtx([5, 5, 5, ...new Array<number>(45).fill(lowDeg)], new Array<number>(48).fill(5))
+    const m = missionMetrics(held, T0 + 43 * H_MS, 4, opts)
     expect(m.sunlitPct).toBe(100)
     expect(m.firstSunsetH).toBeNull()
+  })
+
+  describe('with a sunset refined to exactly 4 h', () => {
+    // Hour 4 sits 1e-4° below the off level, so the crossing falls in the last bisection step and refines to 4 h.
+    const radiusDeg = angularRadiusDeg('sun', 149_600_000)
+    let lo = -radiusDeg
+    let hi = 0
+    for (let k = 0; k < 60; k++) {
+      const mid = (lo + hi) / 2
+      if (visibleDiskFraction(mid, 0, radiusDeg) < 0.45) lo = mid
+      else hi = mid
+    }
+    const sunset = syntheticCtx([5, 5, 5, 5, hi - 1e-4, -5, -5, -5, -5], new Array<number>(9).fill(5))
+
+    it('does not count a sunset exactly at the mission end', () => {
+      const m = missionMetrics(sunset, T0 + 2 * H_MS, 2, opts)
+      expect(m.firstSunsetH).toBeNull()
+      expect(m.sunlitPct).toBe(100)
+    })
+
+    it('counts it when the mission runs past it', () => {
+      expect(missionMetrics(sunset, T0 + 2 * H_MS, 2 + 10 / 60, opts).firstSunsetH).toBe(2)
+    })
+
+    it('does not count a sunset exactly at landing', () => {
+      const m = missionMetrics(sunset, T0 + 4 * H_MS, 2, opts)
+      expect(m.firstSunsetH).toBeNull()
+      expect(m.sunlitPct).toBe(0)
+      expect(m.longestSunGapH).toBe(2)
+    })
   })
 
   it('works when landing is at the start of the ephemeris coverage', () => {
@@ -129,6 +172,14 @@ describe('missionMetrics', () => {
 
   it('throws RangeError when the mission runs past the ephemeris coverage', () => {
     expect(() => missionMetrics(ctx, T0 + 10 * H_MS, 3, opts)).toThrow(RangeError)
+  })
+
+  it('throws RangeError when landing is before the ephemeris coverage', () => {
+    expect(() => missionMetrics(ctx, T0 - H_MS, 2, opts)).toThrow(RangeError)
+  })
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY])('throws RangeError naming landingMs for landingMs = %s', (landingMs) => {
+    expect(() => missionMetrics(ctx, landingMs, 2, opts)).toThrow(/landingMs/)
   })
 })
 
