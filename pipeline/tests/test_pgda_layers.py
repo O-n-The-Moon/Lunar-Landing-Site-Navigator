@@ -1,7 +1,9 @@
 """PGDA map layers: area-mean resampling, 8-bit encoding, PNG, and build."""
 
+import json
 import struct
 import zlib
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -87,6 +89,14 @@ def test_area_mean_cell_layout_matches_grid(tmp_path):
     mean = area_mean_fraction(raster, (-4.0, -4.0), 4.0, nx=2, ny=2)
     assert mean[1, 0] > 0.9 and mean[1, 1] > 0.9  # iy = 1 is y > 0
     assert mean[0, 0] < 0.1 and mean[0, 1] < 0.1
+
+
+def test_area_mean_column_order_is_not_mirrored(tmp_path):
+    data = np.zeros((100, 100), dtype=int)
+    data[:, 50:] = 25000  # x > 0 is high
+    raster = write_visibility(tmp_path, data)
+    mean = area_mean_fraction(raster, (-4.0, -4.0), 4.0, nx=2, ny=2)
+    assert np.all(mean[:, 1] > 0.9) and np.all(mean[:, 0] < 0.1)
 
 
 def test_encode_pct_rounds_clamps_and_flags_no_data():
@@ -179,3 +189,16 @@ def test_real_layer_matches_independent_cell_mean_at_curated_sites(label, key):
             subsamples=40,
         )[0, 0]
         assert abs(int(pixels[iy, ix]) - fine * 100) <= 2, site["id"]
+
+
+@needs_pgda
+def test_committed_layers_match_manifest_and_pole():
+    data_dir = Path(__file__).resolve().parents[2] / "web/public/data"
+    manifest = json.loads((data_dir / "pgda-layers.json").read_text())
+    for key, pole_pct in (("sun", 25), ("earth", 27)):  # PGDA pole: .24591, .2718
+        pixels = decode_png(data_dir / manifest["layers"][key])
+        assert pixels.shape == (manifest["ny"], manifest["nx"])
+        assert not np.any(pixels == GRID_NO_DATA)
+        pole = pixels[manifest["ny"] // 2 - 1 : manifest["ny"] // 2 + 1]
+        pole = pole[:, manifest["nx"] // 2 - 1 : manifest["nx"] // 2 + 1]
+        assert abs(float(pole.mean()) - pole_pct) <= 6  # 2 km mean, not the pole point

@@ -14,7 +14,7 @@
     "earth": "pgda-earth.png"
   },
   "encoding": "8-bit grayscale; value = whole percent of time 0-100; 255 = no data",
-  "rowOrder": "row 0 = lowest y, column 0 = lowest x (same as grid-*.bin); flip vertically to draw north-up style maps",
+  "rowOrder": "image row 0 = lowest y, column 0 = lowest x (same as grid-*.bin); flip vertically to draw a y-up map",
   "resampling": "mean of 16x16 bilinear samples per cell (area average, not a site value)",
   "source": {
     "product": "NASA PGDA product 69, average visibility, 75S, 120 m, 2016-08",

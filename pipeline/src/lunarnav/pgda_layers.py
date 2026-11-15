@@ -64,9 +64,12 @@ def area_mean_fraction(
 
 
 def encode_pct_u8(fraction: ArrayLike) -> NDArray[np.uint8]:
-    """Fraction of time (0-1) to whole percent 0-100; NaN becomes 255 (no data)."""
+    """Fraction of time (0-1) to whole percent 0-100; NaN becomes 255 (no data).
+
+    Rounds half to even (np.rint); values above 1 clip to 100.
+    """
     fraction = np.asarray(fraction, dtype=np.float64)
-    pct = np.clip(np.rint(fraction * 100), 0, _PCT_MAX)
+    pct = np.clip(np.rint(fraction * _PCT_MAX), 0, _PCT_MAX)
     return np.where(np.isnan(fraction), GRID_NO_DATA, pct).astype(np.uint8)
 
 
@@ -104,8 +107,8 @@ def layers_manifest(
         "ny": ny,
         "layers": {"sun": "pgda-sun.png", "earth": "pgda-earth.png"},
         "encoding": "8-bit grayscale; value = whole percent of time 0-100; 255 = no data",
-        "rowOrder": "row 0 = lowest y, column 0 = lowest x (same as grid-*.bin); "
-        "flip vertically to draw north-up style maps",
+        "rowOrder": "image row 0 = lowest y, column 0 = lowest x (same as "
+        "grid-*.bin); flip vertically to draw a y-up map",
         "resampling": f"mean of {SUBSAMPLES_PER_AXIS}x{SUBSAMPLES_PER_AXIS} bilinear "
         "samples per cell (area average, not a site value)",
         "source": {
