@@ -34,8 +34,9 @@ function stateStats(wins: Window[], landingMs: number, endMs: number) {
  * Throws RangeError for durationH ≤ 0 or a mission outside the ephemeris coverage (via sampleSite).
  */
 export function missionMetrics(ctx: SiteContext, landingMs: number, durationH: number, opts: VisibilityOpts): MissionMetrics {
-  if (!(Number.isFinite(durationH) && durationH > 0)) throw new RangeError(`durationH must be positive, got ${durationH}`)
   const endMs = landingMs + durationH * H_MS
+  // Checked on endMs: a tiny positive durationH can round back to landingMs.
+  if (!(Number.isFinite(durationH) && endMs > landingMs)) throw new RangeError(`durationH must be positive, got ${durationH}`)
   const stepMs = STEP_MIN * MIN_MS
   const preSteps = Math.max(0, Math.min((PRE_ROLL_H * 60) / STEP_MIN, Math.floor((landingMs - ctx.eph.startUtcMs) / stepMs)))
   const samples = sampleSite(ctx, landingMs - preSteps * stepMs, endMs, STEP_MIN)

@@ -121,6 +121,11 @@ describe('missionMetrics', () => {
     expect(() => missionMetrics(ctx, T0 + 2 * H_MS, durationH, opts)).toThrow(RangeError)
   })
 
+  it('throws RangeError for a duration too small to move the end time', () => {
+    expect(T0 + 2 * H_MS + 1e-12 * H_MS).toBe(T0 + 2 * H_MS)
+    expect(() => missionMetrics(ctx, T0 + 2 * H_MS, 1e-12, opts)).toThrow(RangeError)
+  })
+
   it('throws RangeError when the mission runs past the ephemeris coverage', () => {
     expect(() => missionMetrics(ctx, T0 + 10 * H_MS, 3, opts)).toThrow(RangeError)
   })
