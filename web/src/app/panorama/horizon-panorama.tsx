@@ -203,13 +203,12 @@ function LineSwatch({ color, dashed }: { color: string; dashed: boolean }) {
 function TrackLegend() {
   return (
     <p className="muted" style={{ margin: 0, fontSize: '0.75rem', display: 'flex', flexWrap: 'wrap', columnGap: 'var(--space-3)' }}>
-      <span>Tracks over the mission:</span>
       {BODIES.map(({ key, label, color, on, off }) => (
         <span key={key}>
-          {label} <LineSwatch color={color} dashed={false} /> {on} <LineSwatch color={color} dashed /> {off}
+          {label} track: <LineSwatch color={color} dashed={false} /> {on} <LineSwatch color={color} dashed /> {off}
         </span>
       ))}
-      <span>Ticks: L = landing, L+Nd = N days after landing</span>
+      <span>Ticks on the Sun track: L = landing, L+Nd = N days after landing</span>
     </p>
   )
 }

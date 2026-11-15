@@ -1,14 +1,21 @@
 // Horizon panorama for the focused site at the shared cursor time (SPEC-app P0-5).
 // Positions come from the engine; lit / in-view state comes from the same windows the timeline draws,
-// so the panorama and the timeline always agree. Tracks, hover and re-centering come in T22 #23.
+// so the panorama and the timeline always agree.
+import { useId, useMemo, useState } from 'react'
 import { angularRadiusDeg, azEl, bodyVectorKm, horizonElevAt, type Body, type SiteContext, type Window } from '../../engine'
-import { useScenario } from '../state'
+import { HOUR_MS, useScenario } from '../state'
 import { useScenarioResults } from '../use-scenario-results'
 import { HorizonPanorama, type PanoramaBody } from './horizon-panorama'
+import { isIn, missionTracks } from './tracks'
 
-/** Same rule as the timeline: half-open [start, end), except a window clipped at the range end includes that end. */
-const isIn = (ws: Window[], t: number) =>
-  ws.some((w) => w.startMs <= t && (t < w.endMs || (w.clippedEnd && t === w.endMs)))
+/** What the middle of the panorama follows: fixed (S in the middle, N at the edges) or a body at the cursor time. */
+type CenterOn = 'fixed' | Body
+const CENTER_OPTIONS: { value: CenterOn; label: string }[] = [
+  { value: 'fixed', label: 'N at edges' },
+  { value: 'sun', label: 'Sun' },
+  { value: 'earth', label: 'Earth' },
+]
+const FIXED_CENTER_AZ_DEG = 180
 
 function bodyAt(ctx: SiteContext, body: Body, tUtcMs: number, windows: Window[]): PanoramaBody {
   const { azDeg, elevDeg, distKm } = azEl(ctx.frame, bodyVectorKm(ctx.eph, body, tUtcMs))
@@ -21,11 +28,39 @@ function bodyAt(ctx: SiteContext, body: Body, tUtcMs: number, windows: Window[])
   }
 }
 
+function CenterControl({ value, onChange }: { value: CenterOn; onChange: (v: CenterOn) => void }) {
+  const labelId = useId()
+  return (
+    <div className="row" style={{ alignItems: 'baseline', fontSize: '0.75rem' }}>
+      <span id={labelId} className="muted">
+        Center
+      </span>
+      <div className="row" role="radiogroup" aria-labelledby={labelId}>
+        {CENTER_OPTIONS.map((o) => (
+          <label key={o.value}>
+            <input type="radio" name={labelId} value={o.value} checked={value === o.value} onChange={() => onChange(o.value)} />
+            {o.label}
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function PanoramaPanel() {
   const { focusedSiteId, cursorMs } = useScenario()
   const results = useScenarioResults()
+  const [centerOn, setCenterOn] = useState<CenterOn>('fixed')
   const focused = results.sites.find((r) => r.site.id === focusedSiteId)
   const unavailable = results.unavailable.find((x) => x.id === focusedSiteId)
+
+  // The slipped mission's tracks; rebuilt when the results change (results are memoized, so not when the cursor moves).
+  const startMs = results.slippedLandingMs
+  const endMs = startMs + results.durationH * HOUR_MS
+  const tracks = useMemo(
+    () => (focused ? missionTracks(focused.slipped.samples, focused.slipped.windows, { startMs, endMs }) : undefined),
+    [focused, startMs, endMs],
+  )
 
   let content
   if (!focused) {
@@ -53,14 +88,19 @@ export function PanoramaPanel() {
       error = e.message
     }
     content = bodies ? (
-      <HorizonPanorama
-        siteName={site.name}
-        horizonMaskDeg={ctx.horizonMaskDeg}
-        azStepDeg={ctx.azStepDeg}
-        observerHeightM={ctx.observerHeightM}
-        sun={bodies.sun}
-        earth={bodies.earth}
-      />
+      <>
+        <CenterControl value={centerOn} onChange={setCenterOn} />
+        <HorizonPanorama
+          siteName={site.name}
+          horizonMaskDeg={ctx.horizonMaskDeg}
+          azStepDeg={ctx.azStepDeg}
+          observerHeightM={ctx.observerHeightM}
+          sun={bodies.sun}
+          earth={bodies.earth}
+          centerAzDeg={centerOn === 'fixed' ? FIXED_CENTER_AZ_DEG : bodies[centerOn].azDeg}
+          tracks={tracks}
+        />
+      </>
     ) : (
       <p className="hint warn">
         Can't draw the horizon for {site.name}: {error}
