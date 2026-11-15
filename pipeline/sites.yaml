@@ -18,7 +18,6 @@
 #   Not yet included:
 #   - Peak near Cabeus B (-83.6514, -68.7263) and Nobile Rim 2 (-83.9545, 58.7938):
 #     centers lie north of 84 S, outside the project's scope. Needs a team decision.
-#   - Mons Mouton Plateau: its grid zip is not publicly downloadable from ScienceBase.
 #
 # Chang'e-7 (SPEC Open Q3): left out. CNSA has not published a citable target coordinate.
 
@@ -43,6 +42,14 @@ sites:
     category: artemis3-region
     latDeg: -85.4218
     lonDeg: 31.6755
+    coordSource: https://doi.org/10.5066/P1MEQ6UK
+
+  # Large region (78 x 58 km grid); IM-2 Athena (below) landed inside it.
+  - id: mons-mouton-plateau
+    name: Mons Mouton Plateau (Artemis III region)
+    category: artemis3-region
+    latDeg: -84.3375
+    lonDeg: 30.6186
     coordSource: https://doi.org/10.5066/P1MEQ6UK
 
   - id: nobile-rim-1
