@@ -43,10 +43,10 @@ export function sampleSite(ctx: SiteContext, startMs: number, endMs: number, ste
     earthHorizonDeg: new Float64Array(n),
   }
   for (let i = 0; i < n; i++) {
-    const t = i > whole ? endMs : startMs + i * stepMs
-    const sun = sunAt(ctx, t)
-    const earth = earthAt(ctx, t)
-    s.tUtcMs[i] = t
+    const tUtcMs = i > whole ? endMs : startMs + i * stepMs
+    const sun = sunAt(ctx, tUtcMs)
+    const earth = earthAt(ctx, tUtcMs)
+    s.tUtcMs[i] = tUtcMs
     s.sunAzDeg[i] = sun.azDeg
     s.sunElevDeg[i] = sun.elevDeg
     s.sunHorizonDeg[i] = sun.horizonDeg
@@ -69,32 +69,35 @@ function refine(valueAt: (tUtcMs: number) => number, reached: (v: number) => boo
 }
 
 /**
- * Hysteresis on a sampled series: turns on at v ≥ onAt, off at v ≤ offAt; the first sample is on if
- * v[0] ≥ the band midpoint. Each transition is refined between its two samples with `valueAt`.
+ * Hysteresis on a sampled series: turns on at v ≥ onAt, off at v ≤ offAt (and v < onAt, so a zero-width band
+ * doesn't toggle on a value exactly at the level); the first sample is on if v[0] ≥ the band midpoint.
+ * Each transition is refined between its two samples with `valueAt`. Zero-length windows are dropped.
  */
 function windowsFromSeries(
-  t: Float64Array,
+  tUtcMs: Float64Array,
   v: ArrayLike<number>,
   onAt: number,
   offAt: number,
   valueAt: (tUtcMs: number) => number,
 ): Window[] {
+  const isOn = (x: number) => x >= onAt
+  const isOff = (x: number) => x <= offAt && x < onAt
   const wins: Window[] = []
+  const lastMs = tUtcMs[tUtcMs.length - 1]
   let on = v[0] >= (onAt + offAt) / 2
-  let startMs = t[0]
+  let startMs = tUtcMs[0]
   let clippedStart = true
-  for (let i = 1; i < t.length; i++) {
-    if (!on && v[i] >= onAt) {
+  for (let i = 1; i < tUtcMs.length; i++) {
+    if (!on && isOn(v[i])) {
       on = true
-      startMs = refine(valueAt, (x) => x >= onAt, t[i - 1], t[i])
+      startMs = refine(valueAt, isOn, tUtcMs[i - 1], tUtcMs[i])
       clippedStart = false
-    } else if (on && v[i] <= offAt) {
+    } else if (on && isOff(v[i])) {
       on = false
-      const endMs = refine(valueAt, (x) => x <= offAt, t[i - 1], t[i])
-      wins.push({ startMs, endMs, clippedStart, clippedEnd: false })
+      wins.push({ startMs, endMs: refine(valueAt, isOff, tUtcMs[i - 1], tUtcMs[i]), clippedStart, clippedEnd: false })
     }
   }
-  if (on) wins.push({ startMs, endMs: t[t.length - 1], clippedStart, clippedEnd: true })
+  if (on && lastMs > startMs) wins.push({ startMs, endMs: lastMs, clippedStart, clippedEnd: true })
   return wins
 }
 
@@ -124,22 +127,26 @@ function intersect(a: Window[], b: Window[]): Window[] {
 
 /**
  * Sunlit / Earth-link / both windows with hysteresis (SPEC-engine → Definitions), events bisected to 1 min
- * using `samples.ctx`. Sunlit: on at fraction ≥ threshold + hysteresis, off at ≤ threshold − hysteresis.
- * Earth link: clearance = elev − horizon − earthMarginDeg; on at ≥ +earthHysteresisDeg, off at ≤ −earthHysteresisDeg.
- * A refined event time is the first time (to 1 min) at which the new state holds.
+ * using `samples.ctx`. Sunlit: on at fraction ≥ threshold + hysteresis, off at ≤ threshold − hysteresis, both
+ * levels capped to [0, 1] so they stay reachable. Earth link: clearance = elev − horizon − earthMarginDeg; on at
+ * ≥ +earthHysteresisDeg, off at ≤ −earthHysteresisDeg. A refined event time is the first time (to 1 min) at
+ * which the new state holds. The observer height is the one `samples.ctx` was built for; `opts.observerHeightM`
+ * is not read here.
  */
 export function detectWindows(samples: SiteSamples, opts: VisibilityOpts): DetectedWindows {
   const { sunThreshold, hysteresis, earthMarginDeg, earthHysteresisDeg } = opts
+  if (!(sunThreshold >= 0 && sunThreshold <= 1)) throw new RangeError(`sunThreshold must be in [0, 1], got ${sunThreshold}`)
+  if (!Number.isFinite(earthMarginDeg)) throw new RangeError(`earthMarginDeg must be finite, got ${earthMarginDeg}`)
   if (!(hysteresis >= 0 && earthHysteresisDeg >= 0)) {
     throw new RangeError(`hysteresis must be ≥ 0, got ${hysteresis} / ${earthHysteresisDeg}°`)
   }
   const { ctx, tUtcMs } = samples
   const earthClearanceDeg = samples.earthElevDeg.map((e, i) => e - samples.earthHorizonDeg[i] - earthMarginDeg)
-  const sun = windowsFromSeries(tUtcMs, samples.sunFraction, sunThreshold + hysteresis, sunThreshold - hysteresis, (t) =>
-    sunAt(ctx, t).fraction,
-  )
-  const earth = windowsFromSeries(tUtcMs, earthClearanceDeg, earthHysteresisDeg, -earthHysteresisDeg, (t) => {
-    const e = earthAt(ctx, t)
+  const sunOnAt = Math.min(1, sunThreshold + hysteresis)
+  const sunOffAt = Math.max(0, sunThreshold - hysteresis)
+  const sun = windowsFromSeries(tUtcMs, samples.sunFraction, sunOnAt, sunOffAt, (tMs) => sunAt(ctx, tMs).fraction)
+  const earth = windowsFromSeries(tUtcMs, earthClearanceDeg, earthHysteresisDeg, -earthHysteresisDeg, (tMs) => {
+    const e = earthAt(ctx, tMs)
     return e.elevDeg - e.horizonDeg - earthMarginDeg
   })
   return { sun, earth, both: intersect(sun, earth) }

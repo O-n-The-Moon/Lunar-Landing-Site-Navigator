@@ -219,11 +219,42 @@ describe('detectWindows', () => {
     }
   })
 
+  it('caps the Sun on/off levels to the 0–1 fraction range, so thresholds near 0 or 1 still set and rise', () => {
+    const s = sampleSite(syntheticCtx([2, -2, 2], [5, 5, 5]), T0, T0 + 2 * H_MS)
+    for (const sunThreshold of [0.97, 1, 0.02, 0]) {
+      const { sun } = detectWindows(s, { ...opts, sunThreshold })
+      expect(sun.map((w) => [w.clippedStart, w.clippedEnd])).toEqual([
+        [true, false],
+        [false, true],
+      ])
+    }
+  })
+
+  it('does not toggle on a value exactly at a zero-width band', () => {
+    // Sun fully up: the fraction sits at exactly 1 = threshold for the whole range.
+    const s = sampleSite(syntheticCtx([2, 2, 2], [5, 5, 5]), T0, T0 + 2 * H_MS)
+    const whole = { startMs: T0, endMs: T0 + 2 * H_MS, clippedStart: true, clippedEnd: true }
+    expect(detectWindows(s, { ...opts, sunThreshold: 1, hysteresis: 0 }).sun).toEqual([whole])
+  })
+
+  it('returns no zero-length window for a single sample', () => {
+    const s = sampleSite(syntheticCtx([2, 2], [5, 5]), T0, T0)
+    expect(detectWindows(s, opts)).toEqual({ sun: [], earth: [], both: [] })
+  })
+
   it('rejects a negative or NaN hysteresis', () => {
     const s = sampleSite(syntheticCtx([1, 1], [5, 5]), T0, T0 + H_MS)
     expect(() => detectWindows(s, { ...opts, hysteresis: -0.01 })).toThrow(RangeError)
     expect(() => detectWindows(s, { ...opts, earthHysteresisDeg: -0.1 })).toThrow(RangeError)
     expect(() => detectWindows(s, { ...opts, hysteresis: Number.NaN })).toThrow(RangeError)
+  })
+
+  it('rejects a Sun threshold outside 0–1 and a NaN threshold or Earth margin', () => {
+    const s = sampleSite(syntheticCtx([1, 1], [5, 5]), T0, T0 + H_MS)
+    expect(() => detectWindows(s, { ...opts, sunThreshold: Number.NaN })).toThrow(RangeError)
+    expect(() => detectWindows(s, { ...opts, sunThreshold: -0.1 })).toThrow(RangeError)
+    expect(() => detectWindows(s, { ...opts, sunThreshold: 1.1 })).toThrow(RangeError)
+    expect(() => detectWindows(s, { ...opts, earthMarginDeg: Number.NaN })).toThrow(RangeError)
   })
 })
 
