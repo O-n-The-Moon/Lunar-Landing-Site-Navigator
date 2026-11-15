@@ -16,7 +16,7 @@ function fixtureResults({ slipped }: { slipped: boolean }): ScenarioResults {
     const out = fixtureOutputs[s.id]
     const run = (m: typeof out.metrics.baseline) => ({ landingMs: m.landingMs, samples: out.samples, windows: out.windows, metrics: m })
     return {
-      site: { id: s.id, kind: 'curated', name: s.name, latDeg: s.latDeg, lonDeg: s.lonDeg, slopeDeg: s.slopeDeg, snapDistKm: null, observerHeightM: 2 },
+      site: { id: s.id, kind: 'curated', name: s.name, latDeg: s.latDeg, lonDeg: s.lonDeg, slopeDeg: s.slopeDeg, snapDistKm: null, gridCellKm: null, observerHeightM: 2 },
       ctx: out.ctx,
       baseline: run(out.metrics.baseline),
       slipped: run(slipped ? out.metrics.slipped : out.metrics.baseline),

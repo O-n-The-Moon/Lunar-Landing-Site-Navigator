@@ -4,11 +4,14 @@ import {
   DEFAULT_VISIBILITY_OPTS,
   detectWindows,
   diffMetrics,
+  gridSiteContext,
   missionMetrics,
   sampleSite,
   siteContext,
   type DetectedWindows,
   type Ephemeris,
+  type Grid,
+  type GridCellRef,
   type MetricDelta,
   type MissionMetrics,
   type Site,
@@ -17,7 +20,7 @@ import {
   type SitesFile,
   type VisibilityOpts,
 } from '../engine'
-import { useCoreData } from './data'
+import { useCoreData, useGrid } from './data'
 import {
   GRID_OBSERVER_HEIGHT_M,
   HOUR_MS,
@@ -38,6 +41,11 @@ export interface ResolvedSite {
   slopeDeg: number | null
   /** Custom sites: distance from the entered point to the grid cell used; null for curated sites. */
   snapDistKm: number | null
+  /**
+   * Cell size of the terrain grid a custom site's horizon comes from ("grid-approximate"), set once the grid is
+   * loaded; null otherwise. Curated sites always use their own `sites.json` masks, never the grid (#76).
+   */
+  gridCellKm: number | null
   /** Height actually used: custom (grid-snapped) sites are 2 m only. */
   observerHeightM: number
 }
@@ -88,6 +96,8 @@ export type EngineData = { ephemeris: Ephemeris; sitesFile: SitesFile }
 
 export const formatLatDeg = (latDeg: number) => `${Math.abs(latDeg).toFixed(2)}°${latDeg < 0 ? 'S' : 'N'}`
 export const formatLonDeg = (lonDeg: number) => `${Math.abs(lonDeg).toFixed(2)}°${lonDeg < 0 ? 'W' : 'E'}`
+/** "Custom 85.12°S 30.40°E": a custom site named by the point as entered. */
+export const customSiteName = (latDeg: number, lonDeg: number) => `Custom ${formatLatDeg(latDeg)} ${formatLonDeg(lonDeg)}`
 
 export function visibilityOpts(s: Pick<ScenarioState, 'sunThreshold' | 'earthMarginDeg'>): VisibilityOpts {
   return {
@@ -102,11 +112,12 @@ export function resolveSite(ref: ScenarioSite, curated: readonly Site[], observe
     return {
       id: ref.id,
       kind: 'custom',
-      name: `Custom ${formatLatDeg(ref.latDeg)} ${formatLonDeg(ref.lonDeg)}`,
+      name: customSiteName(ref.latDeg, ref.lonDeg),
       latDeg: ref.latDeg,
       lonDeg: ref.lonDeg,
       slopeDeg: null,
       snapDistKm: ref.cell.snapDistKm,
+      gridCellKm: null,
       observerHeightM: GRID_OBSERVER_HEIGHT_M,
     }
   }
@@ -120,23 +131,47 @@ export function resolveSite(ref: ScenarioSite, curated: readonly Site[], observe
     lonDeg: site.lonDeg,
     slopeDeg: site.slopeDeg,
     snapDistKm: null,
+    gridCellKm: null,
     observerHeightM,
   }
 }
 
 type SiteSetup = { site: ResolvedSite; ctx: SiteContext } | UnavailableSite
 
-/** Resolves each scenario site and builds its engine context, or says why it can't be evaluated. */
+/** The terrain grid as far as custom sites are concerned: loaded, still coming, or failed. */
+export type GridAvailability = { status: 'ready'; grid: Grid } | { status: 'pending' } | { status: 'error'; message: string }
+
+const GRID_PENDING: GridAvailability = { status: 'pending' }
+
+/** A custom site's context on its grid cell (2 m only), or why there is none. */
+function customSetup(site: ResolvedSite, cell: GridCellRef, ephemeris: Ephemeris, grid: GridAvailability): SiteSetup {
+  if (grid.status === 'pending') return { id: site.id, name: site.name, reason: 'Loading the terrain grid…' }
+  if (grid.status === 'error') return { id: site.id, name: site.name, reason: `Terrain grid failed to load (${grid.message}).` }
+  try {
+    const ctx = gridSiteContext(ephemeris, grid.grid, cell)
+    const { cellKm } = grid.grid.manifest
+    // In the name, so every view that labels the results (cards, timeline, panorama) says they are grid-derived.
+    return { site: { ...site, name: `${site.name} · grid-approximate (${cellKm} km)`, gridCellKm: cellKm }, ctx }
+  } catch (e) {
+    if (!(e instanceof RangeError)) throw e
+    return { id: site.id, name: site.name, reason: 'No terrain data for this grid cell.' }
+  }
+}
+
+/**
+ * Resolves each scenario site and builds its engine context, or says why it can't be evaluated. Curated sites use
+ * their `sites.json` mask at the scenario height; custom sites use their grid cell (2 m) once `grid` is ready.
+ */
 export function siteSetups(
   refs: readonly ScenarioSite[],
   { ephemeris, sitesFile }: EngineData,
   observerHeightM: number,
+  grid: GridAvailability = GRID_PENDING,
 ): SiteSetup[] {
   return refs.map((ref) => {
     const site = resolveSite(ref, sitesFile.sites, observerHeightM)
     if (!site) return { id: ref.id, name: ref.id, reason: 'Not in sites.json.' }
-    // The engine has no grid-cell context yet (custom sites use the grid's terrain, not a sites.json mask).
-    if (site.kind === 'custom') return { id: site.id, name: site.name, reason: 'Custom-site metrics are not available yet.' }
+    if (ref.kind === 'custom') return customSetup(site, ref.cell, ephemeris, grid)
     const curated = sitesFile.sites.find((x) => x.id === site.id)
     if (!curated?.horizonElevDeg[String(observerHeightM)]) {
       return { id: site.id, name: site.name, reason: `No ${observerHeightM} m horizon mask in sites.json.` }
@@ -217,12 +252,28 @@ export function assembleResults(
 }
 
 /** Runs the engine for every scenario site: baseline and slipped missions plus the slip delta. */
-export function computeScenarioResults(s: ScenarioState, data: EngineData): ScenarioResults {
+export function computeScenarioResults(s: ScenarioState, data: EngineData, grid: GridAvailability = GRID_PENDING): ScenarioResults {
   const opts = visibilityOpts(s)
-  const setups = siteSetups(s.sites, data, s.observerHeightM)
+  const setups = siteSetups(s.sites, data, s.observerHeightM, grid)
   const baseline = runAll(setups, s.landingMs, s.durationH, opts)
   const slipped = s.slipH === 0 ? baseline : runAll(setups, slippedLandingMs(s), s.durationH, opts)
   return assembleResults(s, opts, data.ephemeris, setups, baseline, slipped)
+}
+
+/**
+ * The grid for `siteSetups`. It starts loading only when the scenario has a custom site, and the value changes
+ * only when the status does (not on every progress tick), so curated runs aren't recomputed while it loads.
+ */
+function useGridForSetups(refs: readonly ScenarioSite[]): GridAvailability {
+  const needed = refs.some((x) => x.kind === 'custom')
+  const { state } = useGrid(needed)
+  const ready = state.status === 'ready' ? state.data : null
+  const error = state.status === 'error' ? state.message : null
+  return useMemo<GridAvailability>(() => {
+    if (!needed) return GRID_PENDING // no custom site reads it
+    if (ready) return { status: 'ready', grid: ready }
+    return error === null ? GRID_PENDING : { status: 'error', message: error }
+  }, [needed, ready, error])
 }
 
 /**
@@ -232,8 +283,9 @@ export function computeScenarioResults(s: ScenarioState, data: EngineData): Scen
 export function useScenarioResults(): ScenarioResults {
   const data = useCoreData()
   const { sites: refs, observerHeightM, landingMs, durationH, slipH, sunThreshold, earthMarginDeg } = useScenario()
+  const grid = useGridForSetups(refs)
   const opts = useMemo(() => visibilityOpts({ sunThreshold, earthMarginDeg }), [sunThreshold, earthMarginDeg])
-  const setups = useMemo(() => siteSetups(refs, data, observerHeightM), [refs, data, observerHeightM])
+  const setups = useMemo(() => siteSetups(refs, data, observerHeightM, grid), [refs, data, observerHeightM, grid])
   const baseline = useMemo(() => runAll(setups, landingMs, durationH, opts), [setups, landingMs, durationH, opts])
   const slipped = useMemo(
     () => (slipH === 0 ? baseline : runAll(setups, landingMs + slipH * HOUR_MS, durationH, opts)),
