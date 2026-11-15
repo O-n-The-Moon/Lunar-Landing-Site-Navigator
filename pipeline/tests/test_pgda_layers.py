@@ -5,12 +5,23 @@ import zlib
 
 import numpy as np
 import pytest
+import yaml
 
-from lunarnav.constants import GRID_NO_DATA
-from lunarnav.dem import PdsRaster
+from lunarnav.constants import (
+    GRID_CELL_KM,
+    GRID_NO_DATA,
+    GRID_NX,
+    GRID_NY,
+    GRID_ORIGIN_KM,
+)
+from lunarnav.dem import PdsRaster, lat_lon_to_xy_km
+from lunarnav.fetch import RAW_DIR
+from lunarnav.horizons_sites import SITES_YAML
 from lunarnav.pgda_layers import (
     area_mean_fraction,
+    build_layers,
     encode_pct_u8,
+    layers_manifest,
     write_gray_png,
 )
 
@@ -111,3 +122,60 @@ def test_png_round_trips_8bit_grayscale(tmp_path):
     path = tmp_path / "a.png"
     write_gray_png(path, pixels)
     np.testing.assert_array_equal(decode_png(path), pixels)
+
+
+def test_manifest_matches_grid_extent_and_states_limits():
+    manifest = layers_manifest(2, 182, 182, (-182, -182))
+    assert manifest["originKm"] == [-182, -182]
+    assert (manifest["cellKm"], manifest["nx"], manifest["ny"]) == (2, 182, 182)
+    assert manifest["layers"] == {"sun": "pgda-sun.png", "earth": "pgda-earth.png"}
+    assert manifest["observerHeightM"] is None  # unknown until #57, never invented
+
+
+def test_build_layers_encodes_both_rasters(tmp_path):
+    sun = write_visibility(tmp_path, np.full((100, 100), 10000))  # 0.4
+    sun_u8, earth_u8 = build_layers(sun, sun, 2.0, 2, 2, (-2.0, -2.0))
+    np.testing.assert_array_equal(sun_u8, np.full((2, 2), 40))
+    np.testing.assert_array_equal(earth_u8, sun_u8)
+
+
+REAL = RAW_DIR / "pgda"
+needs_pgda = pytest.mark.skipif(
+    not (REAL / "AVGVISIB_75S_120M_201608.LBL").exists(), reason="Run lunarnav fetch"
+)
+
+
+@needs_pgda
+@pytest.mark.parametrize(
+    ("label", "key"),
+    [
+        ("AVGVISIB_75S_120M_201608", "sun"),
+        ("AVGVISIB_75S_120M_201608_EARTH", "earth"),
+    ],
+)
+def test_real_layer_matches_independent_cell_mean_at_curated_sites(label, key):
+    raster = PdsRaster(REAL / f"{label}.LBL")
+    sites = yaml.safe_load(SITES_YAML.read_text())["sites"]
+    pixels = encode_pct_u8(
+        area_mean_fraction(raster, GRID_ORIGIN_KM, GRID_CELL_KM, GRID_NX, GRID_NY)
+    )
+    assert not np.any(pixels == GRID_NO_DATA)
+    for site in sites:
+        x_km, y_km = (
+            float(v) for v in lat_lon_to_xy_km(site["latDeg"], site["lonDeg"])
+        )
+        ix = int((x_km - GRID_ORIGIN_KM[0]) // GRID_CELL_KM)
+        iy = int((y_km - GRID_ORIGIN_KM[1]) // GRID_CELL_KM)
+        # Different lattice (40x40 = 50 m) than the build (16x16), same cell.
+        fine = area_mean_fraction(
+            raster,
+            (
+                GRID_ORIGIN_KM[0] + ix * GRID_CELL_KM,
+                GRID_ORIGIN_KM[1] + iy * GRID_CELL_KM,
+            ),
+            GRID_CELL_KM,
+            1,
+            1,
+            subsamples=40,
+        )[0, 0]
+        assert abs(int(pixels[iy, ix]) - fine * 100) <= 2, site["id"]

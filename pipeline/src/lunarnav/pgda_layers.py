@@ -13,10 +13,23 @@ from typing import Protocol
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from lunarnav.constants import GRID_NO_DATA
+from lunarnav.constants import (
+    GRID_CELL_KM,
+    GRID_NO_DATA,
+    GRID_NX,
+    GRID_NY,
+    GRID_ORIGIN_KM,
+    MOON_RADIUS_KM,
+    SCHEMA_VERSION,
+)
+from lunarnav.dem import PdsRaster
+from lunarnav.fetch import RAW_DIR
+from lunarnav.io import PGDA_EARTH_PNG, PGDA_LAYERS_JSON, PGDA_SUN_PNG, write_json
 
 SUBSAMPLES_PER_AXIS = 16  # 125 m spacing in a 2 km cell, about the 120 m source.
 _PCT_MAX = 100
+PGDA_SUN_LBL = RAW_DIR / "pgda/AVGVISIB_75S_120M_201608.LBL"
+PGDA_EARTH_LBL = RAW_DIR / "pgda/AVGVISIB_75S_120M_201608_EARTH.LBL"
 
 
 class Sampler(Protocol):
@@ -78,5 +91,57 @@ def write_gray_png(path: Path, pixels: NDArray[np.uint8]) -> None:
     )
 
 
+def layers_manifest(
+    cell_km: float, nx: int, ny: int, origin_km: tuple[float, float]
+) -> dict[str, object]:
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "projection": "polar-stereographic-south",
+        "sphereRadiusKm": MOON_RADIUS_KM,
+        "originKm": list(origin_km),
+        "cellKm": cell_km,
+        "nx": nx,
+        "ny": ny,
+        "layers": {"sun": "pgda-sun.png", "earth": "pgda-earth.png"},
+        "encoding": "8-bit grayscale; value = whole percent of time 0-100; 255 = no data",
+        "rowOrder": "row 0 = lowest y, column 0 = lowest x (same as grid-*.bin); "
+        "flip vertically to draw north-up style maps",
+        "resampling": f"mean of {SUBSAMPLES_PER_AXIS}x{SUBSAMPLES_PER_AXIS} bilinear "
+        "samples per cell (area average, not a site value)",
+        "source": {
+            "product": "NASA PGDA product 69, average visibility, 75S, 120 m, 2016-08",
+            "url": "https://pgda.gsfc.nasa.gov/products/69",
+            "files": [PGDA_SUN_LBL.stem, PGDA_EARTH_LBL.stem],
+            "resolutionM": 120,
+        },
+        "definition": "Fraction of time any part of the Sun/Earth disk is visible "
+        "(PGDA label wording); differs from our mean Sun fraction / Earth-center "
+        "validation definitions.",
+        "observerHeightM": None,
+        "observerHeightNote": "Not stated in the PGDA product page, labels or "
+        "README; tracked in #57. Do not assume a height.",
+    }
+
+
+def build_layers(
+    sun: Sampler,
+    earth: Sampler,
+    cell_km: float = GRID_CELL_KM,
+    nx: int = GRID_NX,
+    ny: int = GRID_NY,
+    origin_km: tuple[float, float] = GRID_ORIGIN_KM,
+) -> tuple[NDArray[np.uint8], NDArray[np.uint8]]:
+    sun_u8 = encode_pct_u8(area_mean_fraction(sun, origin_km, cell_km, nx, ny))
+    earth_u8 = encode_pct_u8(area_mean_fraction(earth, origin_km, cell_km, nx, ny))
+    return sun_u8, earth_u8
+
+
 def main() -> None:
-    raise NotImplementedError
+    sun_u8, earth_u8 = build_layers(PdsRaster(PGDA_SUN_LBL), PdsRaster(PGDA_EARTH_LBL))
+    write_gray_png(PGDA_SUN_PNG, sun_u8)
+    write_gray_png(PGDA_EARTH_PNG, earth_u8)
+    write_json(
+        PGDA_LAYERS_JSON,
+        layers_manifest(GRID_CELL_KM, GRID_NX, GRID_NY, GRID_ORIGIN_KM),
+    )
+    print(f"Wrote {PGDA_SUN_PNG.name}, {PGDA_EARTH_PNG.name}, {PGDA_LAYERS_JSON.name}")
