@@ -109,3 +109,19 @@ def test_rank_flips_apply_first_day_offset_and_min_winner_pct():
 def test_replace_section_refuses_a_block_with_a_missing_end_marker():
     with pytest.raises(ValueError):
         demo.replace_section(f"# Demo\n{demo.START}\nhalf edited\n", "body")
+
+
+def _flip(winner: str, loser: str, swing: float) -> demo.RankFlip:
+    return demo.RankFlip(winner, loser, 0, 1, swing / 2, -swing / 2, swing)
+
+
+def test_diversify_picks_flips_that_share_no_site():
+    flips = [_flip("a", "z", 100), _flip("b", "z", 99), _flip("c", "y", 90)]
+    got = demo.diversify(flips, 2)
+    assert [(f.winner_id, f.loser_id) for f in got] == [("a", "z"), ("c", "y")]
+
+
+def test_diversify_fills_with_next_best_when_too_few_disjoint_flips():
+    flips = [_flip("a", "z", 100), _flip("b", "z", 99), _flip("c", "z", 98)]
+    got = demo.diversify(flips, 3)
+    assert [f.winner_id for f in got] == ["a", "b", "c"]

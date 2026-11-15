@@ -125,6 +125,20 @@ def rank_flips(
     return sorted(out, key=lambda r: (-r.swing_pct, r.winner_id, r.loser_id))
 
 
+def diversify(flips: list[RankFlip], n: int) -> list[RankFlip]:
+    """Top n flips (given best first) that share no site; then fill with the next best."""
+    chosen: list[RankFlip] = []
+    used: set[str] = set()
+    for f in flips:
+        if len(chosen) < n and not ({f.winner_id, f.loser_id} & used):
+            chosen.append(f)
+            used |= {f.winner_id, f.loser_id}
+    for f in flips:
+        if len(chosen) < n and f not in chosen:
+            chosen.append(f)
+    return chosen
+
+
 def replace_section(doc: str, body: str) -> str:
     """Swap the generated block, leaving the rest of the doc untouched."""
     block = f"{START}\n{body}\n{END}"
@@ -284,7 +298,7 @@ def find_scenarios(
     last = n_days - 1 - MAX_SLIP_DAYS
     flips = rank_flips(both, MAX_SLIP_DAYS, first, last, MIN_WINNER_PCT)
     losses = site_losses(both, MAX_SLIP_DAYS, first, last)
-    return flips[:TOP_N], losses[:TOP_N]
+    return diversify(flips, TOP_N), losses[:TOP_N]
 
 
 def main() -> None:

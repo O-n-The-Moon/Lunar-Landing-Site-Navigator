@@ -18,27 +18,27 @@ Search: every curated site, baseline landings daily from 2027-01-01 to the end o
 
 Reproduce: sites `mons-mouton-im2` + `connecting-ridge`, duration 14 d, landing 2029-02-20T00:00:00Z, slip slider +15 d.
 
-**2. Mons Mouton Plateau (Artemis III region) vs Shackleton–de Gerlache connecting ridge**: slip 15 days, landing 2029-12-16 → 2029-12-31. Gap in Both %: +31.5 → -71.8 (swing 103.2 points).
+**2. Mons Mouton (Artemis III region) vs Nobile Rim 2 (Artemis III region)**: slip 12 days, landing 2028-08-07 → 2028-08-19. Gap in Both %: +73.0 → -26.4 (swing 99.4 points).
 
 | | Site | Landing (UTC 00:00) | Sunlit | Earth link | Both | First sunset |
 |---|---|---|---|---|---|---|
-| baseline | Mons Mouton Plateau (Artemis III region) (`mons-mouton-plateau`) | 2029-12-16 | 50.3% | 42.0% | **42.0%** | 169.1 h |
-| baseline | Shackleton–de Gerlache connecting ridge (`connecting-ridge`) | 2029-12-16 | 17.2% | 26.6% | **10.5%** | 112.1 h |
-| slip +15 d | Mons Mouton Plateau (Artemis III region) (`mons-mouton-plateau`) | 2029-12-31 | 0.0% | 88.0% | **0.0%** | never |
-| slip +15 d | Shackleton–de Gerlache connecting ridge (`connecting-ridge`) | 2029-12-31 | 95.7% | 75.9% | **71.8%** | 256.1 h |
+| baseline | Mons Mouton (Artemis III region) (`mons-mouton`) | 2028-08-07 | 100.0% | 77.7% | **77.7%** | never |
+| baseline | Nobile Rim 2 (Artemis III region) (`nobile-rim-2`) | 2028-08-07 | 4.6% | 85.4% | **4.6%** | 15.6 h |
+| slip +12 d | Mons Mouton (Artemis III region) (`mons-mouton`) | 2028-08-19 | 46.1% | 9.5% | **0.3%** | 153.8 h |
+| slip +12 d | Nobile Rim 2 (Artemis III region) (`nobile-rim-2`) | 2028-08-19 | 57.9% | 26.7% | **26.7%** | never |
 
-Reproduce: sites `mons-mouton-plateau` + `connecting-ridge`, duration 14 d, landing 2029-12-16T00:00:00Z, slip slider +15 d.
+Reproduce: sites `mons-mouton` + `nobile-rim-2`, duration 14 d, landing 2028-08-07T00:00:00Z, slip slider +12 d.
 
-**3. Nobile Rim 2 (Artemis III region) vs Shackleton–de Gerlache connecting ridge**: slip 16 days, landing 2028-03-02 → 2028-03-18. Gap in Both %: +36.8 → -64.1 (swing 100.9 points).
+**3. Mons Mouton Plateau (Artemis III region) vs Nobile Rim 1 (Artemis III region)**: slip 16 days, landing 2028-01-07 → 2028-01-23. Gap in Both %: +46.7 → -50.4 (swing 97.1 points).
 
 | | Site | Landing (UTC 00:00) | Sunlit | Earth link | Both | First sunset |
 |---|---|---|---|---|---|---|
-| baseline | Nobile Rim 2 (Artemis III region) (`nobile-rim-2`) | 2028-03-02 | 75.5% | 47.7% | **46.4%** | 258.0 h |
-| baseline | Shackleton–de Gerlache connecting ridge (`connecting-ridge`) | 2028-03-02 | 17.9% | 33.4% | **9.6%** | 2.3 h |
-| slip +16 d | Nobile Rim 2 (Artemis III region) (`nobile-rim-2`) | 2028-03-18 | 0.0% | 91.9% | **0.0%** | never |
-| slip +16 d | Shackleton–de Gerlache connecting ridge (`connecting-ridge`) | 2028-03-18 | 64.1% | 76.4% | **64.1%** | 323.0 h |
+| baseline | Mons Mouton Plateau (Artemis III region) (`mons-mouton-plateau`) | 2028-01-07 | 54.1% | 51.2% | **51.2%** | 181.9 h |
+| baseline | Nobile Rim 1 (Artemis III region) (`nobile-rim-1`) | 2028-01-07 | 4.5% | 24.8% | **4.5%** | 15.2 h |
+| slip +16 d | Mons Mouton Plateau (Artemis III region) (`mons-mouton-plateau`) | 2028-01-23 | 0.0% | 88.0% | **0.0%** | never |
+| slip +16 d | Nobile Rim 1 (Artemis III region) (`nobile-rim-1`) | 2028-01-23 | 59.1% | 50.4% | **50.4%** | never |
 
-Reproduce: sites `nobile-rim-2` + `connecting-ridge`, duration 14 d, landing 2028-03-02T00:00:00Z, slip slider +16 d.
+Reproduce: sites `mons-mouton-plateau` + `nobile-rim-1`, duration 14 d, landing 2028-01-07T00:00:00Z, slip slider +16 d.
 
 ### Largest single-site losses
 
