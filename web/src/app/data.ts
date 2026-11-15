@@ -336,10 +336,12 @@ export function useCoreData(): CoreData {
   return core.data
 }
 
-/** The horizon grid; starts loading on first use. */
-export function useGrid(): LazyResource<Grid> {
+/** The horizon grid; starts loading on first use, or once `enabled` turns true (so callers can defer the ~12 MB). */
+export function useGrid(enabled = true): LazyResource<Grid> {
   const { grid, requestGrid } = useLazyContext()
-  useEffect(requestGrid, [requestGrid])
+  useEffect(() => {
+    if (enabled) requestGrid()
+  }, [enabled, requestGrid])
   return { state: grid, retry: requestGrid }
 }
 

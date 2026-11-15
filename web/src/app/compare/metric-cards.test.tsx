@@ -16,7 +16,7 @@ function fixtureResults({ slipped }: { slipped: boolean }): ScenarioResults {
     const out = fixtureOutputs[s.id]
     const run = (m: typeof out.metrics.baseline) => ({ landingMs: m.landingMs, samples: out.samples, windows: out.windows, metrics: m })
     return {
-      site: { id: s.id, kind: 'curated', name: s.name, latDeg: s.latDeg, lonDeg: s.lonDeg, slopeDeg: s.slopeDeg, snapDistKm: null, observerHeightM: 2 },
+      site: { id: s.id, kind: 'curated', name: s.name, latDeg: s.latDeg, lonDeg: s.lonDeg, slopeDeg: s.slopeDeg, snapDistKm: null, gridCellKm: null, observerHeightM: 2 },
       ctx: out.ctx,
       baseline: run(out.metrics.baseline),
       slipped: run(slipped ? out.metrics.slipped : out.metrics.baseline),
@@ -173,6 +173,18 @@ describe('MetricCards', () => {
     results.sites[0] = { ...results.sites[0], site: { ...results.sites[0].site, kind: 'custom', slopeDeg: null } }
     render(<MetricCards results={results} />)
     expect(cell(/slope/i, /plateau/i)).toHaveTextContent('—')
+  })
+
+  it('labels a custom site column grid-approximate with its snap distance; curated columns are not', () => {
+    const results = fixtureResults({ slipped: false })
+    const site = { ...results.sites[0].site, id: 'custom-4-4', kind: 'custom' as const, name: 'Custom 89.97°S 30.00°E', slopeDeg: null, snapDistKm: 0.58, gridCellKm: 2 }
+    results.sites[0] = { ...results.sites[0], site }
+    results.siteIds = ['custom-4-4', 'fixture-ridge']
+    render(<MetricCards results={results} />)
+    const [custom, ridge] = within(table()).getAllByRole('columnheader').slice(1)
+    expect(custom).toHaveTextContent(/snapped 0\.6 km/)
+    expect(custom).toHaveTextContent(/grid-approximate \(2 km\)/)
+    expect(ridge).not.toHaveTextContent(/grid-approximate/)
   })
 
   it('gives unavailable sites a column with the reason, in scenario order', () => {

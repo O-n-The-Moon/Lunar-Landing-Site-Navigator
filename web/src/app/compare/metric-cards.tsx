@@ -130,6 +130,11 @@ function SiteHeader({ site }: { site: ResolvedSite }) {
       <span className="num muted">
         observer {site.observerHeightM} m{site.snapDistKm !== null && ` · snapped ${site.snapDistKm.toFixed(1)} km`}
       </span>
+      {site.gridCellKm !== null && (
+        <span className="num muted" title="Terrain from the nearest grid cell, not a site-level horizon mask">
+          grid-approximate ({site.gridCellKm} km)
+        </span>
+      )}
     </th>
   )
 }

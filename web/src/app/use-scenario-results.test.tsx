@@ -1,8 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { Dispatch, ReactNode } from 'react'
 import { describe, expect, it } from 'vitest'
-import { diffMetrics, missionMetrics, siteContext, type Window } from '../engine'
-import { fixtureEphemeris, fixtureSitesFile } from '../engine/__fixtures__'
+import { diffMetrics, gridSiteContext, missionMetrics, siteContext, type Window } from '../engine'
+import { fixtureEphemeris, fixtureGrid, fixtureSitesFile } from '../engine/__fixtures__'
 import { DataProvider, fixtureDataSource, useCoreDataState } from './data'
 import {
   HOUR_MS,
@@ -22,6 +22,9 @@ const plateau = curated[0]
 const base = scenarioReducer(createInitialState({ sites: curated }), { type: 'setDuration', durationH: 24 })
 const apply = (...actions: ScenarioAction[]): ScenarioState => actions.reduce(scenarioReducer, base)
 const customSite: ScenarioAction = { type: 'addCustomSite', latDeg: -85.12, lonDeg: 30.4, cell: { ix: 1, iy: 2, snapDistKm: 0.8 } }
+/** Fixture grid cell (4, 4) is next to the pole; (7, 7) is its no-data cell. */
+const fixtureCustomSite: ScenarioAction = { type: 'addCustomSite', latDeg: -89.97, lonDeg: 30, cell: { ix: 4, iy: 4, snapDistKm: 0.6 } }
+const gridReady = { status: 'ready', grid: fixtureGrid } as const
 
 /** Time a state is on inside [startMs, endMs), from a run's windows. */
 const onMs = (wins: Window[], startMs: number, endMs: number) =>
@@ -84,11 +87,36 @@ describe('computeScenarioResults (real engine)', () => {
     }
   })
 
-  it('lists a custom site as unavailable with a reason instead of inventing numbers', () => {
+  it('lists a custom site as unavailable (loading) until the terrain grid is ready', () => {
     const r = computeScenarioResults(apply(customSite), core)
     expect(r.siteIds).toEqual(['fixture-plateau', 'fixture-ridge', 'custom-1-2'])
     expect(r.sites).toHaveLength(2)
-    expect(r.unavailable).toEqual([{ id: 'custom-1-2', name: 'Custom 85.12°S 30.40°E', reason: expect.stringMatching(/custom/i) }])
+    expect(r.unavailable).toEqual([{ id: 'custom-1-2', name: 'Custom 85.12°S 30.40°E', reason: expect.stringMatching(/loading the terrain grid/i) }])
+  })
+
+  it('gives the grid load error as the custom site reason', () => {
+    const r = computeScenarioResults(apply(customSite), core, { status: 'error', message: 'grid.json: HTTP 503' })
+    expect(r.unavailable).toEqual([{ id: 'custom-1-2', name: 'Custom 85.12°S 30.40°E', reason: expect.stringContaining('grid.json: HTTP 503') }])
+  })
+
+  it('evaluates a custom site on its grid cell (2 m only), labelled grid-approximate', () => {
+    const s = apply(fixtureCustomSite, { type: 'setObserverHeight', heightM: 10 })
+    const r = computeScenarioResults(s, core, gridReady)
+    expect(r.unavailable).toEqual([])
+    const custom = r.sites.find((x) => x.site.kind === 'custom')
+    const ctx = gridSiteContext(fixtureEphemeris, fixtureGrid, { ix: 4, iy: 4 })
+    expect(custom?.baseline.metrics).toEqual(missionMetrics(ctx, base.landingMs, 24, visibilityOpts(s)))
+    expect(custom?.site).toMatchObject({ id: 'custom-4-4', observerHeightM: 2, snapDistKm: 0.6, gridCellKm: 2 })
+    // Curated sites keep their own sites.json masks at the scenario height.
+    for (const x of r.sites.filter((y) => y.site.kind === 'curated')) {
+      expect(x.site).toMatchObject({ observerHeightM: 10, gridCellKm: null })
+    }
+  })
+
+  it('lists a custom site on a no-data grid cell as unavailable', () => {
+    const noData: ScenarioAction = { type: 'addCustomSite', latDeg: -89.67, lonDeg: 45, cell: { ix: 7, iy: 7, snapDistKm: 0 } }
+    const r = computeScenarioResults(apply(noData), core, gridReady)
+    expect(r.unavailable).toEqual([{ id: 'custom-7-7', name: 'Custom 89.67°S 45.00°E', reason: expect.stringMatching(/no terrain data/i) }])
   })
 
   it('lists a site missing from sites.json as unavailable', () => {
@@ -146,6 +174,15 @@ describe('useScenarioResults', () => {
     expect(result.current).toBe(before)
   })
 
+  it('loads the terrain grid only once a custom site is added, then evaluates it', async () => {
+    const { result, dispatch } = renderResults()
+    await waitFor(() => expect(result.current).toBeTruthy())
+    expect(result.current.unavailable).toEqual([])
+    dispatch(fixtureCustomSite)
+    await waitFor(() => expect(result.current.sites.map((x) => x.site.id)).toContain('custom-4-4'))
+    expect(result.current.unavailable).toEqual([])
+  })
+
   it('reuses the baseline runs when only the slip changes', async () => {
     const { result, dispatch } = renderResults()
     await waitFor(() => expect(result.current).toBeTruthy())
@@ -173,6 +210,7 @@ describe('resolveSite', () => {
       lonDeg: 30.4,
       slopeDeg: null,
       snapDistKm: 0.8,
+      gridCellKm: null,
       observerHeightM: 2,
     })
   })
