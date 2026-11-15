@@ -2,15 +2,12 @@ import pytest
 
 from lunarnav import cli
 
-COMMANDS = [
-    ["demo"],
-]
 
-
-@pytest.mark.parametrize("argv", COMMANDS)
-def test_stub_commands_raise_not_implemented(argv):
-    with pytest.raises(NotImplementedError):
-        cli.main(argv)
+def test_demo_dispatches_to_implementation(monkeypatch):
+    calls = []
+    monkeypatch.setattr(cli.demo, "main", lambda: calls.append("demo"))
+    cli.main(["demo"])
+    assert calls == ["demo"]
 
 
 def test_horizons_requires_a_target():
