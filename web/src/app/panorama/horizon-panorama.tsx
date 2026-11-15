@@ -1,6 +1,7 @@
 // Unrolled 360° horizon panorama for one site (SPEC-app P0-5), not a fisheye: at the pole everything sits within
 // a few degrees of the horizon. x = azimuth 0–360 (N at the left), y = elevation −5…+12°, vertically exaggerated
-// (labelled). Sun and Earth disks are drawn to angular scale on both axes, so they are ellipses here.
+// (labelled). Sun and Earth disks are round, with their size to angular scale in elevation (labelled).
+import { useId } from 'react'
 // Prop-driven: positions, radii and lit state come from the engine (via the panel); this component does no physics.
 // Mission tracks, hover readout and re-centering come in T22 #23.
 
@@ -70,7 +71,30 @@ function terrainPath(maskDeg: ArrayLike<number>, azStepDeg: number): string {
   return `${d} L${PLOT_W},${y(maskDeg[0])} L${PLOT_W},${PLOT_H} L0,${PLOT_H} Z`
 }
 
-function BodyMark({ b, label, color }: { b: PanoramaBody; label: string; color: string }) {
+/** Earth fill: a lit blue sphere with a green landmass, clipped to the disk. Only drawn while Earth is in view. */
+function EarthFill({ id, cx, cy, r }: { id: string; cx: number; cy: number; r: number }) {
+  return (
+    <g aria-hidden="true">
+      <defs>
+        <radialGradient id={`${id}-ocean`} cx="35%" cy="35%" r="75%">
+          <stop offset="0%" style={{ stopColor: 'var(--text)' }} />
+          <stop offset="45%" style={{ stopColor: 'var(--accent)' }} />
+          <stop offset="100%" style={{ stopColor: 'var(--accent)', stopOpacity: 0.7 }} />
+        </radialGradient>
+        <clipPath id={`${id}-clip`}>
+          <circle cx={cx} cy={cy} r={r} />
+        </clipPath>
+      </defs>
+      <circle cx={cx} cy={cy} r={r} fill={`url(#${id}-ocean)`} />
+      <g clipPath={`url(#${id}-clip)`} fill="var(--good)" opacity={0.85}>
+        <ellipse cx={cx - r * 0.25} cy={cy + r * 0.1} rx={r * 0.35} ry={r * 0.55} transform={`rotate(-20 ${cx} ${cy})`} />
+        <ellipse cx={cx + r * 0.45} cy={cy - r * 0.35} rx={r * 0.2} ry={r * 0.15} />
+      </g>
+    </g>
+  )
+}
+
+function BodyMark({ b, label, color, idPrefix }: { b: PanoramaBody; label: string; color: string; idPrefix: string }) {
   const x = azToX(b.azDeg)
   if (b.elevDeg < ELEV_MIN_DEG || b.elevDeg > ELEV_MAX_DEG) {
     const below = b.elevDeg < ELEV_MIN_DEG
@@ -81,17 +105,22 @@ function BodyMark({ b, label, color }: { b: PanoramaBody; label: string; color: 
     )
   }
   const cy = elevToY(b.elevDeg)
-  const ry = b.radiusDeg * ELEV_UNITS_PER_DEG
+  // Round on screen: the radius is to scale in elevation (what decides lit / blocked against the terrain),
+  // so the disk is widened by the vertical exaggeration in azimuth.
+  const r = b.radiusDeg * ELEV_UNITS_PER_DEG
+  const ry = r
+  const isEarth = label === 'Earth'
   return (
     <g>
+      {isEarth && b.visible && <EarthFill id={`${idPrefix}-earth`} cx={x} cy={cy} r={r} />}
       {/* Not visible: dashed outline only, so the disk stays findable behind the terrain. */}
       <ellipse
         data-body={label.toLowerCase()}
         cx={x}
         cy={cy}
-        rx={b.radiusDeg * AZ_UNITS_PER_DEG}
+        rx={r}
         ry={ry}
-        fill={b.visible ? color : 'none'}
+        fill={b.visible && !isEarth ? color : 'none'}
         stroke={color}
         strokeWidth={1}
         strokeDasharray={b.visible ? undefined : '2 2'}
@@ -105,6 +134,7 @@ function BodyMark({ b, label, color }: { b: PanoramaBody; label: string; color: 
 }
 
 export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerHeightM, sun, earth }: HorizonPanoramaProps) {
+  const idPrefix = useId().replace(/:/g, '')
   const bodies = { sun, earth }
   const status = BODIES.map(({ key, label, on, off }) => {
     const b = bodies[key]
@@ -152,7 +182,7 @@ export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerH
         ))}
         <path data-terrain="" d={terrainPath(horizonMaskDeg, azStepDeg)} fill="var(--border)" stroke="var(--text-muted)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
         {BODIES.map(({ key, label, color }) => (
-          <BodyMark key={key} b={bodies[key]} label={label} color={color} />
+          <BodyMark key={key} b={bodies[key]} label={label} color={color} idPrefix={idPrefix} />
         ))}
         <text x={0} y={-8} fontSize={FONT} fill="var(--text-muted)">
           Vertical exaggeration {EXAGGERATION}×
@@ -161,6 +191,9 @@ export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerH
           Terrain horizon at {observerHeightM} m observer height · elevation 0° = local spherical horizontal
         </text>
       </svg>
+      <p className="muted" style={{ margin: 0, fontSize: '0.75rem' }}>
+        Sun / Earth disk size to scale in elevation; drawn round, so widened {EXAGGERATION}× in azimuth.
+      </p>
     </figure>
   )
 }

@@ -69,7 +69,7 @@ describe('HorizonPanorama', () => {
     expect(path?.getAttribute('d')?.match(/L/g)?.length).toBe(ctx.horizonMaskDeg.length + 2)
   })
 
-  it('draws Sun and Earth disks to angular scale', () => {
+  it('draws round Sun and Earth disks, to angular scale in elevation', () => {
     renderAt(0)
     const sun = bodyAt(0, 'sun')
     const earth = bodyAt(0, 'earth')
@@ -79,9 +79,32 @@ describe('HorizonPanorama', () => {
       const d = disk(name)
       expect(d.cx).toBeCloseTo(azToX(b.azDeg), 6)
       expect(d.cy).toBeCloseTo(elevToY(b.elevDeg), 6)
-      expect(d.rx).toBeCloseTo(b.radiusDeg * AZ_UNITS_PER_DEG, 6)
+      // Vertical extent is the true angular size (what decides lit / blocked against the terrain); the disk is round.
       expect(d.ry).toBeCloseTo(b.radiusDeg * ELEV_UNITS_PER_DEG, 6)
+      expect(d.rx).toBe(d.ry)
     }
+    expect(screen.getByText(/disk size to scale in elevation/)).toBeTruthy()
+  })
+
+  it('colors Earth (ocean gradient + land) while in view, outline only when not', () => {
+    renderAt(0)
+    expect(bodyAt(0, 'earth').visible).toBe(true)
+    const fill = document.querySelector('circle[fill^="url(#"]')
+    const id = fill?.getAttribute('fill')?.slice(5, -1) ?? ''
+    expect(document.getElementById(id)?.tagName.toLowerCase()).toBe('radialgradient')
+    cleanup()
+    render(
+      <HorizonPanorama
+        siteName="Fixture plateau"
+        horizonMaskDeg={ctx.horizonMaskDeg}
+        azStepDeg={ctx.azStepDeg}
+        observerHeightM={ctx.observerHeightM}
+        sun={bodyAt(0, 'sun')}
+        earth={{ ...bodyAt(0, 'earth'), visible: false }}
+      />,
+    )
+    expect(document.querySelector('circle[fill^="url(#"]')).toBeNull()
+    expect(document.querySelector('ellipse[data-body="earth"]')?.getAttribute('stroke-dasharray')).toBe('2 2')
   })
 
   it('at a time the timeline marks Sun "blocked", draws the Sun disk below the silhouette', () => {
