@@ -1,0 +1,123 @@
+# Curated landing-site catalog: the hand-edited source of truth (SPEC-data-pipeline.md section 3).
+#
+# Fields: id (kebab-case, stable forever), name, category, latDeg, lonDeg, coordSource (URL).
+# category: artemis3-region | clps | international | reference
+# Coordinates: planetocentric, lon east-positive -180..180 (MOON_ME, sphere R = 1737.4 km).
+# Sources printed in 0..360 E are converted with lon - 360.
+# No site north of 84 S (project scope: the +/-182 km polar grid, 182 x 182 cells of 2 km,
+# ends at ~84 S; the DEMs themselves reach further north).
+# Exception: artemis3-region sites may sit to 83.5 S, because 250 km horizon rays must
+# stay inside the 75 S DEM (team decision on #5).
+# Chandrayaan-3 and Chang'e-6 are excluded by design.
+#
+# Artemis III regions (SPEC Open Q1):
+#   NASA publishes the nine regions (Oct 2024) as map polygons only, with no coordinates.
+#   https://www.nasa.gov/news-release/nasa-provides-update-on-artemis-iii-moon-landing-regions/
+#   Selection rule: one point per region = the mean of all cell centers (centX/centY) of
+#   the region's 1 km navigation grid in the USGS data release (McClernan 2024,
+#   doi:10.5066/P1MEQ6UK). The grid's own .prj is Lunar Polar Stereographic (south) on the
+#   1737.4 km sphere; the inverse projection was cross-checked against PROJ (agrees to
+#   1e-13 deg). The grids are rectangles covering each region, so the point is the
+#   center of that rectangle: not the best-lit point, and for rim-shaped regions it may
+#   fall outside the region's own outline (the outlines are not publicly downloadable).
+#   Grid file per region: <Region>/<Region>_PolarLGRS_ACC_1km_S_Grid.{dbf,prj} inside
+#   <Region>.zip (e.g. Haworth/Haworth_PolarLGRS_ACC_1km_S_Grid.dbf).
+#   (The <bounding> boxes in the release's XML metadata are built from only two grid
+#   corners, so they do not cover the grids; not used.)
+#
+# Chang'e-7 (SPEC Open Q3): left out. CNSA has not published a citable target coordinate.
+
+sites:
+  # Artemis III region centers (selection rule above). All cite the USGS data release.
+  # Center is north of 84 S; allowed by the Artemis-region exception (#5).
+  - id: peak-near-cabeus-b
+    name: Peak near Cabeus B (Artemis III region)
+    category: artemis3-region
+    latDeg: -83.6514
+    lonDeg: -68.7263
+    coordSource: https://doi.org/10.5066/P1MEQ6UK
+
+  - id: haworth
+    name: Haworth (Artemis III region)
+    category: artemis3-region
+    latDeg: -86.7661
+    lonDeg: -22.6199
+    coordSource: https://doi.org/10.5066/P1MEQ6UK
+
+  - id: malapert-massif
+    name: Malapert Massif (Artemis III region)
+    category: artemis3-region
+    latDeg: -85.9872
+    lonDeg: -0.2368
+    coordSource: https://doi.org/10.5066/P1MEQ6UK
+
+  - id: mons-mouton
+    name: Mons Mouton (Artemis III region)
+    category: artemis3-region
+    latDeg: -85.4218
+    lonDeg: 31.6755
+    coordSource: https://doi.org/10.5066/P1MEQ6UK
+
+  # Large region (78 x 58 km grid); IM-2 Athena (below) landed inside it.
+  - id: mons-mouton-plateau
+    name: Mons Mouton Plateau (Artemis III region)
+    category: artemis3-region
+    latDeg: -84.3375
+    lonDeg: 30.6186
+    coordSource: https://doi.org/10.5066/P1MEQ6UK
+
+  - id: nobile-rim-1
+    name: Nobile Rim 1 (Artemis III region)
+    category: artemis3-region
+    latDeg: -85.4338
+    lonDeg: 37.3276
+    coordSource: https://doi.org/10.5066/P1MEQ6UK
+
+  # Center is north of 84 S; allowed by the Artemis-region exception (#5).
+  - id: nobile-rim-2
+    name: Nobile Rim 2 (Artemis III region)
+    category: artemis3-region
+    latDeg: -83.9545
+    lonDeg: 58.7938
+    coordSource: https://doi.org/10.5066/P1MEQ6UK
+
+  - id: de-gerlache-rim-2
+    name: de Gerlache Rim 2 (Artemis III region)
+    category: artemis3-region
+    latDeg: -88.2263
+    lonDeg: -65.1126
+    coordSource: https://doi.org/10.5066/P1MEQ6UK
+
+  - id: slater-plain
+    name: Slater Plain (Artemis III region)
+    category: artemis3-region
+    latDeg: -87.1697
+    lonDeg: 125.4596
+    coordSource: https://doi.org/10.5066/P1MEQ6UK
+
+  # As-landed position from the NAIF IM-2 frame kernel (LANDING_SITE: -84.79059, 29.19567).
+  # LROC gives the pre-landing target as -84.78, 29.13 (https://lroc.im-ldi.com/images/1401).
+  - id: mons-mouton-im2
+    name: IM-2 Athena (Mons Mouton)
+    category: clps
+    latDeg: -84.79059
+    lonDeg: 29.19567
+    coordSource: https://naif.jpl.nasa.gov/pub/naif/pds/pds4/clps/clps_spice/spice_kernels/fk/clps_prime1_im2_v01.tf
+
+  # Gracy & Lee, LPSC 2024 #1695: candidate site in the "Connecting Ridge" region,
+  # printed as -89.53432 S, 209.94767 E -> lon 209.94767 - 360 = -150.05233.
+  - id: connecting-ridge
+    name: Shackleton–de Gerlache connecting ridge
+    category: reference
+    latDeg: -89.53432
+    lonDeg: -150.05233
+    coordSource: https://www.hou.usra.edu/meetings/lpsc2024/pdf/1695.pdf
+
+  # Permanent-shadow contrast case. IAU Gazetteer crater center (Feature 5450,
+  # +East -180..180), used as the floor point.
+  - id: shackleton-floor
+    name: Shackleton crater floor
+    category: reference
+    latDeg: -89.67
+    lonDeg: 129.78
+    coordSource: https://planetarynames.wr.usgs.gov/Feature/5450

@@ -3,10 +3,7 @@ import pytest
 from lunarnav import cli
 
 COMMANDS = [
-    ["horizons", "--sites"],
-    ["horizons", "--grid"],
     ["pgda"],
-    ["golden"],
     ["demo"],
 ]
 
@@ -32,3 +29,17 @@ def test_fetch_dispatches_to_implementation(monkeypatch):
     monkeypatch.setattr(cli.fetch, "main", lambda: calls.append("fetch"))
     cli.main(["fetch"])
     assert calls == ["fetch"]
+
+
+def test_horizons_grid_dispatches_to_implementation(monkeypatch):
+    calls = []
+    monkeypatch.setattr(cli.horizons_grid, "main", lambda: calls.append("grid"))
+    cli.main(["horizons", "--grid"])
+    assert calls == ["grid"]
+
+
+def test_golden_dispatches_to_implementation(monkeypatch):
+    calls = []
+    monkeypatch.setattr(cli.golden, "main", lambda: calls.append("golden"))
+    cli.main(["golden"])
+    assert calls == ["golden"]
