@@ -8,11 +8,6 @@ import pytest
 
 from lunarnav import golden, io
 
-pytestmark = pytest.mark.skipif(
-    not (io.EPHEMERIS_BIN.is_file() and io.SITES_JSON.is_file()),
-    reason="needs web/public/data ephemeris.bin and sites.json",
-)
-
 H_MS = 3_600_000
 
 
@@ -240,6 +235,20 @@ def test_scenario_totals_agree_with_hourly_series(built):
             assert abs(sum(series[:-1]) - sc["totals"][total]) <= edges, (sc["id"], key)
         t = sc["totals"]
         assert t["bothH"] <= min(t["sunlitH"], t["earthH"]) + 1e-9
+
+
+def test_committed_file_matches_generator(built):
+    # Both inputs and golden.json are tracked, so this must run in CI, never skip.
+    assert json.loads(io.GOLDEN_JSON.read_text(encoding="utf-8")) == json.loads(
+        json.dumps(built)
+    )
+
+
+def test_cases_avoid_the_earth_margin_boundary(built):
+    margin = built["opts"]["earthMarginDeg"]
+    for c in built["cases"]:
+        clearance = c["earthElevDeg"] - c["earthHorizonDeg"]
+        assert abs(clearance - margin) > golden.MARGIN_EXCLUSION_DEG
 
 
 def test_generation_is_deterministic(data, built):

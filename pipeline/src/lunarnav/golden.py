@@ -26,6 +26,7 @@ from lunarnav.geometry import angular_radius_deg, az_el, visible_disk_fraction
 
 SEED = 20260101
 N_CASES = 240
+MARGIN_EXCLUSION_DEG = 1e-4  # cases this close to the Earth margin are dropped
 PARTIAL_PER_SITE = 3  # per site and height, where such instants exist
 H_MS = 3_600_000
 MIN_MS = 60_000
@@ -72,6 +73,8 @@ def load_inputs() -> Inputs:
     if raw.size != count * 2 * 3:
         raise ValueError("ephemeris.bin does not match ephemeris.json")
     start = datetime.fromisoformat(manifest["startUtc"])
+    if start.tzinfo is None:
+        raise ValueError("ephemeris.json startUtc needs a UTC offset")
     eph = Ephemeris(
         start_ms=round(start.timestamp() * 1000),
         step_ms=int(manifest["stepS"]) * 1000,
@@ -113,7 +116,9 @@ def hysteresis_states(
 ) -> NDArray[np.bool_]:
     """On at v >= on_at; off at v <= off_at (and v < on_at); else hold.
 
-    The first sample is on if it is at or above the band midpoint.
+    The first sample is on if it is at or above the band midpoint. This mirrors
+    windowsFromSeries in web/src/engine/windows.ts (`v[0] >= (onAt + offAt) / 2`).
+    The `v < on_at` guard only matters for a zero-width band (on_at == off_at).
     """
     out = np.empty(values.size, dtype=bool)
     on = bool(values[0] >= (on_at + off_at) / 2)
@@ -235,7 +240,13 @@ def build_cases(inputs: Inputs) -> list[dict[str, Any]]:
                 _case(inputs, site, height_m, t)
                 for t in _partial_sun_times(inputs, site, height_m, rng)
             ]
-    return cases
+    # Rounded outputs cannot decide a boolean that float64 vs float32 maths may flip.
+    return [
+        c
+        for c in cases
+        if abs(c["earthElevDeg"] - c["earthHorizonDeg"] - OPTS["earthMarginDeg"])
+        > MARGIN_EXCLUSION_DEG
+    ]
 
 
 def _scenario(
@@ -243,6 +254,8 @@ def _scenario(
 ) -> dict[str, Any]:
     site = next(s for s in inputs.sites["sites"] if s["id"] == site_id)
     landing = datetime.fromisoformat(landing_iso)
+    if landing.tzinfo is None:
+        raise ValueError(f"landing time needs a UTC offset: {landing_iso}")
     landing_ms = round(landing.astimezone(UTC).timestamp() * 1000)
     n = DURATION_H * 60
     t = landing_ms + np.arange(n + 1, dtype=np.float64) * MIN_MS
@@ -305,7 +318,7 @@ def build_golden(inputs: Inputs) -> dict[str, Any]:
         "notes": {
             "cases": "tUtcMs -> az/el, horizon, Sun fraction; earthVisible = "
             "earthElevDeg - earthHorizonDeg >= earthMarginDeg (no hysteresis). "
-            "The first 240 are uniform random site x time; the rest are extra "
+            f"The first {N_CASES} are uniform random site x time; the rest are extra "
             "instants with the Sun disk partly hidden (0 < sunFraction < 1).",
             "scenarios": "Brute-force 1-minute walk with engine hysteresis. Totals "
             "are minute counts over the half-open range [landing, landing + "
