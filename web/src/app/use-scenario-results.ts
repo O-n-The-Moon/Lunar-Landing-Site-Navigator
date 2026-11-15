@@ -172,7 +172,7 @@ export function runAll(setups: readonly SiteSetup[], landingMs: number, duration
 
 function coverageReason(which: 'Baseline' | 'Slipped', eph: Ephemeris): string {
   const day = (ms: number) => new Date(ms).toISOString().slice(0, 10)
-  return `${which} mission runs outside the ephemeris (${day(eph.startUtcMs)} → ${day(ephemerisEndMs(eph))}).`
+  return `${which} run is outside the ephemeris (${day(eph.startUtcMs)} → ${day(ephemerisEndMs(eph))}).`
 }
 
 type Mission = Pick<ScenarioState, 'landingMs' | 'slipH' | 'durationH'>

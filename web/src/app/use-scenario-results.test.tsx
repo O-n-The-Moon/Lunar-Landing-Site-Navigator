@@ -101,13 +101,13 @@ describe('computeScenarioResults (real engine)', () => {
     const r = computeScenarioResults(apply({ type: 'setDuration', durationH: 72 }), core)
     expect(r.sites).toEqual([])
     expect(r.unavailable.map((x) => x.id)).toEqual(['fixture-plateau', 'fixture-ridge'])
-    for (const x of r.unavailable) expect(x.reason).toMatch(/^Baseline mission .*ephemeris/)
+    for (const x of r.unavailable) expect(x.reason).toMatch(/^Baseline run .*ephemeris/)
   })
 
   it('names the slipped mission when only the slip runs past the ephemeris', () => {
     const r = computeScenarioResults(apply({ type: 'setSlip', slipH: 30 }), core)
     expect(r.sites).toEqual([])
-    for (const x of r.unavailable) expect(x.reason).toMatch(/^Slipped mission .*ephemeris/)
+    for (const x of r.unavailable) expect(x.reason).toMatch(/^Slipped run .*ephemeris/)
   })
 })
 
