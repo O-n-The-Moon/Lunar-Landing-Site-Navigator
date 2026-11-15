@@ -1,13 +1,20 @@
 """Horizons validation: request, cache, parse and compare, all offline."""
 
+import dataclasses
+import io as std_io
 import json
+import urllib.error
+from collections import Counter
 from datetime import UTC, datetime
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from lunarnav import golden, validate_horizons
+from lunarnav import golden, io, validate_horizons
 from lunarnav.geometry import az_el
+
+# SPEC.md success criterion 1.
+MAX_ERR_DEG = 0.02
 
 MAR_1_06H_MS = round(datetime(2026, 3, 1, 6, tzinfo=UTC).timestamp() * 1000)
 MAR_2_06H_MS = MAR_1_06H_MS + 24 * 3_600_000
@@ -255,3 +262,95 @@ def test_run_rejects_a_response_for_other_times(tmp_path):
         validate_horizons.run(
             inputs=inputs, cache_dir=tmp_path, fetch=wrong_times, throttle=lambda: None
         )
+
+
+def test_result_without_ephemeris_block_raises_and_is_not_cached(tmp_path):
+    # Horizons reports some problems inside "result" with HTTP 200 and no "error".
+    params = validate_horizons.request_params(-85.0, 0.0, "sun", [MAR_1_06H_MS])
+
+    def fetch(url: str) -> dict:
+        return _response("Cannot interpret date. Type `?!` for help.")
+
+    with pytest.raises(ValueError, match=r"\$\$SOE"):
+        validate_horizons.query(params, tmp_path, fetch, throttle=lambda: None)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_truncated_cache_file_is_fetched_again(tmp_path):
+    params = validate_horizons.request_params(-85.0, 0.0, "sun", [MAR_1_06H_MS])
+
+    def fetch(url: str) -> dict:
+        return _response(CANNED_RESULT)
+
+    validate_horizons.query(params, tmp_path, fetch, throttle=lambda: None)
+    (cached,) = tmp_path.glob("*.json")
+    cached.write_text(cached.read_text()[:40])  # e.g. Ctrl-C mid-write
+    result = validate_horizons.query(params, tmp_path, fetch, throttle=lambda: None)
+    assert result == CANNED_RESULT
+    assert json.loads(cached.read_text())["response"]["result"] == CANNED_RESULT
+
+
+def test_http_error_keeps_the_horizons_message(monkeypatch):
+    def urlopen(request, timeout):
+        body = std_io.BytesIO(b'{"message": "Cannot read TLIST"}')
+        raise urllib.error.HTTPError(request.full_url, 400, "Bad Request", {}, body)
+
+    monkeypatch.setattr(validate_horizons.urllib.request, "urlopen", urlopen)
+    with pytest.raises(RuntimeError, match="400.*Cannot read TLIST"):
+        validate_horizons.fetch_json("https://example.invalid/api")
+
+
+def test_run_defaults_follow_module_patches(monkeypatch, tmp_path):
+    inputs = golden.load_inputs()
+    monkeypatch.setattr(validate_horizons, "fetch_json", _fake_horizons(inputs))
+    monkeypatch.setattr(validate_horizons, "CACHE_DIR", tmp_path)
+    section = validate_horizons.run(inputs=inputs, throttle=lambda: None)
+    assert section["summary"]["n"] > 0
+    assert len(list(tmp_path.glob("*.json"))) == len(validate_horizons.SITE_IDS) * 2
+
+
+def test_epoch_outside_ephemeris_coverage_raises_before_any_request(tmp_path):
+    inputs = golden.load_inputs()
+    short = dataclasses.replace(
+        inputs.ephemeris, count=100, positions_km=inputs.ephemeris.positions_km[:100]
+    )
+
+    def offline(url: str) -> dict:
+        raise AssertionError("request sent for an epoch we cannot compute")
+
+    with pytest.raises(ValueError, match="coverage"):
+        validate_horizons.run(
+            inputs=dataclasses.replace(inputs, ephemeris=short),
+            cache_dir=tmp_path,
+            fetch=offline,
+            throttle=lambda: None,
+        )
+
+
+@pytest.fixture(scope="module")
+def shipped():
+    return json.loads(io.VALIDATION_JSON.read_text(encoding="utf-8"))["horizons"]
+
+
+def test_shipped_validation_meets_success_criterion_1(shipped):
+    per_site_body = Counter((r["siteId"], r["body"]) for r in shipped["rows"])
+    assert len({site for site, _ in per_site_body}) >= 5
+    assert {body for _, body in per_site_body} == {"sun", "earth"}
+    assert min(per_site_body.values()) >= 20
+    assert shipped["summary"] == validate_horizons.summarize(shipped["rows"])
+    assert shipped["summary"]["maxAzErrDeg"] <= MAX_ERR_DEG
+    assert shipped["summary"]["maxElevErrDeg"] <= MAX_ERR_DEG
+
+
+def test_shipped_validation_matches_current_ephemeris_and_sites(shipped):
+    # Stale after ephemeris.bin or sites.json changes: re-run `lunarnav validate`.
+    inputs = golden.load_inputs()
+    sites = {s["id"]: s for s in inputs.sites["sites"]}
+    for r in shipped["rows"]:
+        site = sites[r["siteId"]]
+        vec = golden.body_vectors_km(inputs.ephemeris, [r["tUtcMs"]])[0]
+        az, el, _ = az_el(
+            vec[validate_horizons.BODY_INDEX[r["body"]]], site["latDeg"], site["lonDeg"]
+        )
+        assert r["oursAzDeg"] == pytest.approx(float(az), abs=1e-9)
+        assert r["oursElevDeg"] == pytest.approx(float(el), abs=1e-9)

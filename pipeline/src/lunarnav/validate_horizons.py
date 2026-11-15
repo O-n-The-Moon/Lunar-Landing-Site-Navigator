@@ -15,6 +15,7 @@ azimuth clockwise from north. TIME_TYPE='UT' is UTC after 1962, like tUtcMs.
 import hashlib
 import json
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable, Sequence
@@ -90,8 +91,17 @@ def request_params(
 
 def fetch_json(url: str) -> dict[str, Any]:
     request = urllib.request.Request(url, headers={"User-Agent": "lunarnav"})
-    with urllib.request.urlopen(request, timeout=60) as response:
-        return json.load(response)
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return json.load(response)
+    except urllib.error.HTTPError as e:
+        # A 400 carries the reason in its body ("message" when JSON).
+        body = e.read().decode("utf-8", errors="replace")
+        try:
+            body = json.loads(body).get("message", body)
+        except (json.JSONDecodeError, AttributeError):
+            pass
+        raise RuntimeError(f"Horizons HTTP {e.code}: {body}") from e
 
 
 def make_throttle(
@@ -118,12 +128,16 @@ def query(
 ) -> str:
     """Horizons text result for params, from the cache when present.
 
-    Only successful responses are cached, keyed by a hash of the parameters.
+    Only responses with an ephemeris block are cached, keyed by a hash of the
+    parameters. An unreadable cache file (e.g. a write cut short) is fetched again.
     """
     key = hashlib.sha256(json.dumps(params, sort_keys=True).encode()).hexdigest()[:24]
     path = cache_dir / f"{key}.json"
     if path.is_file():
-        return json.loads(path.read_text(encoding="utf-8"))["response"]["result"]
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))["response"]["result"]
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
     throttle()
     url = f"{API_URL}?{urllib.parse.urlencode(params, quote_via=urllib.parse.quote)}"
     response = fetch(url)
@@ -133,6 +147,8 @@ def query(
     version = str(response.get("signature", {}).get("version", ""))
     if version.split(".")[0] != API_MAJOR_VERSION:
         raise RuntimeError(f"Unsupported Horizons API version {version!r}")
+    # Other problems come back inside "result" with HTTP 200: never cache those.
+    parse_az_el(response["result"])
     io.write_json(path, {"params": params, "response": response})
     return response["result"]
 
@@ -170,17 +186,20 @@ def summarize(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
 
 def run(
     inputs: golden.Inputs | None = None,
-    cache_dir: Path = CACHE_DIR,
-    fetch: Fetch = fetch_json,
+    cache_dir: Path | None = None,
+    fetch: Fetch | None = None,
     throttle: Throttle | None = None,
 ) -> dict[str, Any]:
     """The horizons section of validation.json: per-row errors plus a summary."""
+    # Resolved at call time, so patching the module globals reaches them.
     inputs = inputs or golden.load_inputs()
+    cache_dir = cache_dir or CACHE_DIR
+    fetch = fetch or fetch_json
     throttle = throttle or make_throttle(MIN_REQUEST_INTERVAL_S)
-    eph = inputs.ephemeris
     sites = {s["id"]: s for s in inputs.sites["sites"]}
     epochs = epochs_utc_ms()
-    index = (np.array(epochs) - eph.start_ms) // eph.step_ms
+    # Raises outside coverage before any request; epochs are exact samples.
+    body_vecs_km = golden.body_vectors_km(inputs.ephemeris, epochs)
     rows = []
     for site_id in SITE_IDS:
         site = sites[site_id]
@@ -190,7 +209,7 @@ def run(
             theirs = parse_az_el(query(params, cache_dir, fetch, throttle))
             if [t for t, _, _ in theirs] != epochs:
                 raise ValueError(f"Horizons returned other times for {site_id}/{body}")
-            ours_az, ours_el, _ = az_el(eph.positions_km[index, b], lat_deg, lon_deg)
+            ours_az, ours_el, _ = az_el(body_vecs_km[:, b], lat_deg, lon_deg)
             for t, h_az, h_el, o_az, o_el in zip(
                 epochs, (r[1] for r in theirs), (r[2] for r in theirs), ours_az, ours_el
             ):
