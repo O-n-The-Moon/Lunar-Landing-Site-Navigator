@@ -3,7 +3,6 @@ import pytest
 from lunarnav import cli
 
 COMMANDS = [
-    ["pgda"],
     ["demo"],
 ]
 

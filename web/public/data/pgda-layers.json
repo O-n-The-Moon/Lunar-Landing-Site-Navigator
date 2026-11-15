@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "projection": "polar-stereographic-south",
+  "sphereRadiusKm": 1737.4,
+  "originKm": [
+    -182,
+    -182
+  ],
+  "cellKm": 2,
+  "nx": 182,
+  "ny": 182,
+  "layers": {
+    "sun": "pgda-sun.png",
+    "earth": "pgda-earth.png"
+  },
+  "encoding": "8-bit grayscale, value = percent (whole, 0-100; 255 = no data); top PNG row = highest y",
+  "rowOrder": "top PNG row = highest y, left column = lowest x; grid cell (iy, ix) is pixel (column ix, row ny - 1 - iy)",
+  "resampling": "mean of 16x16 bilinear samples per cell (area average, not a site value)",
+  "source": "NASA PGDA product 69 (https://pgda.gsfc.nasa.gov/products/69), average visibility 75S 120 m 2016-08",
+  "sourceFiles": [
+    "AVGVISIB_75S_120M_201608",
+    "AVGVISIB_75S_120M_201608_EARTH"
+  ],
+  "resolutionM": 120,
+  "definition": "Fraction of time any part of the Sun/Earth disk is visible (PGDA label wording); differs from our mean Sun fraction / Earth-center validation definitions.",
+  "observerHeightM": null,
+  "observerHeightNote": "Not stated in the PGDA product page, labels or README; tracked in #57. Do not assume a height."
+}
