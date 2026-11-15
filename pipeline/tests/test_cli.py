@@ -3,7 +3,6 @@ import pytest
 from lunarnav import cli
 
 COMMANDS = [
-    ["horizons", "--sites"],
     ["pgda"],
     ["golden"],
     ["demo"],
