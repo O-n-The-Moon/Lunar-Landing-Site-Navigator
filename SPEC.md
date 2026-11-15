@@ -201,8 +201,8 @@ Coverage target: the engine has tests for every exported function. No overall % 
 
 ## Open Questions
 
-1. **Artemis III region coordinates:** regions are areas, not points. Which representative point per region (e.g. highest-illumination point inside the region from PGDA)? *Proposal: pipeline picks the max-avg-illumination grid cell inside a cited region polygon or center.*
-2. **PGDA observer height:** what height above the surface does product 69 assume? This decides which of our heights (2 m / 10 m) to compare against.
-3. **Chang'e-7 target:** do we have a citable coordinate? If not, leave it out.
-4. **Exact DEM products:** confirm file names/resolutions (LOLA 80 m for 80–90°S near field, 240 m to 75°S for the far field) on imbrium/PGDA in hour 0.
+1. ~~**Artemis III region coordinates:** regions are areas, not points. Which representative point per region?~~ **Resolved (#69):** each point is the geometric center of the region's USGS 1 km navigation grid ([doi:10.5066/P1MEQ6UK](https://doi.org/10.5066/P1MEQ6UK)), not the best-lit point. Artemis regions may sit to 83.5°S. See `pipeline/sites.yaml`.
+2. **PGDA observer height:** what height above the surface does product 69 assume? This decides which of our heights (2 m / 10 m) to compare against. *Open, tracked in #57; gates Checkpoint 1 (#42).*
+3. ~~**Chang'e-7 target:** do we have a citable coordinate? If not, leave it out.~~ **Resolved (#69):** left out; no citable target coordinate.
+4. ~~**Exact DEM products:** confirm file names/resolutions.~~ **Resolved (#58):** `LDEM_80S_80M` (80 m, 80–90°S near field) and `LDEM_75S_240M` (240 m, to 75°S far field). See `pipeline/DATA_SOURCES.md`.
 5. **Hackathon deliverables:** confirm the required format (video length, demo link, slides) so `docs/demo.md` matches.
