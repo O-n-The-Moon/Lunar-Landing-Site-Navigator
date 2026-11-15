@@ -115,7 +115,8 @@ describe('missionMetrics', () => {
 
   it('takes the state at landing from before landing, not from the hysteresis seed', () => {
     // Sun high until 2 h, then held just below center: inside the hysteresis band and below its midpoint.
-    // Landing 41 h into that hold (real polar data has in-band runs of ~35 h; the lead-in is 48 h).
+    // Landing 40 h after the Sun enters the band, so the lead-in must be > 40 h (real polar data has in-band runs of
+    // ~35 h; the lead-in is 48 h).
     const lowDeg = -0.01
     const f = visibleDiskFraction(lowDeg, 0, angularRadiusDeg('sun', 149_600_000))
     expect(f).toBeGreaterThan(0.45)
