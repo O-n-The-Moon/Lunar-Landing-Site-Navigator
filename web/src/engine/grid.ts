@@ -191,7 +191,7 @@ export function scoreGrid(
         let e = vx * ex + vy * ey + vz * ez
         let n = vx * nx_ + vy * ny_ + vz * nz
         let u = vx * ux + vy * uy + vz * uz
-        const d = Math.max(-1, Math.min(1, (Math.atan2(u, Math.hypot(e, n)) / DEG - horizonDeg(e, n)) / sunRadiusDeg[k]))
+        const d = Math.max(-1, Math.min(1, (Math.atan2(u, Math.sqrt(e * e + n * n)) / DEG - horizonDeg(e, n)) / sunRadiusDeg[k]))
         const frac = d === 1 ? 1 : d === -1 ? 0 : 1 - (Math.acos(d) - d * Math.sqrt(1 - d * d)) / Math.PI
 
         // Earth: center elevation above horizon + margin.
@@ -201,7 +201,7 @@ export function scoreGrid(
         e = vx * ex + vy * ey + vz * ez
         n = vx * nx_ + vy * ny_ + vz * nz
         u = vx * ux + vy * uy + vz * uz
-        const clearDeg = Math.atan2(u, Math.hypot(e, n)) / DEG - horizonDeg(e, n) - earthMarginDeg
+        const clearDeg = Math.atan2(u, Math.sqrt(e * e + n * n)) / DEG - horizonDeg(e, n) - earthMarginDeg
 
         // Hysteresis as in detectWindows: seed from the band midpoint, then on at ≥ on, off at ≤ off and < on.
         if (k === 0) {

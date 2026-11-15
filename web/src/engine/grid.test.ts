@@ -3,7 +3,7 @@ import { fixtureEphemeris, fixtureGrid, fixtureGridScores } from './__fixtures__
 import { MOON_RADIUS_KM, siteFrame } from './geometry'
 import { gridSiteContext, nearestGridCell, scoreGrid } from './grid'
 import { DEFAULT_VISIBILITY_OPTS } from './types'
-import type { Grid, VisibilityOpts } from './types'
+import type { EphemerisManifest, Grid, GridManifest, VisibilityOpts } from './types'
 import { sampleSite, sunHysteresisLevels } from './windows'
 
 const H_MS = 3_600_000
@@ -229,6 +229,31 @@ describe('scoreGrid', () => {
     expect(fixtureGrid.surfaceHeightM).toEqual(heights)
     expect(fixtureEphemeris.positionsKm).toEqual(positions)
   })
+
+  // Opt-in bench (SPEC-engine → Performance: full grid, 30 days, ≤ 3 s). Loads the real 11 MB grid, so it is not
+  // part of `npm test`. Run: GRID_BENCH=1 npx vitest run src/engine/grid.test.ts -t bench
+  it.runIf(import.meta.env.GRID_BENCH)('bench: full real grid, 30-day window in ≤ 3 s', async () => {
+    const toBuf = (dataUrl: string) => Uint8Array.from(atob(dataUrl.slice(dataUrl.indexOf(',') + 1)), (ch) => ch.charCodeAt(0)).buffer
+    const [ephBin, ephJson, horizonsBin, heightsBin, gridJson, loaders] = await Promise.all([
+      import('../../public/data/ephemeris.bin?inline'),
+      import('../../public/data/ephemeris.json'),
+      import('../../public/data/grid-horizons.bin?inline'),
+      import('../../public/data/grid-heights.bin?inline'),
+      import('../../public/data/grid.json'),
+      import('./loaders'),
+    ])
+    const eph = loaders.loadEphemeris(ephJson.default as EphemerisManifest, toBuf(ephBin.default))
+    const grid = loaders.loadGrid(gridJson.default as GridManifest, toBuf(horizonsBin.default), toBuf(heightsBin.default))
+    const startMs = Date.UTC(2027, 2, 1)
+    const endMs = startMs + 30 * 24 * H_MS
+    scoreGrid(grid, eph, startMs, endMs, DEFAULT_VISIBILITY_OPTS) // warm-up (JIT)
+    const t0 = performance.now()
+    const scores = scoreGrid(grid, eph, startMs, endMs, DEFAULT_VISIBILITY_OPTS)
+    const elapsedMs = performance.now() - t0
+    console.log(`scoreGrid ${grid.manifest.nx}×${grid.manifest.ny} × 30 d: ${elapsedMs.toFixed(0)} ms`)
+    expect(scores.sunPct.some((v) => v > 0)).toBe(true)
+    expect(elapsedMs).toBeLessThanOrEqual(3000)
+  }, 60_000)
 
   it('throws RangeError for an empty or inverted range, a range outside the ephemeris, or bad options', () => {
     const o = DEFAULT_VISIBILITY_OPTS
