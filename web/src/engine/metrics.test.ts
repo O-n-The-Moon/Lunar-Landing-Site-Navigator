@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { angularRadiusDeg, siteFrame, visibleDiskFraction } from './geometry'
+import ephemerisBin from '../../public/data/ephemeris.bin?inline'
+import ephemerisJson from '../../public/data/ephemeris.json'
+import sitesJson from '../../public/data/sites.json'
+import golden from '../../../shared/fixtures/golden.json'
+import { angularRadiusDeg, siteContext, siteFrame, visibleDiskFraction } from './geometry'
+import { loadEphemeris, parseSites } from './loaders'
 import { diffMetrics, missionMetrics } from './metrics'
 import { DEFAULT_VISIBILITY_OPTS } from './types'
-import type { MissionMetrics, SiteContext, Vec3 } from './types'
+import type { EphemerisManifest, MissionMetrics, SiteContext, Vec3, VisibilityOpts } from './types'
 
 const H_MS = 3_600_000
 const T0 = Date.UTC(2026, 0, 1)
@@ -172,5 +177,61 @@ describe('diffMetrics', () => {
   it('marks an event that neither mission has as none', () => {
     const d = diffMetrics(metrics({ firstSunsetH: null }), metrics({ firstSunsetH: null }))
     expect(d.firstSunsetH).toEqual({ deltaH: null, change: 'none' })
+  })
+})
+
+function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
+  const bin = atob(dataUrl.slice(dataUrl.indexOf(',') + 1))
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return bytes.buffer
+}
+
+describe('missionMetrics golden parity (shared/fixtures/golden.json scenarios)', () => {
+  const eph = loadEphemeris(ephemerisJson as EphemerisManifest, dataUrlToArrayBuffer(ephemerisBin))
+  const sitesFile = parseSites(sitesJson)
+  const { observerHeightM, ...visibility } = golden.opts
+  const opts: VisibilityOpts = visibility
+  /** SPEC-engine → Testing: scenario totals ≤ 10 min. */
+  const TOTAL_TOL_H = 10 / 60
+
+  it.each(golden.scenarios.map((sc) => [sc.id, sc] as const))('%s', (_, sc) => {
+    const site = sitesFile.sites.find((s) => s.id === sc.siteId)
+    if (!site) throw new Error(`site ${sc.siteId} not in sites.json`)
+    expect(sc.observerHeightM).toBe(observerHeightM)
+    const m = missionMetrics(siteContext(eph, site, sitesFile.azStepDeg, observerHeightM), sc.landingUtcMs, sc.durationH, opts)
+    const t = sc.totals
+    const pctTol = (100 * TOTAL_TOL_H) / sc.durationH
+    expect(Math.abs(m.sunlitPct - t.sunlitPct)).toBeLessThanOrEqual(pctTol)
+    expect(Math.abs(m.earthPct - t.earthPct)).toBeLessThanOrEqual(pctTol)
+    expect(Math.abs(m.bothPct - t.bothPct)).toBeLessThanOrEqual(pctTol)
+    expect(Math.abs(m.longestSunGapH - t.longestSunGapH)).toBeLessThanOrEqual(TOTAL_TOL_H)
+    expect(Math.abs(m.longestEarthGapH - t.longestEarthGapH)).toBeLessThanOrEqual(TOTAL_TOL_H)
+    for (const [ours, ref] of [
+      [m.firstSunsetH, t.firstSunsetH],
+      [m.firstEarthsetH, t.firstEarthsetH],
+    ] as const) {
+      // golden.json notes: events agree to about 1 min each.
+      if (ref === null) expect(ours).toBeNull()
+      else expect(Math.abs((ours ?? NaN) - ref)).toBeLessThanOrEqual(EVENT_TOL_H)
+    }
+    // SPEC-engine → Testing: fraction ≤ 1e-3.
+    expect(Math.abs(m.meanSunFraction - t.meanSunFraction)).toBeLessThanOrEqual(1e-3)
+  })
+
+  it('takes ≤ 5 ms per site for a 30-day mission (SPEC-engine → Performance)', () => {
+    const sc = golden.scenarios[0]
+    const site = sitesFile.sites.find((s) => s.id === sc.siteId)
+    if (!site) throw new Error(`site ${sc.siteId} not in sites.json`)
+    const ctx = siteContext(eph, site, sitesFile.azStepDeg, observerHeightM)
+    for (let i = 0; i < 5; i++) missionMetrics(ctx, sc.landingUtcMs, 30 * 24, opts)
+    const runsMs: number[] = []
+    for (let i = 0; i < 21; i++) {
+      const t0 = performance.now()
+      missionMetrics(ctx, sc.landingUtcMs, 30 * 24, opts)
+      runsMs.push(performance.now() - t0)
+    }
+    runsMs.sort((a, b) => a - b)
+    expect(runsMs[10]).toBeLessThanOrEqual(5)
   })
 })
