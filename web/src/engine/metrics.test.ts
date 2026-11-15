@@ -1,13 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import ephemerisBin from '../../public/data/ephemeris.bin?inline'
-import ephemerisJson from '../../public/data/ephemeris.json'
-import sitesJson from '../../public/data/sites.json'
 import golden from '../../../shared/fixtures/golden.json'
-import { angularRadiusDeg, siteContext, siteFrame, visibleDiskFraction } from './geometry'
-import { loadEphemeris, parseSites } from './loaders'
+import { realSiteContext } from './__fixtures__/real-data'
+import { angularRadiusDeg, siteFrame, visibleDiskFraction } from './geometry'
 import { diffMetrics, missionMetrics } from './metrics'
 import { DEFAULT_VISIBILITY_OPTS } from './types'
-import type { EphemerisManifest, MissionMetrics, SiteContext, Vec3, VisibilityOpts } from './types'
+import type { MissionMetrics, SiteContext, Vec3, VisibilityOpts } from './types'
 
 const MIN_MS = 60_000
 const H_MS = 3_600_000
@@ -238,26 +235,15 @@ describe('diffMetrics', () => {
   })
 })
 
-function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
-  const bin = atob(dataUrl.slice(dataUrl.indexOf(',') + 1))
-  const bytes = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-  return bytes.buffer
-}
-
 describe('missionMetrics golden parity (shared/fixtures/golden.json scenarios)', () => {
-  const eph = loadEphemeris(ephemerisJson as EphemerisManifest, dataUrlToArrayBuffer(ephemerisBin))
-  const sitesFile = parseSites(sitesJson)
   const { observerHeightM, ...visibility } = golden.opts
   const opts: VisibilityOpts = visibility
   /** SPEC-engine → Testing: scenario totals ≤ 10 min. */
   const TOTAL_TOL_H = 10 / 60
 
   it.each(golden.scenarios.map((sc) => [sc.id, sc] as const))('%s', (_, sc) => {
-    const site = sitesFile.sites.find((s) => s.id === sc.siteId)
-    if (!site) throw new Error(`site ${sc.siteId} not in sites.json`)
     expect(sc.observerHeightM).toBe(observerHeightM)
-    const m = missionMetrics(siteContext(eph, site, sitesFile.azStepDeg, observerHeightM), sc.landingUtcMs, sc.durationH, opts)
+    const m = missionMetrics(realSiteContext(sc.siteId, observerHeightM), sc.landingUtcMs, sc.durationH, opts)
     const t = sc.totals
     const pctTol = (100 * TOTAL_TOL_H) / sc.durationH
     expect(Math.abs(m.sunlitPct - t.sunlitPct)).toBeLessThanOrEqual(pctTol)
@@ -279,9 +265,7 @@ describe('missionMetrics golden parity (shared/fixtures/golden.json scenarios)',
 
   it('takes ≤ 5 ms per site for a 30-day mission (SPEC-engine → Performance)', () => {
     const sc = golden.scenarios[0]
-    const site = sitesFile.sites.find((s) => s.id === sc.siteId)
-    if (!site) throw new Error(`site ${sc.siteId} not in sites.json`)
-    const ctx = siteContext(eph, site, sitesFile.azStepDeg, observerHeightM)
+    const ctx = realSiteContext(sc.siteId, observerHeightM)
     for (let i = 0; i < 5; i++) missionMetrics(ctx, sc.landingUtcMs, 30 * 24, opts)
     const runsMs: number[] = []
     for (let i = 0; i < 21; i++) {
