@@ -1,9 +1,39 @@
-// Placeholder from T13 (#7). Owned and replaced by T15 #16, T21 #22.
+// Timeline strips, one per scenario site, over the slipped mission window (SPEC-app P0-4).
+// Baseline ghost bands and the single shared cursor across strips come in T21 #22.
+import { useScenario, useScenarioDispatch } from '../state'
+import { useScenarioResults } from '../use-scenario-results'
+import { TimelineStrip } from './timeline-strip'
+
+const H_MS = 3_600_000
+
 export function TimelinePanel() {
+  const { cursorMs } = useScenario()
+  const dispatch = useScenarioDispatch()
+  const results = useScenarioResults()
+  const range = { startMs: results.slippedLandingMs, endMs: results.slippedLandingMs + results.durationH * H_MS }
+  const onCursorChange = (ms: number) => dispatch({ type: 'setCursor', cursorMs: ms })
+
   return (
-    <section className="placeholder" aria-label="Timeline">
+    <section aria-label="Timeline">
       <h3>Timeline</h3>
-      <p>Sun / Earth / Both strips per site with a shared cursor. Coming in T15 #16, T21 #22.</p>
+      {results.sites.length === 0 && results.unavailableSiteIds.length === 0 && (
+        <p className="hint">Add a site to see its Sun and Earth visibility over the mission.</p>
+      )}
+      <div style={{ display: 'grid', gap: 'var(--space-3)' }}>
+        {results.sites.map((r) => (
+          <TimelineStrip
+            key={r.site.id}
+            siteName={r.site.name}
+            windows={r.slipped.windows}
+            range={range}
+            cursorMs={cursorMs}
+            onCursorChange={onCursorChange}
+          />
+        ))}
+      </div>
+      {results.unavailableSiteIds.length > 0 && (
+        <p className="hint warn">No timeline yet for: {results.unavailableSiteIds.join(', ')}</p>
+      )}
     </section>
   )
 }
