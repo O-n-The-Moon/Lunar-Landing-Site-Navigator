@@ -127,10 +127,35 @@ of average illumination is about 67–71% at Δz = 1 m, and rises sharply at Δz
 illustration, not a correction factor for product 69. They also state that their
 horizon method follows Mazarico et al. (2011), but give no height for the 2016 rasters.
 
-The Mazarico et al. (2011) full text was **not** obtained (publisher paywall; the NTRS
-record has no PDF). Web-search summaries of it gave conflicting heights ("surface
-level" vs "10 m") that could not be traced to the paper; neither was accepted as
-evidence. Producer confirmation has not been obtained.
+**Mazarico et al. (2011) full text was read** (Icarus 211, 1066–1081, page numbers
+below are the journal's). It documents the method behind the **2010, 240 m** maps, not
+the 2016 rasters, but it is the best primary evidence available:
+
+- **Height:** the average maps (Fig. 6) "were obtained at **surface level**" (§5.2,
+  p. 1078). A 10 m height is a separate sensitivity (Table 3, Figs. 13–14).
+  Earth visibility (Fig. 7) reuses "the same elevation maps ... only the radius and
+  location of the source need to be changed" (§3.4, p. 1072), so surface level is
+  implied there but not stated.
+- **Earth definition:** "we consider the Earth visible if any fraction of the disc is"
+  (§3.4). This matches the 2016 label definition.
+- **Sun products:** three maps are made: Sun *visibility* (boolean, any part of the disc
+  visible), Sun *illumination* (mean of the visible disc-area fraction) and incident
+  flux (§2.2, §3.3). Fig. 6 is **illumination** (disc-area fraction). The 2016 Sun
+  label describes the any-part-visible quantity, i.e. the *visibility* type. Our planned
+  comparator (mean visible-disc fraction) is the *illumination* type, so the two
+  differ by definition. At SP-01 (222.69°E, 89.45°S) the paper gives 89.01 %
+  illumination vs 92.66 % visibility at surface level (Table 3).
+- **Timestep and span:** 6 h steps over four precession cycles, 1970–2044 (§3.3).
+  The PGDA product page describes the 2016 release as hourly over ~18.6 years, so the
+  release parameters differ from the paper's.
+- **Height matters:** at SP-01 the paper gives 89.01 % / 92.66 % (illumination /
+  visibility) at surface level and 93.10 % / 95.83 % at 10 m (Table 3).
+
+**What this does not settle:** the paper does not mention the 2016 120 m rasters.
+"Surface level" for the 2010 method is strong evidence, not confirmation, for the
+2016 release, so Q2 stays **open** pending the producers. Web-search summaries that
+gave "10 m" for the base maps are contradicted by the paper (10 m is the sensitivity
+case). Producer confirmation has not been obtained.
 
 **Proposed interim disposition (pending team approval; not yet agreed):** the observer
 height of PGDA product 69 is recorded as **unknown**. Until it is confirmed, #20 may
