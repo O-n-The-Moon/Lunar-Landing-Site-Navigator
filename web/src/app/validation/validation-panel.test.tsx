@@ -25,9 +25,10 @@ const withPgda = (rows: PgdaValidationRow[], summary: Partial<PgdaValidation['su
 describe('formatting', () => {
   it('never shows a small non-zero error as zero', () => {
     expect(fmtErr(0.00001)).toBe('0.000010°')
+    expect(fmtErr(0.00004999)).toBe('0.000050°')
     expect(fmtErr(0.0035)).toBe('0.0035°')
-    expect(fmtErr(0.01)).toBe('0.010°')
-    expect(fmtErr(0)).toBe('0°')
+    expect(fmtErr(0.01)).toBe('0.0100°')
+    expect(fmtErr(0)).toBe('0.0000°')
   })
 
   it('uses one minus sign and never prints -0', () => {
@@ -52,7 +53,7 @@ describe('ValidationReport (fixture validation.json)', () => {
   it('shows summary badges read from the file', () => {
     renderReport()
     const [eph, pgda] = badges()
-    expect(badgeParts(eph)).toEqual(['Ephemeris vs JPL Horizons', 'max 0.010° az · 0.0060° el (n = 8)'])
+    expect(badgeParts(eph)).toEqual(['Ephemeris vs JPL Horizons', 'max 0.0100° az · 0.0060° el (n = 8)'])
     expect(badgeParts(pgda)).toEqual(['Terrain vs PGDA', '1/2 sites within ±5 pp'])
     expect(pgda).toHaveClass('warn')
   })

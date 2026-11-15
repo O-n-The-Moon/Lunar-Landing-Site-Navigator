@@ -75,8 +75,9 @@ function fixed(v: number, decimals: number): string {
 /** Az/el values. */
 export const fmtAngle = (deg: number) => `${fixed(deg, 4)}°`
 
-/** Error magnitudes: 2 significant figures, so a small non-zero error never shows as 0. */
-export const fmtErr = (deg: number) => (deg === 0 ? '0°' : `${deg < 0 ? MINUS : ''}${Math.abs(deg).toPrecision(2)}°`)
+/** Errors: 4 decimals like the angles; 2 significant figures only when a non-zero error would round to 0. */
+export const fmtErr = (deg: number) =>
+  deg !== 0 && Number(deg.toFixed(4)) === 0 ? `${deg < 0 ? MINUS : ''}${Math.abs(deg).toPrecision(2)}°` : fmtAngle(deg)
 
 const fmtPct = (pct: number) => `${fixed(pct, 1)}%`
 
