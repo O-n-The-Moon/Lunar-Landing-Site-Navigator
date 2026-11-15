@@ -1,10 +1,10 @@
 import { useId } from 'react'
+import { horizonElevAt } from '../../engine'
 
 // Unrolled 360° horizon panorama for one site (SPEC-app P0-5), not a fisheye: at the pole everything sits within
-// a few degrees of the horizon. x = azimuth 0–360 (N at the left), y = elevation −5…+12°, vertically exaggerated
+// a few degrees of the horizon. x = azimuth over 360° (N at the edges unless re-centered), y = elevation −5…+12°, vertically exaggerated
 // (labelled). Sun and Earth disks are drawn to angular scale on both axes, so they are tall ovals here.
 // Prop-driven: positions, radii and lit state come from the engine (via the panel); this component does no physics.
-// Mission tracks, hover readout and re-centering come in T22 #23.
 
 /** Panorama elevation range, degrees. */
 export const ELEV_MIN_DEG = -5
@@ -16,10 +16,20 @@ const EXAGGERATION = ELEV_UNITS_PER_DEG / AZ_UNITS_PER_DEG
 
 const PLOT_W = 360 * AZ_UNITS_PER_DEG
 const PLOT_H = (ELEV_MAX_DEG - ELEV_MIN_DEG) * ELEV_UNITS_PER_DEG
-const PAD = { left: 36, right: 8, top: 22, bottom: 26 }
+// Right padding fits half an azimuth label ("315°") at the right edge, which a re-centered view can put there.
+const PAD = { left: 36, right: 20, top: 22, bottom: 26 }
 const FONT = 12
 
+/** x of an azimuth measured from the plot's left edge (0…360°). */
 export const azToX = (azDeg: number) => azDeg * AZ_UNITS_PER_DEG
+/** d mod 360 in [0, 360); exact (no round trip through +360) for d already in range. */
+const mod360 = (d: number) => {
+  const r = d % 360
+  const v = r < 0 ? r + 360 : r
+  return v >= 360 ? 0 : v // a tiny negative r rounds up to 360
+}
+/** Plot x of an azimuth, for a view whose left edge is at `leftAzDeg`: always in [0, PLOT_W). */
+const screenX = (azDeg: number, leftAzDeg: number) => azToX(mod360(azDeg - leftAzDeg))
 export const elevToY = (elevDeg: number) => (ELEV_MAX_DEG - elevDeg) * ELEV_UNITS_PER_DEG
 const clampElev = (e: number) => Math.min(ELEV_MAX_DEG, Math.max(ELEV_MIN_DEG, e))
 
@@ -43,6 +53,8 @@ export interface HorizonPanoramaProps {
   observerHeightM: number
   sun: PanoramaBody
   earth: PanoramaBody
+  /** Azimuth at the middle of the plot. Default 180° (S): N at both edges. */
+  centerAzDeg?: number
 }
 
 const AZ_TICKS = [
@@ -54,7 +66,6 @@ const AZ_TICKS = [
   [225, '225°'],
   [270, 'W'],
   [315, '315°'],
-  [360, 'N'],
 ] as const
 const ELEV_TICKS = [-5, 0, 5, 10]
 const fmtDeg = (d: number, digits = 1) => `${d < 0 ? '−' : ''}${Math.abs(d).toFixed(digits)}°`
@@ -64,12 +75,29 @@ const BODIES = [
   { key: 'earth', label: 'Earth', color: 'var(--accent)', on: 'in view', off: 'not in view' },
 ] as const
 
-/** Filled silhouette: one point per mask bin plus the 360° wrap, closed along the bottom edge. */
-function terrainPath(maskDeg: ArrayLike<number>, azStepDeg: number): string {
+/**
+ * Filled silhouette, closed along the bottom edge: the horizon at the left edge, one point per mask bin strictly
+ * inside the plot (left to right), and the same left-edge horizon again at the right edge (the 360° wrap).
+ */
+function terrainPath(maskDeg: ArrayLike<number>, azStepDeg: number, leftAzDeg: number): string {
   const y = (e: number) => elevToY(clampElev(e))
-  let d = `M0,${y(maskDeg[0])}`
-  for (let i = 1; i < maskDeg.length; i++) d += ` L${azToX(i * azStepDeg)},${y(maskDeg[i])}`
-  return `${d} L${PLOT_W},${y(maskDeg[0])} L${PLOT_W},${PLOT_H} L0,${PLOT_H} Z`
+  const edgeY = y(horizonElevAt(maskDeg, azStepDeg, leftAzDeg))
+  const pts: [number, number][] = []
+  for (let i = 0; i < maskDeg.length; i++) {
+    const x = screenX(i * azStepDeg, leftAzDeg)
+    if (x > 0 && x < PLOT_W) pts.push([x, y(maskDeg[i])])
+  }
+  pts.sort((a, b) => a[0] - b[0])
+  let d = `M0,${edgeY}`
+  for (const [x, py] of pts) d += ` L${x},${py}`
+  return `${d} L${PLOT_W},${edgeY} L${PLOT_W},${PLOT_H} L0,${PLOT_H} Z`
+}
+
+/** Azimuth labels at their plot x; a label on the left edge is repeated on the right edge. */
+function azTicks(leftAzDeg: number): { x: number; label: string }[] {
+  const ticks: { x: number; label: string }[] = AZ_TICKS.map(([az, label]) => ({ x: screenX(az, leftAzDeg), label }))
+  const atEdge = ticks.find((t) => t.x === 0)
+  return atEdge ? [...ticks, { x: PLOT_W, label: atEdge.label }] : ticks
 }
 
 /** Earth fill: a lit blue sphere with a green landmass, clipped to the disk. Only drawn while Earth is in view. */
@@ -101,9 +129,9 @@ const diskRadii = (b: PanoramaBody) => ({ rx: b.radiusDeg * AZ_UNITS_PER_DEG, ry
 const diskInRange = (b: PanoramaBody) => b.elevDeg + b.radiusDeg >= ELEV_MIN_DEG && b.elevDeg - b.radiusDeg <= ELEV_MAX_DEG
 
 /** Disk center(s) on screen: a disk crossing 0°/360° is also drawn at the other edge. Null when off the plot. */
-function diskCopies(b: PanoramaBody): { xs: number[]; cy: number; rx: number; ry: number } | null {
+function diskCopies(b: PanoramaBody, leftAzDeg: number): { xs: number[]; cy: number; rx: number; ry: number } | null {
   if (!diskInRange(b)) return null
-  const x = azToX(b.azDeg)
+  const x = screenX(b.azDeg, leftAzDeg)
   const { rx, ry } = diskRadii(b)
   const xs = [x]
   if (x + rx > PLOT_W) xs.push(x - PLOT_W)
@@ -120,11 +148,12 @@ function edgeAnchor(x: number): { x: number; textAnchor: 'start' | 'middle' | 'e
 }
 
 /** Disks are drawn inside the plot clip; this places the text labels, which are not clipped. */
-function BodyLabel({ b, label, color }: { b: PanoramaBody; label: string; color: string }) {
+function BodyLabel({ b, label, color, leftAzDeg }: { b: PanoramaBody; label: string; color: string; leftAzDeg: number }) {
+  const x = screenX(b.azDeg, leftAzDeg)
   if (!diskInRange(b)) {
     const below = b.elevDeg < ELEV_MIN_DEG
     return (
-      <text {...edgeAnchor(azToX(b.azDeg))} y={below ? PLOT_H - 4 : FONT} fontSize={FONT} fill={color}>
+      <text {...edgeAnchor(x)} y={below ? PLOT_H - 4 : FONT} fontSize={FONT} fill={color}>
         {below ? `${label} below ${fmtDeg(ELEV_MIN_DEG, 0)} ↓` : `${label} above +${ELEV_MAX_DEG}° ↑`}
       </text>
     )
@@ -134,7 +163,7 @@ function BodyLabel({ b, label, color }: { b: PanoramaBody; label: string; color:
   // Above the disk, or below it when that would leave the plot top; always inside the plot.
   const y = Math.min(PLOT_H - 4, Math.max(FONT, cy - ry - 4 - FONT >= 0 ? cy - ry - 4 : cy + ry + FONT))
   return (
-    <text {...edgeAnchor(azToX(b.azDeg))} y={y} fontSize={FONT} fill={color}>
+    <text {...edgeAnchor(x)} y={y} fontSize={FONT} fill={color}>
       {label}
     </text>
   )
@@ -144,8 +173,14 @@ function BodyLabel({ b, label, color }: { b: PanoramaBody; label: string; color:
  * Disk fill, drawn UNDER the terrain so a ridge visibly cuts into a partly blocked disk. Only while visible
  * (Sun lit / Earth in view); a not-visible disk has no fill.
  */
-function BodyFill({ b, body, color, idPrefix }: { b: PanoramaBody; body: 'sun' | 'earth'; color: string; idPrefix: string }) {
-  const d = diskCopies(b)
+function BodyFill({ b, body, color, idPrefix, leftAzDeg }: {
+  b: PanoramaBody
+  body: 'sun' | 'earth'
+  color: string
+  idPrefix: string
+  leftAzDeg: number
+}) {
+  const d = diskCopies(b, leftAzDeg)
   if (!d || !b.visible) return null
   return (
     <>
@@ -161,8 +196,8 @@ function BodyFill({ b, body, color, idPrefix }: { b: PanoramaBody; body: 'sun' |
 }
 
 /** Disk outline, drawn OVER the terrain: solid when visible, dashed when not (so a hidden disk stays findable). */
-function BodyOutline({ b, body, color }: { b: PanoramaBody; body: 'sun' | 'earth'; color: string }) {
-  const d = diskCopies(b)
+function BodyOutline({ b, body, color, leftAzDeg }: { b: PanoramaBody; body: 'sun' | 'earth'; color: string; leftAzDeg: number }) {
+  const d = diskCopies(b, leftAzDeg)
   if (!d) return null
   return (
     <>
@@ -185,7 +220,16 @@ function BodyOutline({ b, body, color }: { b: PanoramaBody; body: 'sun' | 'earth
   )
 }
 
-export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerHeightM, sun, earth }: HorizonPanoramaProps) {
+export function HorizonPanorama({
+  siteName,
+  horizonMaskDeg,
+  azStepDeg,
+  observerHeightM,
+  sun,
+  earth,
+  centerAzDeg = 180,
+}: HorizonPanoramaProps) {
+  const leftAzDeg = mod360(centerAzDeg - 180)
   // useId() contains characters that aren't safe in url(#…) references (":r0:" in React 18, "«r0»" in 19).
   const idPrefix = useId().replace(/[^a-zA-Z0-9_-]/g, '')
   const captionId = `${idPrefix}-caption`
@@ -230,8 +274,8 @@ export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerH
             </text>
           </g>
         ))}
-        {AZ_TICKS.map(([az, label]) => (
-          <text key={az} x={azToX(az)} y={PLOT_H + FONT + 6} textAnchor="middle" fontSize={FONT} fill="var(--text-muted)">
+        {azTicks(leftAzDeg).map(({ x, label }) => (
+          <text key={`${label}-${x}`} x={x} y={PLOT_H + FONT + 6} textAnchor="middle" fontSize={FONT} fill="var(--text-muted)">
             {label}
           </text>
         ))}
@@ -242,14 +286,14 @@ export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerH
         </defs>
         <g clipPath={`url(#${idPrefix}-plot)`}>
           {BODIES.map(({ key, color }) => (
-            <BodyFill key={key} b={bodies[key]} body={key} color={color} idPrefix={idPrefix} />
+            <BodyFill key={key} b={bodies[key]} body={key} color={color} idPrefix={idPrefix} leftAzDeg={leftAzDeg} />
           ))}
         </g>
         {/* Fill ~3:1 against the sky (--surface-2) and the ridge line well above, so the silhouette reads as a
             solid shape (WCAG 1.4.11), while dashed disks behind the terrain stay visible on it (Sun ~3:1, Earth ~2.4:1). */}
         <path
           data-terrain=""
-          d={terrainPath(horizonMaskDeg, azStepDeg)}
+          d={terrainPath(horizonMaskDeg, azStepDeg, leftAzDeg)}
           fill="var(--text-muted)"
           fillOpacity={0.65}
           stroke="var(--text)"
@@ -259,11 +303,11 @@ export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerH
         />
         <g clipPath={`url(#${idPrefix}-plot)`}>
           {BODIES.map(({ key, color }) => (
-            <BodyOutline key={key} b={bodies[key]} body={key} color={color} />
+            <BodyOutline key={key} b={bodies[key]} body={key} color={color} leftAzDeg={leftAzDeg} />
           ))}
         </g>
         {BODIES.map(({ key, label, color }) => (
-          <BodyLabel key={key} b={bodies[key]} label={label} color={color} />
+          <BodyLabel key={key} b={bodies[key]} label={label} color={color} leftAzDeg={leftAzDeg} />
         ))}
         <text x={0} y={-8} fontSize={FONT} fill="var(--text-muted)">
           Vertical exaggeration {EXAGGERATION}×

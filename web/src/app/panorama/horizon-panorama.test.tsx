@@ -231,3 +231,53 @@ describe('HorizonPanorama', () => {
     expect(Number(off.getAttribute('x'))).toBeGreaterThanOrEqual(0)
   })
 })
+
+describe('HorizonPanorama re-centering', () => {
+  const plotW = azToX(360)
+  const renderCentered = (centerAzDeg: number, sun: Partial<PanoramaBody> = {}) =>
+    render(
+      <HorizonPanorama
+        siteName="Fixture plateau"
+        horizonMaskDeg={ctx.horizonMaskDeg}
+        azStepDeg={ctx.azStepDeg}
+        observerHeightM={ctx.observerHeightM}
+        sun={{ ...bodyAt(0, 'sun'), ...sun }}
+        earth={bodyAt(0, 'earth')}
+        centerAzDeg={centerAzDeg}
+      />,
+    )
+
+  it('draws the body at the center azimuth in the middle of the plot', () => {
+    renderCentered(37.3, { azDeg: 37.3 })
+    expect(disk('sun').cx).toBeCloseTo(plotW / 2, 9)
+    cleanup()
+    renderCentered(300, { azDeg: 37.3 }) // left edge 120°: 37.3° is 277.3° to its right
+    expect(disk('sun').cx).toBeCloseTo(azToX(277.3), 9)
+  })
+
+  it('rotates the terrain silhouette with the view, seamless at both edges', () => {
+    const centerAzDeg = 123.25 // left edge 303.25°, between mask bins
+    const leftAzDeg = centerAzDeg + 180
+    renderCentered(centerAzDeg)
+    const ridge = renderedRidge()
+    const clamp = (e: number) => Math.min(ELEV_MAX_DEG, Math.max(ELEV_MIN_DEG, e))
+    expect(ridge[0][0]).toBe(0)
+    expect(ridge.at(-1)?.[0]).toBe(plotW)
+    expect(ridge[0][1]).toBeCloseTo(ridge.at(-1)?.[1] ?? NaN, 9)
+    // One vertex per mask bin plus the two edge points; x strictly increasing.
+    expect(ridge).toHaveLength(ctx.horizonMaskDeg.length + 2)
+    for (let k = 1; k < ridge.length; k++) expect(ridge[k][0]).toBeGreaterThan(ridge[k - 1][0])
+    for (const [x, y] of ridge) {
+      const az = leftAzDeg + x / AZ_UNITS_PER_DEG
+      expect(y).toBeCloseTo(elevToY(clamp(horizonElevAt(ctx.horizonMaskDeg, ctx.azStepDeg, az))), 6)
+    }
+  })
+
+  it('moves the azimuth labels with the view', () => {
+    renderCentered(90) // left edge 270° (W), so N is a quarter of the way across
+    const n = screen.getAllByText('N')
+    expect(n).toHaveLength(1)
+    expect(Number(n[0].getAttribute('x'))).toBeCloseTo(azToX(90), 9)
+    expect(screen.getAllByText('W').map((el) => Number(el.getAttribute('x')))).toEqual([0, plotW])
+  })
+})
