@@ -1,5 +1,6 @@
 import { useId } from 'react'
 import { horizonElevAt } from '../../engine'
+import type { DayTick, MissionTracks, TrackPoint } from './tracks'
 
 // Unrolled 360° horizon panorama for one site (SPEC-app P0-5), not a fisheye: at the pole everything sits within
 // a few degrees of the horizon. x = azimuth over 360° (N at the edges unless re-centered), y = elevation −5…+12°, vertically exaggerated
@@ -55,6 +56,8 @@ export interface HorizonPanoramaProps {
   earth: PanoramaBody
   /** Azimuth at the middle of the plot. Default 180° (S): N at both edges. */
   centerAzDeg?: number
+  /** Sun / Earth tracks over the mission, with day ticks; omit to draw none. */
+  tracks?: MissionTracks
 }
 
 const AZ_TICKS = [
@@ -120,6 +123,94 @@ function EarthFill({ id, cx, cy, rx, ry }: { id: string; cx: number; cy: number;
         <ellipse cx={cx + rx * 0.45} cy={cy - ry * 0.35} rx={rx * 0.2} ry={ry * 0.15} />
       </g>
     </g>
+  )
+}
+
+/** Day ticks: ±this many viewBox units around the track; at most this many labelled. */
+const DAY_TICK_HALF = 6
+const MAX_DAY_LABELS = 16
+const TRACK_DASH = '5 3'
+const dayLabel = (day: number) => (day === 0 ? 'L' : `L+${day}d`)
+const r2 = (v: number) => Math.round(v * 100) / 100
+
+/**
+ * A track as two path strings: segments starting at a visible sample (`visible`) and the rest (`hidden`). Segment
+ * [i, i+1] takes sample i's state (state is known per sample only). A segment that would jump across the plot (the
+ * track crossing the 0°/360° edge of the view) is left out, so the line breaks at the edge.
+ */
+function trackPaths(pts: readonly TrackPoint[], leftAzDeg: number): { visible: string; hidden: string } {
+  const out = { visible: '', hidden: '' }
+  let prev: 'visible' | 'hidden' | null = null
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1]
+    const b = pts[i]
+    const xa = screenX(a.azDeg, leftAzDeg)
+    const xb = screenX(b.azDeg, leftAzDeg)
+    if (Math.abs(xb - xa) > PLOT_W / 2) {
+      prev = null
+      continue
+    }
+    const style = a.visible ? 'visible' : 'hidden'
+    if (style !== prev) out[style] += `M${r2(xa)},${r2(elevToY(a.elevDeg))}`
+    out[style] += `L${r2(xb)},${r2(elevToY(b.elevDeg))}`
+    prev = style
+  }
+  return out
+}
+
+function Track({ pts, body, color, leftAzDeg }: { pts: readonly TrackPoint[]; body: 'sun' | 'earth'; color: string; leftAzDeg: number }) {
+  const { visible, hidden } = trackPaths(pts, leftAzDeg)
+  return (
+    <g fill="none" stroke={color}>
+      <path data-track={`${body}-hidden`} d={hidden} strokeWidth={1.25} strokeDasharray={TRACK_DASH} strokeOpacity={0.85} vectorEffect="non-scaling-stroke" />
+      <path data-track={`${body}-visible`} d={visible} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+    </g>
+  )
+}
+
+/** Short vertical marks across the Sun track at landing and each mission day, labelled "L", "L+1d", … */
+function DayTicks({ ticks, leftAzDeg }: { ticks: readonly DayTick[]; leftAzDeg: number }) {
+  const every = Math.max(1, Math.ceil(ticks.length / MAX_DAY_LABELS))
+  return (
+    <g>
+      {ticks.map((t) => {
+        const x = screenX(t.azDeg, leftAzDeg)
+        const y = elevToY(t.elevDeg)
+        return (
+          <g key={t.day}>
+            <line data-day-tick={t.day} x1={x} x2={x} y1={y - DAY_TICK_HALF} y2={y + DAY_TICK_HALF} stroke="var(--text)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+            {t.day % every === 0 && (
+              <text x={x} y={y - DAY_TICK_HALF - 2} textAnchor="middle" fontSize={FONT - 2} fill="var(--text)">
+                {dayLabel(t.day)}
+              </text>
+            )}
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+function LineSwatch({ color, dashed }: { color: string; dashed: boolean }) {
+  return (
+    <svg width="22" height="8" aria-hidden="true" style={{ verticalAlign: 'middle' }}>
+      <line x1={1} x2={21} y1={4} y2={4} stroke={color} strokeWidth={dashed ? 1.25 : 2} strokeDasharray={dashed ? TRACK_DASH : undefined} />
+    </svg>
+  )
+}
+
+/** Key for the track styles and day ticks (the dashes, not just the colors, carry the state). */
+function TrackLegend() {
+  return (
+    <p className="muted" style={{ margin: 0, fontSize: '0.75rem', display: 'flex', flexWrap: 'wrap', columnGap: 'var(--space-3)' }}>
+      <span>Tracks over the mission:</span>
+      {BODIES.map(({ key, label, color, on, off }) => (
+        <span key={key}>
+          {label} <LineSwatch color={color} dashed={false} /> {on} <LineSwatch color={color} dashed /> {off}
+        </span>
+      ))}
+      <span>Ticks: L = landing, L+Nd = N days after landing</span>
+    </p>
   )
 }
 
@@ -228,6 +319,7 @@ export function HorizonPanorama({
   sun,
   earth,
   centerAzDeg = 180,
+  tracks,
 }: HorizonPanoramaProps) {
   const leftAzDeg = mod360(centerAzDeg - 180)
   // useId() contains characters that aren't safe in url(#…) references (":r0:" in React 18, "«r0»" in 19).
@@ -301,6 +393,14 @@ export function HorizonPanorama({
           strokeWidth={1}
           vectorEffect="non-scaling-stroke"
         />
+        {tracks && (
+          <g clipPath={`url(#${idPrefix}-plot)`}>
+            {BODIES.map(({ key, color }) => (
+              <Track key={key} pts={tracks[key]} body={key} color={color} leftAzDeg={leftAzDeg} />
+            ))}
+            <DayTicks ticks={tracks.dayTicks} leftAzDeg={leftAzDeg} />
+          </g>
+        )}
         <g clipPath={`url(#${idPrefix}-plot)`}>
           {BODIES.map(({ key, color }) => (
             <BodyOutline key={key} b={bodies[key]} body={key} color={color} leftAzDeg={leftAzDeg} />
@@ -316,6 +416,7 @@ export function HorizonPanorama({
           Terrain horizon at {observerHeightM} m observer height · elevation 0° = local spherical horizontal
         </text>
       </svg>
+      {tracks && <TrackLegend />}
       <p className="muted" style={{ margin: 0, fontSize: '0.75rem' }}>
         Sun / Earth disks to angular scale on both axes (ovals because of the {EXAGGERATION}× vertical exaggeration). Lit / in view
         follow the timeline's rules (Sun visible-disk threshold, Earth clearance margin, with hysteresis), so a disk can

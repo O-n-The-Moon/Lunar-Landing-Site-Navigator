@@ -13,6 +13,7 @@ import {
   type PanoramaBody,
 } from './horizon-panorama'
 import { renderedRidge, renderedRidgeYAt } from './test-helpers'
+import { missionTracks, type MissionTracks, type TrackPoint } from './tracks'
 
 afterEach(cleanup)
 
@@ -279,5 +280,86 @@ describe('HorizonPanorama re-centering', () => {
     expect(n).toHaveLength(1)
     expect(Number(n[0].getAttribute('x'))).toBeCloseTo(azToX(90), 9)
     expect(screen.getAllByText('W').map((el) => Number(el.getAttribute('x')))).toEqual([0, plotW])
+  })
+})
+
+describe('HorizonPanorama mission tracks', () => {
+  const plotW = azToX(360)
+  const fullTracks = missionTracks(samples, windows, { startMs: samples.tUtcMs[0], endMs: samples.tUtcMs.at(-1) ?? 0 })
+  const renderTracks = (tracks: MissionTracks, centerAzDeg?: number) =>
+    render(
+      <HorizonPanorama
+        siteName="Fixture plateau"
+        horizonMaskDeg={ctx.horizonMaskDeg}
+        azStepDeg={ctx.azStepDeg}
+        observerHeightM={ctx.observerHeightM}
+        sun={bodyAt(0, 'sun')}
+        earth={bodyAt(0, 'earth')}
+        tracks={tracks}
+        centerAzDeg={centerAzDeg}
+      />,
+    )
+  /** Subpaths of a rendered track path, as point lists. */
+  const subpaths = (sel: string) =>
+    (document.querySelector(sel)?.getAttribute('d') ?? '')
+      .split('M')
+      .filter((s) => s.trim())
+      .map((s) => [...s.matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]))
+
+  it.each(['sun', 'earth'] as const)('draws the %s track: solid where visible, dashed where not, every sample on it', (body) => {
+    renderTracks(fullTracks)
+    const pts = fullTracks[body]
+    const on = subpaths(`path[data-track="${body}-visible"]`)
+    const off = subpaths(`path[data-track="${body}-hidden"]`)
+    expect(document.querySelector(`path[data-track="${body}-hidden"]`)?.getAttribute('stroke-dasharray')).toBeTruthy()
+    expect(document.querySelector(`path[data-track="${body}-visible"]`)?.getAttribute('stroke-dasharray')).toBeNull()
+    // Each subpath is a run of consecutive samples; each segment [i, i+1] is drawn once, styled by sample i's state.
+    const near = (q: number[], i: number) =>
+      Math.abs(q[0] - azToX(pts[i].azDeg)) < 0.006 && Math.abs(q[1] - elevToY(pts[i].elevDeg)) < 0.006
+    const drawn = new Set<number>()
+    let segments = 0
+    for (const [style, paths] of [[true, on], [false, off]] as const) {
+      for (const sp of paths) {
+        const start = pts.findIndex((_, i) => i + sp.length <= pts.length && sp.every((q, k) => near(q, i + k)))
+        expect(start).toBeGreaterThan(-1)
+        for (let k = 0; k + 1 < sp.length; k++) {
+          expect(pts[start + k].visible).toBe(style)
+          drawn.add(start + k)
+          segments++
+        }
+      }
+    }
+    expect(drawn.size).toBe(segments)
+    const wraps = pts.slice(1).filter((p, i) => Math.abs(p.azDeg - pts[i].azDeg) > 180).length
+    expect(segments).toBe(pts.length - 1 - wraps)
+  })
+
+  it('breaks a track where it crosses the plot edge instead of drawing a line across the plot', () => {
+    const p = (azDeg: number, visible: boolean): TrackPoint => ({ tUtcMs: 0, azDeg, elevDeg: 1, horizonDeg: 0, visible })
+    renderTracks({ sun: [p(359.8, true), p(359.9, true), p(0.05, true), p(0.15, true)], earth: [], dayTicks: [] })
+    const sp = subpaths('path[data-track="sun-visible"]')
+    expect(sp).toHaveLength(2)
+    for (const s of sp) expect(Math.abs(s[0][0] - s[1][0])).toBeLessThan(plotW / 2)
+  })
+
+  it('marks landing and each mission day on the Sun track', () => {
+    renderTracks(fullTracks)
+    const ticks = document.querySelectorAll('line[data-day-tick]')
+    expect(ticks).toHaveLength(fullTracks.dayTicks.length)
+    expect(fullTracks.dayTicks.length).toBeGreaterThanOrEqual(2)
+    const t1 = fullTracks.dayTicks[1]
+    expect(Number(ticks[1].getAttribute('x1'))).toBeCloseTo(azToX(t1.azDeg), 1)
+    expect(screen.getByText('L')).toBeTruthy()
+    expect(screen.getByText('L+1d')).toBeTruthy()
+    expect(screen.getByText(/days after landing/)).toBeTruthy()
+  })
+
+  const r2 = (v: number) => Math.round(v * 100) / 100
+  it('moves the tracks with a re-centered view', () => {
+    const first = fullTracks.sun[0]
+    renderTracks(fullTracks, first.azDeg)
+    // The first sample starts a subpath (in whichever style it has), at the middle of the plot.
+    const style = first.visible ? 'visible' : 'hidden'
+    expect(subpaths(`path[data-track="sun-${style}"]`)[0][0]).toEqual([plotW / 2, r2(elevToY(first.elevDeg))])
   })
 })
