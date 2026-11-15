@@ -355,6 +355,17 @@ describe('HorizonPanorama mission tracks', () => {
   })
 
   const r2 = (v: number) => Math.round(v * 100) / 100
+  it('labels only every other day tick on a long mission, so labels stay readable', () => {
+    const dayTicks = Array.from({ length: 31 }, (_, day) => ({ day, tUtcMs: day * 86_400_000, azDeg: day * 11, elevDeg: 1 }))
+    renderTracks({ sun: [], earth: [], dayTicks })
+    expect(document.querySelectorAll('line[data-day-tick]')).toHaveLength(31)
+    expect(screen.getByText('L')).toBeTruthy()
+    expect(screen.getByText('L+2d')).toBeTruthy()
+    expect(screen.getByText('L+30d')).toBeTruthy()
+    expect(screen.queryByText('L+1d')).toBeNull()
+    expect(screen.queryByText('L+29d')).toBeNull()
+  })
+
   it('moves the tracks with a re-centered view', () => {
     const first = fullTracks.sun[0]
     renderTracks(fullTracks, first.azDeg)
@@ -366,7 +377,7 @@ describe('HorizonPanorama mission tracks', () => {
 
 describe('HorizonPanorama hover readout', () => {
   const tracks = missionTracks(samples, windows, { startMs: samples.tUtcMs[0], endMs: samples.tUtcMs.at(-1) ?? 0 })
-  const renderHover = (centerAzDeg?: number) =>
+  const renderHover = (centerAzDeg?: number, trackData: MissionTracks = tracks) =>
     render(
       <HorizonPanorama
         siteName="Fixture plateau"
@@ -375,16 +386,21 @@ describe('HorizonPanorama hover readout', () => {
         observerHeightM={ctx.observerHeightM}
         sun={bodyAt(0, 'sun')}
         earth={bodyAt(0, 'earth')}
-        tracks={tracks}
+        tracks={trackData}
         centerAzDeg={centerAzDeg}
       />,
     )
-  /** Hover at plot coordinates (viewBox units), with the SVG laid out at 1 CSS px per viewBox unit. */
-  function hoverAt(x: number, y: number) {
+  /** The SVG as laid out in these tests: offset on the page and at half size (2 viewBox units per CSS px). */
+  const LAYOUT = { left: 40, top: 100, unitsPerPx: 2 }
+  /** Pointer event at plot coordinates (viewBox units), converted to client px through LAYOUT. */
+  function hoverAt(x: number, y: number, type: 'pointerMove' | 'pointerDown' = 'pointerMove') {
     const svg = screen.getByRole('img', { name: /horizon panorama/ })
     const [vx, vy, vw, vh] = (svg.getAttribute('viewBox') ?? '').split(' ').map(Number)
-    svg.getBoundingClientRect = () => ({ left: 0, top: 0, width: vw, height: vh, right: vw, bottom: vh, x: 0, y: 0, toJSON: () => ({}) })
-    fireEvent.pointerMove(svg, { clientX: x - vx, clientY: y - vy })
+    const { left, top, unitsPerPx: k } = LAYOUT
+    svg.getBoundingClientRect = () => ({
+      left, top, width: vw / k, height: vh / k, right: left + vw / k, bottom: top + vh / k, x: left, y: top, toJSON: () => ({}),
+    })
+    fireEvent[type](svg, { clientX: left + (x - vx) / k, clientY: top + (y - vy) / k })
     return svg
   }
   const readout = () => document.querySelector('[data-hover-readout]')?.textContent ?? ''
@@ -413,6 +429,22 @@ describe('HorizonPanorama hover readout', () => {
     const terrain = horizonElevAt(ctx.horizonMaskDeg, ctx.azStepDeg, az)
     expect(readout()).toBe(`Pointer · az ${az.toFixed(1)}° · elev 11.50° · terrain ${terrain < 0 ? '−' : ''}${Math.abs(terrain).toFixed(2)}°`)
     expect(document.querySelector('circle[data-hover-point]')).toBeNull()
+  })
+
+  it('snaps to a track sample within 12 screen px, not beyond', () => {
+    const p: TrackPoint = { tUtcMs: Date.UTC(2026, 2, 1, 6), azDeg: 100, elevDeg: 2, horizonDeg: 0, visible: true }
+    renderHover(undefined, { sun: [p], earth: [], dayTicks: [] })
+    const px = LAYOUT.unitsPerPx
+    hoverAt(azToX(100), elevToY(2) - 10 * px)
+    expect(readout()).toMatch(/^Sun · 2026-03-01 06:00 UTC/)
+    hoverAt(azToX(100), elevToY(2) - 14 * px)
+    expect(readout()).toMatch(/^Pointer · az 100\.0°/)
+  })
+
+  it('shows the readout on a tap (pointer down), not only on hover', () => {
+    renderHover()
+    hoverAt(azToX(100), elevToY(11.5), 'pointerDown')
+    expect(readout()).toMatch(/^Pointer/)
   })
 
   it('clears the readout when the pointer leaves the plot', () => {

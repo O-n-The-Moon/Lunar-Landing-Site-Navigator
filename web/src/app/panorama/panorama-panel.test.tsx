@@ -72,8 +72,14 @@ describe('PanoramaPanel', () => {
     for (const body of ['Sun', 'Earth'] as const) {
       fireEvent.click(within(group).getByRole('radio', { name: body }))
       expect(diskX(body.toLowerCase())).toBeCloseTo(mid, 6)
+      const trackD = () => panel.querySelector('path[data-track^="sun-"]')?.getAttribute('d')
+      const terrainD = () => panel.querySelector('path[data-terrain]')?.getAttribute('d')
+      const before = [trackD(), terrainD()]
       fireEvent.keyDown(slider, { key: 'PageUp' }) // +12 h: the body moves, the view follows it
       expect(diskX(body.toLowerCase())).toBeCloseTo(mid, 6)
+      // Tracks and terrain are re-projected with the view, not left at the old center.
+      expect(trackD()).not.toBe(before[0])
+      expect(terrainD()).not.toBe(before[1])
     }
   })
 })

@@ -51,4 +51,12 @@ describe('missionTracks', () => {
     expect([9, 10, 19, 20].map((x) => isIn([w], x))).toEqual([false, true, true, false])
     expect(isIn([{ ...w, clippedEnd: true }], 20)).toBe(true)
   })
+
+  it('puts a day tick that falls between samples on the next sample', () => {
+    const range = { startMs: t[0] + 5 * 60_000, endMs: t[n - 1] } // landing 5 min after a sample (10-min steps)
+    const { dayTicks } = missionTracks(samples, windows, range)
+    expect(dayTicks[0].tUtcMs).toBe(t[1])
+    expect(dayTicks[1].tUtcMs).toBe(range.startMs + DAY_MS + 5 * 60_000)
+  })
 })
+

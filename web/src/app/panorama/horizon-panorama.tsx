@@ -1,4 +1,4 @@
-import { useId, useState, type PointerEvent } from 'react'
+import { useId, useMemo, useState, type PointerEvent } from 'react'
 import { horizonElevAt } from '../../engine'
 import type { DayTick, MissionTracks, TrackPoint } from './tracks'
 
@@ -164,7 +164,8 @@ function trackPaths(pts: readonly TrackPoint[], leftAzDeg: number): { visible: s
 }
 
 function Track({ pts, body, color, leftAzDeg }: { pts: readonly TrackPoint[]; body: 'sun' | 'earth'; color: string; leftAzDeg: number }) {
-  const { visible, hidden } = trackPaths(pts, leftAzDeg)
+  // Re-projected only when the view turns (Sun/Earth centering), not on every cursor or pointer move.
+  const { visible, hidden } = useMemo(() => trackPaths(pts, leftAzDeg), [pts, leftAzDeg])
   return (
     <g fill="none" stroke={color}>
       <path data-track={`${body}-hidden`} d={hidden} strokeWidth={1.25} strokeDasharray={TRACK_DASH} strokeOpacity={0.85} vectorEffect="non-scaling-stroke" />
@@ -384,9 +385,11 @@ export function HorizonPanorama({
 }: HorizonPanoramaProps) {
   const leftAzDeg = mod360(centerAzDeg - 180)
   const [hover, setHover] = useState<HoverPos | null>(null)
+  const terrainD = useMemo(() => terrainPath(horizonMaskDeg, azStepDeg, leftAzDeg), [horizonMaskDeg, azStepDeg, leftAzDeg])
   const readout = hover ? readoutAt(hover, tracks, leftAzDeg, horizonMaskDeg, azStepDeg) : null
   // The SVG keeps its aspect ratio (width 100%, height auto), so one scale maps both axes from CSS px to viewBox units.
-  const onPointerMove = (e: PointerEvent<SVGSVGElement>) => {
+  // This relies on height: auto; a fixed height would letterbox the drawing and need getScreenCTM() instead.
+  const onPointer = (e: PointerEvent<SVGSVGElement>) => {
     const r = e.currentTarget.getBoundingClientRect()
     if (!(r.width > 0)) return
     const unitsPerPx = VIEW_W / r.width
@@ -420,7 +423,8 @@ export function HorizonPanorama({
         viewBox={`${-PAD.left} ${-PAD.top} ${VIEW_W} ${VIEW_H}`}
         width="100%"
         style={{ display: 'block', height: 'auto', cursor: 'crosshair' }}
-        onPointerMove={onPointerMove}
+        onPointerMove={onPointer}
+        onPointerDown={onPointer} // a tap fires no pointermove
         onPointerLeave={() => setHover(null)}
       >
         <rect x={0} y={0} width={PLOT_W} height={PLOT_H} fill="var(--surface-2)" />
@@ -459,7 +463,7 @@ export function HorizonPanorama({
             solid shape (WCAG 1.4.11), while dashed disks behind the terrain stay visible on it (Sun ~3:1, Earth ~2.4:1). */}
         <path
           data-terrain=""
-          d={terrainPath(horizonMaskDeg, azStepDeg, leftAzDeg)}
+          d={terrainD}
           fill="var(--text-muted)"
           fillOpacity={0.65}
           stroke="var(--text)"
