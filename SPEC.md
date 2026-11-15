@@ -8,7 +8,7 @@
 
 **How might we** let a mission planner go from *"the launch slipped 3 weeks"* to *"here is the best site/date now, and why"* in under a minute?
 
-**User:** lunar mission planners (CLPS / Artemis / international) evaluating south-pole landing sites (84–90°S). Not targeting educators or the public in V1.
+**User:** lunar mission planners (CLPS / Artemis / international) evaluating south-pole landing sites (84–90°S; curated Artemis III regions may sit to 83.5°S, while the grid and map stay 84–90°S). Not targeting educators or the public in V1.
 
 **Core job:** compare 2–3 candidate sites across a mission window, see how a date slip changes **power (Sun)** and **direct-to-Earth comms (Earth)**, and understand *why* (terrain horizon), using numbers checked against NASA/JPL references.
 
