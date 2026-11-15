@@ -1,0 +1,89 @@
+/* Metric cards (T14). Uses the shell's tokens from app.css. */
+.metric-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.metric-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.metric-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+.metric-table caption {
+  padding: var(--space-2);
+  text-align: left;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.metric-table th,
+.metric-table td {
+  padding: var(--space-1) var(--space-2);
+  text-align: right;
+  vertical-align: top;
+  border-top: 1px solid var(--border);
+}
+.metric-table th[scope='row'] {
+  text-align: left;
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.metric-table thead th {
+  background: var(--surface-2);
+  font-weight: 600;
+}
+.metric-table thead th > span {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+.metric-table thead th > .metric-site-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.metric-table td {
+  white-space: nowrap;
+}
+
+.delta {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.delta.better {
+  color: var(--good);
+}
+.delta.worse {
+  color: var(--danger);
+}
+
+.steep {
+  color: var(--danger);
+}
+.steep-tag {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+}
+
+.metric-unavailable {
+  max-width: 14rem;
+  white-space: normal !important;
+  text-align: left !important;
+  color: var(--warn);
+}
+
+/* Same rule as the validation panel's; kept here so the cards don't depend on that file being loaded. */
+.metric-cards .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
