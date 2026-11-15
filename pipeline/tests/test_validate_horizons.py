@@ -181,8 +181,10 @@ def test_at_least_five_curated_sites_are_validated():
     assert set(validate_horizons.SITE_IDS) <= site_ids
 
 
+# Horizons = ours + offset, so ours - Horizons is negative for both: the
+# reported errors are only right if they are absolute values.
 AZ_OFFSET_DEG = 0.004
-ELEV_OFFSET_DEG = -0.003
+ELEV_OFFSET_DEG = 0.003
 
 
 def _fake_horizons(inputs: golden.Inputs):
@@ -343,10 +345,23 @@ def test_shipped_validation_meets_success_criterion_1(shipped):
 
 
 def test_shipped_validation_matches_current_ephemeris_and_sites(shipped):
-    # Stale after ephemeris.bin or sites.json changes: re-run `lunarnav validate`.
+    # Stale after ephemeris.bin, sites.json, SITE_IDS or the epochs change:
+    # re-run `lunarnav validate`.
     inputs = golden.load_inputs()
     sites = {s["id"]: s for s in inputs.sites["sites"]}
+    assert {(r["siteId"], r["tUtcMs"], r["body"]) for r in shipped["rows"]} == {
+        (site_id, t, body)
+        for site_id in validate_horizons.SITE_IDS
+        for t in validate_horizons.epochs_utc_ms()
+        for body in ("sun", "earth")
+    }
     for r in shipped["rows"]:
+        assert r["azErrDeg"] == pytest.approx(
+            validate_horizons.az_err_deg(r["oursAzDeg"], r["horizonsAzDeg"]), abs=1e-9
+        )
+        assert r["elevErrDeg"] == pytest.approx(
+            abs(r["oursElevDeg"] - r["horizonsElevDeg"]), abs=1e-9
+        )
         site = sites[r["siteId"]]
         vec = golden.body_vectors_km(inputs.ephemeris, [r["tUtcMs"]])[0]
         az, el, _ = az_el(
