@@ -2,7 +2,9 @@
 
 Each 120 m PGDA raster is area-averaged onto the grid cells (not point-sampled),
 so a layer value is the mean over its 2 km cell, NOT the value at a site.
-Layout matches grid-*.bin: row 0 is the lowest y, column 0 the lowest x.
+In memory the layout matches grid-*.bin (row 0 = lowest y, column 0 = lowest x).
+The PNGs are stored flipped so the top image row is the highest y, as the web
+fixture and types expect: pixel (col ix, row ny - 1 - iy) is grid cell (iy, ix).
 """
 
 import struct
@@ -106,17 +108,16 @@ def layers_manifest(
         "nx": nx,
         "ny": ny,
         "layers": {"sun": "pgda-sun.png", "earth": "pgda-earth.png"},
-        "encoding": "8-bit grayscale; value = whole percent of time 0-100; 255 = no data",
-        "rowOrder": "image row 0 = lowest y, column 0 = lowest x (same as "
-        "grid-*.bin); flip vertically to draw a y-up map",
+        "encoding": "8-bit grayscale, value = percent (whole, 0-100; 255 = no data); "
+        "top PNG row = highest y",
+        "rowOrder": "top PNG row = highest y, left column = lowest x; grid cell "
+        "(iy, ix) is pixel (column ix, row ny - 1 - iy)",
         "resampling": f"mean of {SUBSAMPLES_PER_AXIS}x{SUBSAMPLES_PER_AXIS} bilinear "
         "samples per cell (area average, not a site value)",
-        "source": {
-            "product": "NASA PGDA product 69, average visibility, 75S, 120 m, 2016-08",
-            "url": "https://pgda.gsfc.nasa.gov/products/69",
-            "files": [PGDA_SUN_LBL.stem, PGDA_EARTH_LBL.stem],
-            "resolutionM": 120,
-        },
+        "source": "NASA PGDA product 69 (https://pgda.gsfc.nasa.gov/products/69), "
+        "average visibility 75S 120 m 2016-08",
+        "sourceFiles": [PGDA_SUN_LBL.stem, PGDA_EARTH_LBL.stem],
+        "resolutionM": 120,
         "definition": "Fraction of time any part of the Sun/Earth disk is visible "
         "(PGDA label wording); differs from our mean Sun fraction / Earth-center "
         "validation definitions.",
@@ -141,8 +142,8 @@ def build_layers(
 
 def main() -> None:
     sun_u8, earth_u8 = build_layers(PdsRaster(PGDA_SUN_LBL), PdsRaster(PGDA_EARTH_LBL))
-    write_gray_png(PGDA_SUN_PNG, sun_u8)
-    write_gray_png(PGDA_EARTH_PNG, earth_u8)
+    write_gray_png(PGDA_SUN_PNG, np.flipud(sun_u8))
+    write_gray_png(PGDA_EARTH_PNG, np.flipud(earth_u8))
     write_json(
         PGDA_LAYERS_JSON,
         layers_manifest(GRID_CELL_KM, GRID_NX, GRID_NY, GRID_ORIGIN_KM),

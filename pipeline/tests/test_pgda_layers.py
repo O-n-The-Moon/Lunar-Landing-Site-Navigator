@@ -142,6 +142,16 @@ def test_manifest_matches_grid_extent_and_states_limits():
     assert manifest["observerHeightM"] is None  # unknown until #57, never invented
 
 
+def test_manifest_keys_match_web_contract_types():
+    # web/src/engine/types.ts PgdaLayersManifest (source and resolutionM are flat).
+    m = layers_manifest(2, 182, 182, (-182, -182))
+    assert isinstance(m["source"], str)
+    assert m["resolutionM"] == 120
+    assert m["schemaVersion"] == 1
+    assert m["projection"] == "polar-stereographic-south"
+    assert "top PNG row = highest y" in m["encoding"]
+
+
 def test_build_layers_encodes_both_rasters(tmp_path):
     sun = write_visibility(tmp_path, np.full((100, 100), 10000))  # 0.4
     sun_u8, earth_u8 = build_layers(sun, sun, 2.0, 2, 2, (-2.0, -2.0))
@@ -202,3 +212,14 @@ def test_committed_layers_match_manifest_and_pole():
         pole = pixels[manifest["ny"] // 2 - 1 : manifest["ny"] // 2 + 1]
         pole = pole[:, manifest["nx"] // 2 - 1 : manifest["nx"] // 2 + 1]
         assert abs(float(pole.mean()) - pole_pct) <= 6  # 2 km mean, not the pole point
+
+
+@needs_pgda
+def test_committed_pngs_are_the_y_flipped_build():
+    data_dir = Path(__file__).resolve().parents[2] / "web/public/data"
+    built = build_layers(
+        PdsRaster(REAL / "AVGVISIB_75S_120M_201608.LBL"),
+        PdsRaster(REAL / "AVGVISIB_75S_120M_201608_EARTH.LBL"),
+    )
+    for name, expected in zip(("pgda-sun.png", "pgda-earth.png"), built, strict=True):
+        np.testing.assert_array_equal(np.flipud(decode_png(data_dir / name)), expected)
