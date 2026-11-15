@@ -108,6 +108,20 @@ of this 2016 raster release. The [NASA bibliographic record](https://ntrs.nasa.g
 has no downloadable full text. Product-specific confirmation from the producer
 or additional authoritative release documentation is still required to close Q2.
 
+**Search status (#57, 2026-11-15):** a further search of the PGDA page, the release
+README, the labels, and public abstracts found no product-specific height for this 2016
+release. The only "2 m" found
+([Gläser et al.](https://ntrs.nasa.gov/api/citations/20170007365/downloads/20170007365.pdf))
+describes a different 20 m DTM product and must not be transferred to these rasters.
+The Mazarico et al. (2011) full text and the Barker et al. papers were **not** read.
+Producer confirmation has not been obtained.
+
+**Proposed interim disposition (pending team approval; not yet agreed):** the observer
+height of PGDA product 69 is recorded as **unknown**. Until it is confirmed, #20 may
+compare against these rasters only as an any-disk-visible, height-unspecified
+reference. It must not report "height-matched" agreement, and must not publish a PGDA
+accuracy figure (including the ±5 percentage-point criterion) in `validation.json`.
+
 This does not block fetching or DEM work. It **does block claiming a height-matched
 PGDA validation** in #20. The spec's mean-Sun-fraction and Earth-center comparison
 also differs from these label definitions. #20 must reconcile the validation
