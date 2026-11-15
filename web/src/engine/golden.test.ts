@@ -73,9 +73,9 @@ describe('engine golden parity (shared/fixtures/golden.json cases)', () => {
       expect(Math.abs(samples.earthHorizonDeg[0] - c.earthHorizonDeg), 'earthHorizonDeg').toBeLessThanOrEqual(ANGLE_TOL_DEG)
 
       // With no prior state, the engine starts the link on at clearance ≥ 0 (no hysteresis), which is golden's
-      // earthVisible. The generator drops cases within 1e-4° of the margin, far more than Earth moves in 1 ms.
+      // earthVisible. Sample 0 alone decides: a turn-on at the 1 ms sample would start at t + 1, not clipped at t.
       const { earth } = detectWindows(samples, opts)
-      expect(earth.length > 0 && earth[0].startMs === c.tUtcMs, 'earthVisible').toBe(c.earthVisible)
+      expect(earth[0]?.startMs === c.tUtcMs && earth[0].clippedStart, 'earthVisible').toBe(c.earthVisible)
     },
   )
 
