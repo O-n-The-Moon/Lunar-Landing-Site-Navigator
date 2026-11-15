@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { fixtureOutputs, fixtureScenario } from './__fixtures__'
 import { angularRadiusDeg, azEl, bodyVectorKm, horizonElevAt, siteFrame, visibleDiskFraction } from './geometry'
 import { DEFAULT_VISIBILITY_OPTS } from './types'
-import type { SiteContext, Vec3, Window } from './types'
-import { detectWindows, sampleSite } from './windows'
+import type { DetectedWindows, SiteContext, Vec3, Window } from './types'
+import { detectWindows, nextEvents, sampleSite } from './windows'
 
 const MIN_MS = 60_000
 const H_MS = 3_600_000
@@ -224,5 +224,61 @@ describe('detectWindows', () => {
     expect(() => detectWindows(s, { ...opts, hysteresis: -0.01 })).toThrow(RangeError)
     expect(() => detectWindows(s, { ...opts, earthHysteresisDeg: -0.1 })).toThrow(RangeError)
     expect(() => detectWindows(s, { ...opts, hysteresis: Number.NaN })).toThrow(RangeError)
+  })
+})
+
+describe('nextEvents', () => {
+  const win = (startH: number, endH: number, clippedStart = false, clippedEnd = false): Window => ({
+    startMs: T0 + startH * H_MS,
+    endMs: T0 + endH * H_MS,
+    clippedStart,
+    clippedEnd,
+  })
+  // Range 0–48 h. Sun: on from the start, sets at 10 h, rises at 20 h, on to the end.
+  // Earth: rises at 5 h, sets at 30 h.
+  const windows: DetectedWindows = {
+    sun: [win(0, 10, true), win(20, 48, false, true)],
+    earth: [win(5, 30)],
+    both: [win(5, 10), win(20, 30)],
+  }
+
+  it('returns hours to the next sunset, sunrise, Earthset and Earthrise', () => {
+    expect(nextEvents(windows, T0 + 2 * H_MS)).toEqual({ sunsetInH: 8, sunriseInH: 18, earthsetInH: 28, earthriseInH: 3 })
+    expect(nextEvents(windows, T0 + 12.5 * H_MS)).toEqual({ sunsetInH: null, sunriseInH: 7.5, earthsetInH: 17.5, earthriseInH: null })
+  })
+
+  it('does not count clipped range edges as events', () => {
+    // The sun window ending at the range end (clippedEnd) is not a sunset; the one starting at 0 h is not a sunrise.
+    expect(nextEvents(windows, T0 + 25 * H_MS).sunsetInH).toBeNull()
+    expect(nextEvents(windows, T0 - H_MS).sunriseInH).toBe(21)
+  })
+
+  it('counts only events strictly after tUtcMs', () => {
+    const atSunset = nextEvents(windows, T0 + 10 * H_MS)
+    expect(atSunset.sunsetInH).toBeNull()
+    expect(atSunset.sunriseInH).toBe(10)
+    expect(nextEvents(windows, T0 + 5 * H_MS).earthriseInH).toBeNull()
+  })
+
+  it('returns null for every event when none is in range', () => {
+    const none = { sunsetInH: null, sunriseInH: null, earthsetInH: null, earthriseInH: null }
+    expect(nextEvents(windows, T0 + 40 * H_MS)).toEqual(none)
+    expect(nextEvents({ sun: [], earth: [], both: [] }, T0)).toEqual(none)
+    expect(nextEvents({ sun: [win(0, 48, true, true)], earth: [win(0, 48, true, true)], both: [] }, T0)).toEqual(none)
+  })
+
+  it('works on detected windows', () => {
+    const ctx = syntheticCtx([2, 1, -1, -2, -1, 1, 2], [5, 3, 1, -1, 1, 3, 5])
+    const w = detectWindows(sampleSite(ctx, T0, T0 + 6 * H_MS), DEFAULT_VISIBILITY_OPTS)
+    const ev = nextEvents(w, T0)
+    expect(ev.sunsetInH).toBe((w.sun[0].endMs - T0) / H_MS)
+    expect(ev.sunriseInH).toBe((w.sun[1].startMs - T0) / H_MS)
+    expect(ev.earthsetInH).toBe((w.earth[0].endMs - T0) / H_MS)
+    expect(ev.earthriseInH).toBe((w.earth[1].startMs - T0) / H_MS)
+  })
+
+  it('rejects a NaN or infinite tUtcMs', () => {
+    expect(() => nextEvents(windows, Number.NaN)).toThrow(RangeError)
+    expect(() => nextEvents(windows, Number.POSITIVE_INFINITY)).toThrow(RangeError)
   })
 })

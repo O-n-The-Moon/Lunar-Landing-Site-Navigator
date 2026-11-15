@@ -1,9 +1,9 @@
 // Time series and events: sampling, window detection, next events.
 import { angularRadiusDeg, azEl, bodyVectorKm, horizonElevAt, visibleDiskFraction } from './geometry'
 import type { AzEl, DetectedWindows, NextEvents, SiteContext, SiteSamples, VisibilityOpts, Window } from './types'
-import { notImplemented } from './types'
 
 const MIN_MS = 60_000
+const H_MS = 3_600_000
 
 function sunAt(ctx: SiteContext, tUtcMs: number): AzEl & { horizonDeg: number; fraction: number } {
   const sun = azEl(ctx.frame, bodyVectorKm(ctx.eph, 'sun', tUtcMs))
@@ -145,7 +145,19 @@ export function detectWindows(samples: SiteSamples, opts: VisibilityOpts): Detec
   return { sun, earth, both: intersect(sun, earth) }
 }
 
-/** Hours from `tUtcMs` to the next sunset, sunrise, Earthset and Earthrise (null if none in range). */
+/**
+ * Hours from `tUtcMs` to the next sunset, sunrise, Earthset and Earthrise strictly after it (null if none in range).
+ * Clipped window edges are range limits, not events.
+ */
 export function nextEvents(windows: DetectedWindows, tUtcMs: number): NextEvents {
-  return notImplemented('nextEvents', windows, tUtcMs)
+  if (!Number.isFinite(tUtcMs)) throw new RangeError(`tUtcMs must be finite, got ${tUtcMs}`)
+  const inH = (ms: number | undefined) => (ms === undefined ? null : (ms - tUtcMs) / H_MS)
+  const nextEnd = (ws: Window[]) => ws.find((w) => !w.clippedEnd && w.endMs > tUtcMs)?.endMs
+  const nextStart = (ws: Window[]) => ws.find((w) => !w.clippedStart && w.startMs > tUtcMs)?.startMs
+  return {
+    sunsetInH: inH(nextEnd(windows.sun)),
+    sunriseInH: inH(nextStart(windows.sun)),
+    earthsetInH: inH(nextEnd(windows.earth)),
+    earthriseInH: inH(nextStart(windows.earth)),
+  }
 }
