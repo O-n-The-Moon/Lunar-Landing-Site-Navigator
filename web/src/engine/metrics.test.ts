@@ -1,8 +1,125 @@
 import { describe, expect, it } from 'vitest'
-import { diffMetrics } from './metrics'
-import type { MissionMetrics } from './types'
+import { angularRadiusDeg, siteFrame, visibleDiskFraction } from './geometry'
+import { diffMetrics, missionMetrics } from './metrics'
+import { DEFAULT_VISIBILITY_OPTS } from './types'
+import type { MissionMetrics, SiteContext, Vec3 } from './types'
 
+const H_MS = 3_600_000
 const T0 = Date.UTC(2026, 0, 1)
+/** Events are refined to 1 min; allow one more for the slightly nonlinear angle between hourly ephemeris points. */
+const EVENT_TOL_H = 2 / 60
+
+/**
+ * Site on the equator at (0°, 0°) over a flat 0° horizon, so ENU is east = +y, north = +z, up = +x.
+ * Hourly ephemeris from T0: the Sun due north at sunElevDeg[k], Earth due east at earthElevDeg[k].
+ */
+function syntheticCtx(sunElevDeg: number[], earthElevDeg: number[]): SiteContext {
+  const frame = siteFrame(0, 0, 0, 0)
+  const at = (distKm: number, elevDeg: number, dir: Vec3): number[] => {
+    const e = (elevDeg * Math.PI) / 180
+    return [0, 1, 2].map((k) => frame.positionKm[k] + distKm * (Math.cos(e) * dir[k] + Math.sin(e) * frame.up[k]))
+  }
+  const positions: number[] = []
+  for (let k = 0; k < sunElevDeg.length; k++) {
+    positions.push(...at(149_600_000, sunElevDeg[k], frame.north), ...at(384_400, earthElevDeg[k], frame.east))
+  }
+  return {
+    eph: { startUtcMs: T0, stepMs: H_MS, count: sunElevDeg.length, bodies: ['sun', 'earth'], positionsKm: Float32Array.from(positions) },
+    frame,
+    horizonMaskDeg: new Array<number>(360).fill(0),
+    azStepDeg: 1,
+    observerHeightM: 0,
+  }
+}
+
+describe('missionMetrics', () => {
+  // Hours 0–12. Sun: sets at ~4.5 h, rises at ~6.5 h (elevation crosses 0° mid-hour).
+  // Earth link (margin 1°, ±0.1°): clearance 4° → −1° over hour 7–8, off at −0.1° → 7.82 h;
+  // −1° → 4° over hour 9–10, on at +0.1° → 9.22 h.
+  const ctx = syntheticCtx([5, 5, 5, 5, 5, -5, -5, 5, 5, 5, 5, 5, 5], [5, 5, 5, 5, 5, 5, 5, 5, 0, 0, 5, 5, 5])
+  const opts = DEFAULT_VISIBILITY_OPTS
+
+  it('echoes the landing time and duration', () => {
+    const m = missionMetrics(ctx, T0 + 2 * H_MS, 8, opts)
+    expect(m.landingMs).toBe(T0 + 2 * H_MS)
+    expect(m.durationH).toBe(8)
+  })
+
+  it('reports % of the mission in each state', () => {
+    const m = missionMetrics(ctx, T0 + 2 * H_MS, 8, opts)
+    expect(Math.abs(m.sunlitPct - 75)).toBeLessThan((100 * EVENT_TOL_H) / 8)
+    expect(Math.abs(m.earthPct - (100 * 6.6) / 8)).toBeLessThan((100 * EVENT_TOL_H) / 8)
+    expect(Math.abs(m.bothPct - (100 * 4.6) / 8)).toBeLessThan((100 * 2 * EVENT_TOL_H) / 8)
+  })
+
+  it('reports first on→off transitions as hours from landing', () => {
+    const m = missionMetrics(ctx, T0 + 2 * H_MS, 8, opts)
+    expect(Math.abs((m.firstSunsetH ?? NaN) - 2.5)).toBeLessThan(EVENT_TOL_H)
+    expect(Math.abs((m.firstEarthsetH ?? NaN) - 5.82)).toBeLessThan(EVENT_TOL_H)
+  })
+
+  it('reports the longest off-period', () => {
+    const m = missionMetrics(ctx, T0 + 2 * H_MS, 8, opts)
+    expect(Math.abs(m.longestSunGapH - 2)).toBeLessThan(2 * EVENT_TOL_H)
+    expect(Math.abs(m.longestEarthGapH - 1.4)).toBeLessThan(2 * EVENT_TOL_H)
+  })
+
+  it('reports the time-weighted mean visible fraction', () => {
+    expect(missionMetrics(ctx, T0 + 2 * H_MS, 8, opts).meanSunFraction).toBeCloseTo(0.75, 2)
+  })
+
+  it('clips a gap at landing and ignores a sunset before landing', () => {
+    // Landing at 5 h, Sun already down until ~6.5 h, then up to the end at 9 h.
+    const m = missionMetrics(ctx, T0 + 5 * H_MS, 4, opts)
+    expect(m.firstSunsetH).toBeNull()
+    expect(Math.abs(m.longestSunGapH - 1.5)).toBeLessThan(EVENT_TOL_H)
+    expect(Math.abs(m.sunlitPct - (100 * 2.5) / 4)).toBeLessThan((100 * EVENT_TOL_H) / 4)
+  })
+
+  it('clips a gap at the mission end', () => {
+    // Mission 2–8.5 h: the Earth gap starts at ~7.82 h and is cut at 8.5 h.
+    const m = missionMetrics(ctx, T0 + 2 * H_MS, 6.5, opts)
+    expect(Math.abs(m.longestEarthGapH - 0.68)).toBeLessThan(EVENT_TOL_H)
+    expect(Math.abs((m.firstEarthsetH ?? NaN) - 5.82)).toBeLessThan(EVENT_TOL_H)
+  })
+
+  it('reports no event and no gap when nothing sets during the mission', () => {
+    const m = missionMetrics(ctx, T0 + 2 * H_MS, 2, opts)
+    expect(m.firstSunsetH).toBeNull()
+    expect(m.firstEarthsetH).toBeNull()
+    expect(m.longestSunGapH).toBe(0)
+    expect(m.longestEarthGapH).toBe(0)
+    expect(m.sunlitPct).toBe(100)
+    expect(m.earthPct).toBe(100)
+    expect(m.bothPct).toBe(100)
+    expect(m.meanSunFraction).toBeCloseTo(1, 12)
+  })
+
+  it('takes the state at landing from before landing, not from the hysteresis seed', () => {
+    // Sun high until 2 h, then held just below center: inside the hysteresis band and below its midpoint.
+    const lowDeg = -0.01
+    const f = visibleDiskFraction(lowDeg, 0, angularRadiusDeg('sun', 149_600_000))
+    expect(f).toBeGreaterThan(0.45)
+    expect(f).toBeLessThan(0.5)
+    const held = syntheticCtx([5, 5, 5, ...new Array<number>(10).fill(lowDeg)], new Array<number>(13).fill(5))
+    const m = missionMetrics(held, T0 + 5 * H_MS, 4, opts)
+    expect(m.sunlitPct).toBe(100)
+    expect(m.firstSunsetH).toBeNull()
+  })
+
+  it('works when landing is at the start of the ephemeris coverage', () => {
+    const m = missionMetrics(ctx, T0, 12, opts)
+    expect(Math.abs(m.longestSunGapH - 2)).toBeLessThan(2 * EVENT_TOL_H)
+  })
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])('throws RangeError for durationH = %s', (durationH) => {
+    expect(() => missionMetrics(ctx, T0 + 2 * H_MS, durationH, opts)).toThrow(RangeError)
+  })
+
+  it('throws RangeError when the mission runs past the ephemeris coverage', () => {
+    expect(() => missionMetrics(ctx, T0 + 10 * H_MS, 3, opts)).toThrow(RangeError)
+  })
+})
 
 function metrics(overrides: Partial<MissionMetrics> = {}): MissionMetrics {
   return {
