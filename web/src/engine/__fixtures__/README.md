@@ -17,6 +17,8 @@ Import the typed versions from `src/engine/__fixtures__` (`index.ts`):
 
 What the outputs exercise: sunsets and sunrises at both sites; at the plateau Earth sets after the slip; at the ridge Earth rises after the slip; `firstEarthsetH` null at baseline, so its delta is `change: 'appeared'`; a no-data grid cell.
 
+**Exception: `real-data.ts`** loads the real contract from `web/public/data` (`realEphemeris`, `realSitesFile`, `realSiteContext(siteId, observerHeightM)`) for golden-parity tests. Test-only: don't import it from app code, since the inlined `ephemeris.bin` (~1.5 MB) would end up in the bundle.
+
 ## Regenerate
 
 ```bash
