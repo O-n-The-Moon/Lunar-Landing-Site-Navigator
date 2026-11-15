@@ -9,6 +9,8 @@ describe('TimelinePanel', () => {
   it('mounts a strip per site whose cursor drives the scenario cursor', async () => {
     render(<App dataSources={{ source: fixtureDataSource() }} />)
     const panel = await screen.findByRole('region', { name: 'Timeline' })
+    // The fixture ephemeris covers 48 h, so the default 14-day mission has no results; use 1 day.
+    fireEvent.change(screen.getByLabelText(/duration/i), { target: { value: '1' } })
     const sliders = within(panel).getAllByRole('slider')
     // ≥ 2 strips, or "all strips move together" below proves nothing.
     expect(sliders.length).toBeGreaterThanOrEqual(2)
