@@ -1,4 +1,5 @@
-// Compare view (SPEC-app P0-3). Owned by T20 (#21); T14 (#15) only mounts the metric cards here.
+// Compare view (SPEC-app P0-3): metric cards for up to 3 sites, slipped values with a Δ vs. the baseline.
+// The slip itself is set by the sidebar's slip slider (controls/slip-slider.tsx).
 import { useId } from 'react'
 import { useScenarioResults } from '../use-scenario-results'
 import { MetricCards } from './metric-cards'

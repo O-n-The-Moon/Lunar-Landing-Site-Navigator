@@ -20,9 +20,10 @@ describe('App shell', () => {
     expect(screen.getByRole('heading', { name: /lunar landing site navigator/i })).toBeInTheDocument()
     expect(screen.getByText(/synthetic fixture data/i)).toBeInTheDocument()
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Compare', 'Opportunity Map', 'Validation'])
-    for (const name of ['Compare', 'Timeline', 'Horizon panorama', 'Slip', 'Custom site', 'Options']) {
+    for (const name of ['Compare', 'Timeline', 'Horizon panorama', 'Custom site', 'Options']) {
       expect(screen.getByRole('region', { name })).toBeInTheDocument()
     }
+    expect(screen.getByRole('group', { name: 'Slip' })).toBeInTheDocument()
   })
 
   it('shows a clear message when data fails to load', async () => {
