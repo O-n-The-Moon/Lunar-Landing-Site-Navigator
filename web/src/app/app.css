@@ -1,0 +1,260 @@
+/* App shell styles: dense, dark, mission-ops. Views add their own styles next to their components. */
+:root {
+  color-scheme: dark;
+  --bg: #0b0e13;
+  --surface: #131820;
+  --surface-2: #1a212c;
+  --border: #283241;
+  --text: #d8dee8;
+  --text-muted: #8592a6;
+  --accent: #5fb3f9;
+  --warn: #f2b84b;
+  --danger: #f2706b;
+  --good: #5fd18a;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --radius: 4px;
+  --font-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-num: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font: 14px/1.4 var(--font-ui);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 600;
+}
+h1 {
+  font-size: 1rem;
+}
+h2 {
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+h3 {
+  font-size: 0.875rem;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-1) var(--space-2);
+}
+button {
+  cursor: pointer;
+}
+button:disabled,
+select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+.muted {
+  color: var(--text-muted);
+}
+.hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.hint.error {
+  color: var(--danger);
+}
+.hint.warn {
+  color: var(--warn);
+}
+
+/* --- shell ------------------------------------------------------------------------- */
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.app-message {
+  padding: var(--space-4);
+}
+.app-message h2 {
+  color: var(--danger);
+  margin-bottom: var(--space-2);
+}
+.badge {
+  margin: 0;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius);
+  font-size: 0.75rem;
+}
+.badge-warn {
+  color: var(--warn);
+  border: 1px solid var(--warn);
+}
+
+.layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 18rem minmax(0, 1fr);
+}
+@media (max-width: 768px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* --- tabs (WAI-ARIA tabs pattern) ---------------------------------------------------- */
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3) 0;
+  border-bottom: 1px solid var(--border);
+}
+.tabs [role='tab'] {
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: transparent;
+  color: var(--text-muted);
+}
+.tabs [role='tab'][aria-selected='true'] {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--text);
+  margin-bottom: -1px;
+}
+.tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+.tab-panel[hidden] {
+  display: none;
+}
+
+/* --- controls ---------------------------------------------------------------------- */
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  /* Fieldsets default to min-content width, so a long <select> option would overflow the sidebar. */
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.control legend {
+  padding: 0 var(--space-1);
+  font-weight: 600;
+}
+.control label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.row {
+  display: flex;
+  gap: var(--space-2);
+}
+.row select {
+  flex: 1;
+  min-width: 0;
+}
+
+.site-list {
+  list-style: none;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.site-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.site-list label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.875rem;
+  color: var(--text);
+  cursor: pointer;
+}
+.site-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.icon-button {
+  padding: 0 var(--space-2);
+  line-height: 1.5;
+}
+
+/* --- placeholders (removed as views land) ------------------------------------------ */
+.placeholder {
+  padding: var(--space-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+}
+.placeholder h3 {
+  color: var(--text);
+  margin-bottom: var(--space-1);
+}
+.placeholder p {
+  margin: 0;
+}
