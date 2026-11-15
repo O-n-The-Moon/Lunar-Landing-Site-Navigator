@@ -125,3 +125,37 @@ def test_diversify_fills_with_next_best_when_too_few_disjoint_flips():
     flips = [_flip("a", "z", 100), _flip("b", "z", 99), _flip("c", "z", 98)]
     got = demo.diversify(flips, 3)
     assert [f.winner_id for f in got] == ["a", "b", "c"]
+
+
+def _site(site_id: str, lat_deg: float, lon_deg: float) -> dict:
+    return {"id": site_id, "latDeg": lat_deg, "lonDeg": lon_deg}
+
+
+def test_site_clusters_chain_sites_within_the_distance_and_label_by_smallest_id():
+    # ~1.7 km per 0.056 deg of latitude: a, b, c chain at ~10 km steps; d is far away.
+    sites = [
+        _site("c", -89.0 + 0.115, 0.0),
+        _site("a", -89.0, 0.0),
+        _site("b", -89.0 + 0.0575, 0.0),
+        _site("d", -85.0, 90.0),
+    ]
+    got = demo.site_clusters(sites, max_km=5.0)
+    assert got == {"a": "a", "b": "a", "c": "a", "d": "d"}
+
+
+def test_site_clusters_keep_distant_sites_apart():
+    sites = [_site("a", -89.0, 0.0), _site("b", -89.0 + 0.5, 0.0)]  # ~15 km apart
+    assert demo.site_clusters(sites, max_km=5.0) == {"a": "a", "b": "b"}
+
+
+def test_diversify_treats_sites_in_one_cluster_as_the_same_place():
+    flips = [_flip("a", "z", 100), _flip("b", "y", 99), _flip("c", "x", 90)]
+    near = {"a": "a", "b": "a"}  # a and b are the same place
+    got = demo.diversify(flips, 2, near)
+    assert [(f.winner_id, f.loser_id) for f in got] == [("a", "z"), ("c", "x")]
+
+
+def test_diversify_skips_flips_between_two_sites_of_one_cluster():
+    flips = [_flip("a", "b", 100), _flip("c", "d", 90)]
+    got = demo.diversify(flips, 1, {"a": "a", "b": "a"})
+    assert (got[0].winner_id, got[0].loser_id) == ("c", "d")

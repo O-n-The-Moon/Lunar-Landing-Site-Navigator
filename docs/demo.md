@@ -18,27 +18,27 @@ Search: every curated site, baseline landings daily from 2027-01-01 to the end o
 
 Reproduce: sites `mons-mouton-im2` + `connecting-ridge`, duration 14 d, landing 2029-02-20T00:00:00Z, slip slider +15 d.
 
-**2. Mons Mouton (Artemis III region) vs Nobile Rim 2 (Artemis III region)**: slip 12 days, landing 2028-08-07 → 2028-08-19. Gap in Both %: +73.0 → -26.4 (swing 99.4 points).
+**2. de Gerlache Rim 2 (Artemis III region) vs Nobile Rim 2 (Artemis III region)**: slip 12 days, landing 2028-09-06 → 2028-09-18. Gap in Both %: +55.5 → -35.4 (swing 90.9 points).
 
 | | Site | Landing (UTC 00:00) | Sunlit | Earth link | Both | First sunset |
 |---|---|---|---|---|---|---|
-| baseline | Mons Mouton (Artemis III region) (`mons-mouton`) | 2028-08-07 | 100.0% | 77.7% | **77.7%** | never |
-| baseline | Nobile Rim 2 (Artemis III region) (`nobile-rim-2`) | 2028-08-07 | 4.6% | 85.4% | **4.6%** | 15.6 h |
-| slip +12 d | Mons Mouton (Artemis III region) (`mons-mouton`) | 2028-08-19 | 46.1% | 9.5% | **0.3%** | 153.8 h |
-| slip +12 d | Nobile Rim 2 (Artemis III region) (`nobile-rim-2`) | 2028-08-19 | 57.9% | 26.7% | **26.7%** | never |
+| baseline | de Gerlache Rim 2 (Artemis III region) (`de-gerlache-rim-2`) | 2028-09-06 | 57.9% | 57.7% | **57.7%** | 194.4 h |
+| baseline | Nobile Rim 2 (Artemis III region) (`nobile-rim-2`) | 2028-09-06 | 2.2% | 65.7% | **2.2%** | 7.3 h |
+| slip +12 d | de Gerlache Rim 2 (Artemis III region) (`de-gerlache-rim-2`) | 2028-09-18 | 12.8% | 29.0% | **12.8%** | never |
+| slip +12 d | Nobile Rim 2 (Artemis III region) (`nobile-rim-2`) | 2028-09-18 | 63.3% | 48.2% | **48.2%** | never |
 
-Reproduce: sites `mons-mouton` + `nobile-rim-2`, duration 14 d, landing 2028-08-07T00:00:00Z, slip slider +12 d.
+Reproduce: sites `de-gerlache-rim-2` + `nobile-rim-2`, duration 14 d, landing 2028-09-06T00:00:00Z, slip slider +12 d.
 
-**3. Mons Mouton Plateau (Artemis III region) vs Nobile Rim 1 (Artemis III region)**: slip 16 days, landing 2028-01-07 → 2028-01-23. Gap in Both %: +46.7 → -50.4 (swing 97.1 points).
+**3. Haworth (Artemis III region) vs Malapert Massif (Artemis III region)**: slip 18 days, landing 2032-06-27 → 2032-07-15. Gap in Both %: +0.5 → -48.1 (swing 48.6 points).
 
 | | Site | Landing (UTC 00:00) | Sunlit | Earth link | Both | First sunset |
 |---|---|---|---|---|---|---|
-| baseline | Mons Mouton Plateau (Artemis III region) (`mons-mouton-plateau`) | 2028-01-07 | 54.1% | 51.2% | **51.2%** | 181.9 h |
-| baseline | Nobile Rim 1 (Artemis III region) (`nobile-rim-1`) | 2028-01-07 | 4.5% | 24.8% | **4.5%** | 15.2 h |
-| slip +16 d | Mons Mouton Plateau (Artemis III region) (`mons-mouton-plateau`) | 2028-01-23 | 0.0% | 88.0% | **0.0%** | never |
-| slip +16 d | Nobile Rim 1 (Artemis III region) (`nobile-rim-1`) | 2028-01-23 | 59.1% | 50.4% | **50.4%** | never |
+| baseline | Haworth (Artemis III region) (`haworth`) | 2032-06-27 | 20.3% | 23.9% | **20.3%** | 68.3 h |
+| baseline | Malapert Massif (Artemis III region) (`malapert-massif`) | 2032-06-27 | 85.4% | 34.5% | **19.9%** | 64.1 h |
+| slip +18 d | Haworth (Artemis III region) (`haworth`) | 2032-07-15 | 42.9% | 58.7% | **31.8%** | 169.2 h |
+| slip +18 d | Malapert Massif (Artemis III region) (`malapert-massif`) | 2032-07-15 | 80.6% | 81.5% | **79.9%** | never |
 
-Reproduce: sites `mons-mouton-plateau` + `nobile-rim-1`, duration 14 d, landing 2028-01-07T00:00:00Z, slip slider +16 d.
+Reproduce: sites `haworth` + `malapert-massif`, duration 14 d, landing 2032-06-27T00:00:00Z, slip slider +18 d.
 
 ### Largest single-site losses
 
