@@ -7,7 +7,7 @@ Search: every curated site, baseline landings daily from 2027-01-01 to the end o
 
 ### Rank flips: the best site changes after a slip
 
-A flip needs the winner to lead by at least 10 points before the slip and trail by at least that much after it. Flips come from distinct places (sites within 40 km count as one) where enough exist; flip 3 shares a place with an earlier flip because no further distinct flip met the margins.
+A flip needs the winner to lead by at least 10 points before the slip and trail by at least that much after it. Flips come from distinct places (sites within 40 km count as one) where enough exist; flip 3 shares a place with an earlier flip because no further flip avoiding the places already shown met the margins.
 
 **1. IM-2 Athena (Mons Mouton) vs Shackleton–de Gerlache connecting ridge**: slip 15 days, landing 2029-02-20 → 2029-03-07. Gap in Both %: +51.2 → -61.7 (swing 112.9 points).
 

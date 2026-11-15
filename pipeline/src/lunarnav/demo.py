@@ -294,7 +294,7 @@ def _shared_note(inputs: golden.Inputs, flips: list[RankFlip]) -> str:
     if not repeats:
         return ""
     nums = ", ".join(str(n) for n in repeats)
-    return f"; flip {nums} shares a place with an earlier flip because no further distinct flip met the margins"
+    return f"; flip {nums} shares a place with an earlier flip because no further flip avoiding the places already shown met the margins"
 
 
 def render_section(
