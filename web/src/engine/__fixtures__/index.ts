@@ -68,7 +68,7 @@ export interface FixtureScenario {
 }
 
 export interface FixtureSiteOutputs {
-  /** fixtureEphemeris + the site's frame and 2 m mask (frame precomputed, since siteFrame is still a stub). */
+  /** fixtureEphemeris + the site's frame and 2 m mask (frame stored by generate.mjs; siteFrame reproduces it). */
   ctx: SiteContext
   samples: SiteSamples
   windows: DetectedWindows
