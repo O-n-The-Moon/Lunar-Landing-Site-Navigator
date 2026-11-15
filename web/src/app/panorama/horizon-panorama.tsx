@@ -94,42 +94,72 @@ function EarthFill({ id, cx, cy, r }: { id: string; cx: number; cy: number; r: n
   )
 }
 
-function BodyMark({ b, label, color, idPrefix }: { b: PanoramaBody; label: string; color: string; idPrefix: string }) {
-  const x = azToX(b.azDeg)
+/** Edge-label placement: anchored so text near the 0°/360° edges stays inside the plot. */
+const EDGE_LABEL_UNITS = 60
+function edgeAnchor(x: number): { x: number; textAnchor: 'start' | 'middle' | 'end' } {
+  if (x < EDGE_LABEL_UNITS) return { x: Math.max(2, x), textAnchor: 'start' }
+  if (x > PLOT_W - EDGE_LABEL_UNITS) return { x: Math.min(PLOT_W - 2, x), textAnchor: 'end' }
+  return { x, textAnchor: 'middle' }
+}
+
+/** Disks are drawn inside the plot clip; this places the text labels, which are not clipped. */
+function BodyLabel({ b, label, color }: { b: PanoramaBody; label: string; color: string }) {
   if (b.elevDeg < ELEV_MIN_DEG || b.elevDeg > ELEV_MAX_DEG) {
     const below = b.elevDeg < ELEV_MIN_DEG
     return (
-      <text x={x} y={below ? PLOT_H - 4 : FONT} textAnchor="middle" fontSize={FONT} fill={color}>
+      <text {...edgeAnchor(azToX(b.azDeg))} y={below ? PLOT_H - 4 : FONT} fontSize={FONT} fill={color}>
         {below ? `${label} below ${fmtDeg(ELEV_MIN_DEG, 0)} ↓` : `${label} above +${ELEV_MAX_DEG}° ↑`}
       </text>
     )
   }
   const cy = elevToY(b.elevDeg)
-  // Round on screen: the radius is to scale in elevation (what decides lit / blocked against the terrain),
-  // so the disk is widened by the vertical exaggeration in azimuth.
-  const r = b.radiusDeg * ELEV_UNITS_PER_DEG
-  const ry = r
-  const isEarth = label === 'Earth'
+  const r = diskRadius(b)
+  // Above the disk, or below it when that would leave the plot top.
+  const y = cy - r - 4 - FONT >= 0 ? cy - r - 4 : cy + r + FONT
   return (
-    <g>
-      {isEarth && b.visible && <EarthFill id={`${idPrefix}-earth`} cx={x} cy={cy} r={r} />}
-      {/* Not visible: dashed outline only, so the disk stays findable behind the terrain. */}
-      <ellipse
-        data-body={label.toLowerCase()}
-        cx={x}
-        cy={cy}
-        rx={r}
-        ry={ry}
-        fill={b.visible && !isEarth ? color : 'none'}
-        stroke={color}
-        strokeWidth={1}
-        strokeDasharray={b.visible ? undefined : '2 2'}
-        vectorEffect="non-scaling-stroke"
-      />
-      <text x={x} y={cy - ry - 4} textAnchor="middle" fontSize={FONT} fill={color}>
-        {label}
-      </text>
-    </g>
+    <text {...edgeAnchor(azToX(b.azDeg))} y={y} fontSize={FONT} fill={color}>
+      {label}
+    </text>
+  )
+}
+
+/**
+ * Round on screen: the radius is to scale in elevation (what decides lit / blocked against the terrain),
+ * so the disk is widened by the vertical exaggeration in azimuth.
+ */
+const diskRadius = (b: PanoramaBody) => b.radiusDeg * ELEV_UNITS_PER_DEG
+
+function BodyDisk({ b, body, color, idPrefix }: { b: PanoramaBody; body: 'sun' | 'earth'; color: string; idPrefix: string }) {
+  if (b.elevDeg < ELEV_MIN_DEG || b.elevDeg > ELEV_MAX_DEG) return null
+  const x = azToX(b.azDeg)
+  const cy = elevToY(b.elevDeg)
+  const r = diskRadius(b)
+  // A disk crossing 0°/360° is also drawn at the other edge; the plot clip trims both copies.
+  const xs = [x]
+  if (x + r > PLOT_W) xs.push(x - PLOT_W)
+  if (x - r < 0) xs.push(x + PLOT_W)
+  const isEarth = body === 'earth'
+  return (
+    <>
+      {xs.map((cx, k) => (
+        <g key={k}>
+          {isEarth && b.visible && <EarthFill id={`${idPrefix}-earth-${k}`} cx={cx} cy={cy} r={r} />}
+          {/* Not visible: dashed outline only, so the disk stays findable behind the terrain. */}
+          <ellipse
+            data-body={body}
+            cx={cx}
+            cy={cy}
+            rx={r}
+            ry={r}
+            fill={b.visible && !isEarth ? color : 'none'}
+            stroke={color}
+            strokeWidth={1}
+            strokeDasharray={b.visible ? undefined : '2 2'}
+            vectorEffect="non-scaling-stroke"
+          />
+        </g>
+      ))}
+    </>
   )
 }
 
@@ -180,9 +210,30 @@ export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerH
             {label}
           </text>
         ))}
-        <path data-terrain="" d={terrainPath(horizonMaskDeg, azStepDeg)} fill="var(--border)" stroke="var(--text-muted)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+        {/* Fill ~3:1 against the sky (--surface-2) and the ridge line well above, so the silhouette reads as a
+            solid shape (WCAG 1.4.11), while dashed disks behind the terrain stay visible on it (Sun ~3:1, Earth ~2.4:1). */}
+        <path
+          data-terrain=""
+          d={terrainPath(horizonMaskDeg, azStepDeg)}
+          fill="var(--text-muted)"
+          fillOpacity={0.65}
+          stroke="var(--text)"
+          strokeOpacity={0.8}
+          strokeWidth={1}
+          vectorEffect="non-scaling-stroke"
+        />
+        <defs>
+          <clipPath id={`${idPrefix}-plot`}>
+            <rect x={0} y={0} width={PLOT_W} height={PLOT_H} />
+          </clipPath>
+        </defs>
+        <g clipPath={`url(#${idPrefix}-plot)`}>
+          {BODIES.map(({ key, color }) => (
+            <BodyDisk key={key} b={bodies[key]} body={key} color={color} idPrefix={idPrefix} />
+          ))}
+        </g>
         {BODIES.map(({ key, label, color }) => (
-          <BodyMark key={key} b={bodies[key]} label={label} color={color} idPrefix={idPrefix} />
+          <BodyLabel key={key} b={bodies[key]} label={label} color={color} />
         ))}
         <text x={0} y={-8} fontSize={FONT} fill="var(--text-muted)">
           Vertical exaggeration {EXAGGERATION}×

@@ -138,4 +138,53 @@ describe('HorizonPanorama', () => {
     expect(document.querySelector('ellipse[data-body="sun"]')).toBeNull()
     expect(screen.getByText(/Sun below −5°/)).toBeTruthy()
   })
+
+  const renderBodies = (sun: Partial<PanoramaBody>, earth: Partial<PanoramaBody>) =>
+    render(
+      <HorizonPanorama
+        siteName="Fixture plateau"
+        horizonMaskDeg={ctx.horizonMaskDeg}
+        azStepDeg={ctx.azStepDeg}
+        observerHeightM={ctx.observerHeightM}
+        sun={{ ...bodyAt(0, 'sun'), ...sun }}
+        earth={{ ...bodyAt(0, 'earth'), ...earth }}
+      />,
+    )
+  const plotW = azToX(360)
+  const plotH = elevToY(ELEV_MIN_DEG)
+
+  it('clips disks to the plot area', () => {
+    renderBodies({}, {})
+    for (const el of document.querySelectorAll('ellipse[data-body]')) {
+      const g = el.closest('g[clip-path]')
+      const id = g?.getAttribute('clip-path')?.slice(5, -1) ?? ''
+      const rect = document.getElementById(id)?.querySelector('rect')
+      expect([rect?.getAttribute('x'), rect?.getAttribute('y'), rect?.getAttribute('width'), rect?.getAttribute('height')]).toEqual(
+        ['0', '0', String(plotW), String(plotH)],
+      )
+    }
+  })
+
+  it('wraps a disk that crosses 0°/360° to the other edge', () => {
+    renderBodies({ azDeg: 0.5 }, { azDeg: 359 })
+    const xs = (body: string) =>
+      [...document.querySelectorAll(`ellipse[data-body="${body}"]`)].map((el) => Number(el.getAttribute('cx'))).sort((a, b) => a - b)
+    expect(xs('earth')).toEqual([azToX(359) - plotW, azToX(359)])
+    expect(xs('sun')).toEqual([azToX(0.5), azToX(0.5) + plotW])
+    // Well inside the plot: no copy.
+    cleanup()
+    renderBodies({ azDeg: 180 }, { azDeg: 90 })
+    expect(document.querySelectorAll('ellipse[data-body]')).toHaveLength(2)
+  })
+
+  it('keeps body and off-range labels inside the plot', () => {
+    renderBodies({ elevDeg: 11.9 }, { azDeg: 0.2, elevDeg: -20 })
+    const sunLabel = screen.getByText('Sun')
+    const y = Number(sunLabel.getAttribute('y'))
+    expect(y).toBeGreaterThan(0)
+    expect(y).toBeLessThanOrEqual(plotH)
+    const off = screen.getByText(/Earth below −5°/)
+    expect(off.getAttribute('text-anchor')).toBe('start')
+    expect(Number(off.getAttribute('x'))).toBeGreaterThanOrEqual(0)
+  })
 })
