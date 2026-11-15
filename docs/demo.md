@@ -7,7 +7,7 @@ Search: every curated site, baseline landings daily from 2027-01-01 to the end o
 
 ### Rank flips: the best site changes after a slip
 
-A flip needs the winner to lead by at least 10 points before the slip and trail by at least that much after it. Flips come from distinct places (sites within 40 km count as one) where enough exist; flip 3 shares a place with an earlier flip because no further flip avoiding the places already shown met the margins.
+A flip needs the winner to lead by at least 10 points before the slip and trail by at least that much after it. Flips come from distinct places (sites within 40 km count as one) where enough exist.
 
 **1. IM-2 Athena (Mons Mouton) vs Shackleton–de Gerlache connecting ridge**: slip 15 days, landing 2029-02-20 → 2029-03-07. Gap in Both %: +51.2 → -61.7 (swing 112.9 points).
 
@@ -20,27 +20,27 @@ A flip needs the winner to lead by at least 10 points before the slip and trail 
 
 Reproduce: sites `mons-mouton-im2` + `connecting-ridge`, duration 14 d, landing 2029-02-20T00:00:00Z, slip slider +15 d.
 
-**2. de Gerlache Rim 2 (Artemis III region) vs Nobile Rim 2 (Artemis III region)**: slip 12 days, landing 2028-09-06 → 2028-09-18. Gap in Both %: +55.5 → -35.4 (swing 90.9 points).
+**2. Haworth (Artemis III region) vs Nobile Rim 2 (Artemis III region)**: slip 15 days, landing 2027-10-18 → 2027-11-02. Gap in Both %: +21.7 → -64.6 (swing 86.3 points).
 
 | | Site | Landing (UTC 00:00) | Sunlit | Earth link | Both | First sunset |
 |---|---|---|---|---|---|---|
-| baseline | de Gerlache Rim 2 (Artemis III region) (`de-gerlache-rim-2`) | 2028-09-06 | 57.9% | 57.7% | **57.7%** | 194.4 h |
-| baseline | Nobile Rim 2 (Artemis III region) (`nobile-rim-2`) | 2028-09-06 | 2.2% | 65.7% | **2.2%** | 7.3 h |
-| slip +12 d | de Gerlache Rim 2 (Artemis III region) (`de-gerlache-rim-2`) | 2028-09-18 | 12.8% | 29.0% | **12.8%** | never |
-| slip +12 d | Nobile Rim 2 (Artemis III region) (`nobile-rim-2`) | 2028-09-18 | 63.3% | 48.2% | **48.2%** | never |
+| baseline | Haworth (Artemis III region) (`haworth`) | 2027-10-18 | 28.5% | 23.0% | **21.7%** | 100.2 h |
+| baseline | Nobile Rim 2 (Artemis III region) (`nobile-rim-2`) | 2027-10-18 | 0.0% | 46.1% | **0.0%** | no sunlight |
+| slip +15 d | Haworth (Artemis III region) (`haworth`) | 2027-11-02 | 18.6% | 54.6% | **18.6%** | 268.9 h |
+| slip +15 d | Nobile Rim 2 (Artemis III region) (`nobile-rim-2`) | 2027-11-02 | 91.1% | 83.3% | **83.3%** | no sunset |
 
-Reproduce: sites `de-gerlache-rim-2` + `nobile-rim-2`, duration 14 d, landing 2028-09-06T00:00:00Z, slip slider +12 d.
+Reproduce: sites `haworth` + `nobile-rim-2`, duration 14 d, landing 2027-10-18T00:00:00Z, slip slider +15 d.
 
-**3. Mons Mouton Plateau (Artemis III region) vs Shackleton–de Gerlache connecting ridge**: slip 15 days, landing 2029-12-16 → 2029-12-31. Gap in Both %: +31.5 → -71.8 (swing 103.2 points).
+**3. de Gerlache Rim 2 (Artemis III region) vs Malapert Massif (Artemis III region)**: slip 14 days, landing 2027-08-13 → 2027-08-27. Gap in Both %: +52.9 → -11.4 (swing 64.3 points).
 
 | | Site | Landing (UTC 00:00) | Sunlit | Earth link | Both | First sunset |
 |---|---|---|---|---|---|---|
-| baseline | Mons Mouton Plateau (Artemis III region) (`mons-mouton-plateau`) | 2029-12-16 | 50.3% | 42.0% | **42.0%** | 169.1 h |
-| baseline | Shackleton–de Gerlache connecting ridge (`connecting-ridge`) | 2029-12-16 | 17.2% | 26.6% | **10.5%** | 112.1 h |
-| slip +15 d | Mons Mouton Plateau (Artemis III region) (`mons-mouton-plateau`) | 2029-12-31 | 0.0% | 88.0% | **0.0%** | no sunlight |
-| slip +15 d | Shackleton–de Gerlache connecting ridge (`connecting-ridge`) | 2029-12-31 | 95.7% | 75.9% | **71.8%** | 256.1 h |
+| baseline | de Gerlache Rim 2 (Artemis III region) (`de-gerlache-rim-2`) | 2027-08-13 | 83.4% | 73.8% | **73.8%** | 36.1 h |
+| baseline | Malapert Massif (Artemis III region) (`malapert-massif`) | 2027-08-13 | 42.6% | 72.4% | **20.9%** | 148.3 h |
+| slip +14 d | de Gerlache Rim 2 (Artemis III region) (`de-gerlache-rim-2`) | 2027-08-27 | 0.3% | 19.0% | **0.3%** | 1.1 h |
+| slip +14 d | Malapert Massif (Artemis III region) (`malapert-massif`) | 2027-08-27 | 48.2% | 18.0% | **11.7%** | 19.7 h |
 
-Reproduce: sites `mons-mouton-plateau` + `connecting-ridge`, duration 14 d, landing 2029-12-16T00:00:00Z, slip slider +15 d.
+Reproduce: sites `de-gerlache-rim-2` + `malapert-massif`, duration 14 d, landing 2027-08-13T00:00:00Z, slip slider +14 d.
 
 ### Largest single-site losses
 
@@ -55,7 +55,7 @@ Reproduce: sites `mons-mouton-plateau` + `connecting-ridge`, duration 14 d, land
 
 | | Site | Landing (UTC 00:00) | Sunlit | Earth link | Both | First sunset |
 |---|---|---|---|---|---|---|
-| baseline | de Gerlache Rim 2 (Artemis III region) (`de-gerlache-rim-2`) | 2028-08-31 | 94.1% | 93.8% | **93.8%** | never |
+| baseline | de Gerlache Rim 2 (Artemis III region) (`de-gerlache-rim-2`) | 2028-08-31 | 94.1% | 93.8% | **93.8%** | no sunset |
 | slip +15 d | de Gerlache Rim 2 (Artemis III region) (`de-gerlache-rim-2`) | 2028-09-15 | 0.0% | 7.5% | **0.0%** | no sunlight |
 
 **3. Nobile Rim 2 (Artemis III region)**: slip 14 days from 2028-10-22, Both 91.2% → 0.0% (−91.2 points).

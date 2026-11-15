@@ -189,3 +189,119 @@ def test_diversify_losses_counts_one_cluster_as_one_place():
     losses = [_loss("a", 100), _loss("b", 99), _loss("c", 90)]
     got = demo.diversify_losses(losses, 2, {"a": "a", "b": "a"})
     assert [r.site_id for r in got] == ["a", "c"]
+
+
+def test_diversify_prefers_a_fully_distinct_set_over_a_greedy_repeat():
+    # Greedy takes (a,b) first, which blocks both (a,c) and (b,d): only 2 flips fit.
+    # The best fully distinct triple is (a,c), (b,d), (e,f).
+    flips = [
+        _flip("a", "b", 100),
+        _flip("a", "c", 60),
+        _flip("b", "d", 60),
+        _flip("e", "f", 50),
+    ]
+    got = demo.diversify(flips, 3)
+    assert {(f.winner_id, f.loser_id) for f in got} == {
+        ("a", "c"),
+        ("b", "d"),
+        ("e", "f"),
+    }
+
+
+def test_diversify_returns_flips_ordered_best_first():
+    flips = [_flip("a", "z", 100), _flip("c", "x", 50), _flip("d", "w", 70)]
+    got = demo.diversify(flips, 3)
+    assert [f.swing_pct for f in got] == [100, 70, 50]
+
+
+def test_diversify_losses_fills_from_the_next_best_when_places_run_out():
+    losses = [_loss("a", 100), _loss("b", 99), _loss("c", 90)]
+    got = demo.diversify_losses(losses, 3, {"a": "p", "b": "p", "c": "p"})
+    assert [r.site_id for r in got] == ["a", "b", "c"]
+
+
+def test_rank_flips_min_gap_boundary_is_inclusive():
+    both = {"a": np.array([60.0, 40.0]), "b": np.array([50.0, 50.0])}  # +10 -> -10
+    assert len(demo.rank_flips(both, 1, 0, 0, min_gap_pct=10.0)) == 1
+    assert demo.rank_flips(both, 1, 0, 0, min_gap_pct=10.01) == []
+
+
+def test_sunset_label_separates_dark_sites_from_no_sunset_events():
+    assert demo._sunset({"sunlitPct": 0.0, "firstSunsetH": None}) == "no sunlight"
+    assert demo._sunset({"sunlitPct": 40.0, "firstSunsetH": None}) == "no sunset"
+    assert demo._sunset({"sunlitPct": 40.0, "firstSunsetH": 12.34}) == "12.3 h"
+
+
+def test_shared_note_names_the_flips_that_repeat_a_place():
+    inputs = _inputs_with_sites(
+        [_site("a", -89.0, 0.0), _site("b", -88.0, 90.0), _site("c", -87.0, 180.0)]
+    )
+    assert demo._shared_note(
+        inputs, [_flip("a", "b", 9), _flip("c", "b", 8)]
+    ).startswith("; flip 2 shares a place")
+    assert demo._shared_note(inputs, [_flip("a", "b", 9)]) == ""
+
+
+def _inputs_with_sites(sites: list[dict]) -> demo.golden.Inputs:
+    return demo.golden.Inputs(None, {"sites": sites}, {})  # type: ignore[arg-type]
+
+
+@pytest.fixture(scope="module")
+def real_scenarios():
+    inputs = demo.golden.load_inputs()
+    flips, losses = demo.find_scenarios(inputs)
+    return inputs, flips, losses
+
+
+def test_real_data_flips_really_flip_and_meet_the_margins(real_scenarios):
+    _, flips, _ = real_scenarios
+    assert len(flips) == demo.TOP_N
+    for f in flips:
+        assert f.base_gap_pct >= demo.MIN_GAP_PCT
+        assert f.slip_gap_pct <= -demo.MIN_GAP_PCT
+        assert 1 <= f.slip_days <= demo.MAX_SLIP_DAYS
+
+
+def test_rendered_headline_numbers_match_the_table_rows(real_scenarios):
+    import re
+
+    inputs, flips, losses = real_scenarios
+    text = demo.render_section(inputs, flips, losses)
+    first = text.split("**1. ")[1].split("\n\n")
+    swing = float(re.search(r"swing ([\d.]+) points", first[0]).group(1))
+    rows = [
+        ln for ln in first[1].splitlines() if ln.startswith(("| baseline", "| slip"))
+    ]
+    both = [float(re.search(r"\*\*([\d.]+)%\*\*", r).group(1)) for r in rows]
+    # rows: winner base, loser base, winner slip, loser slip
+    assert swing == pytest.approx(
+        abs((both[0] - both[1]) - (both[2] - both[3])), abs=0.11
+    )
+
+
+def test_main_regenerates_demo_md_idempotently_and_keeps_other_content(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(demo.io, "REPO_ROOT", tmp_path)
+    (tmp_path / "docs").mkdir()
+    path = tmp_path / "docs" / "demo.md"
+    path.write_text("# Demo\n\nhand written\n", encoding="utf-8")
+    demo.main()
+    once = path.read_text(encoding="utf-8")
+    demo.main()
+    assert path.read_text(encoding="utf-8") == once
+    assert once.startswith("# Demo\n\nhand written\n")
+    assert once.count(demo.START) == 1
+
+
+def test_diversify_keeps_the_biggest_swing_rather_than_the_biggest_total():
+    flips = [
+        _flip("a", "b", 100),  # biggest swing, but blocks both 90s below
+        _flip("a", "c", 90),
+        _flip("b", "d", 90),
+        _flip("e", "f", 60),
+        _flip("g", "h", 30),
+    ]
+    got = demo.diversify(flips, 3)
+    # (a,c)+(b,d)+(e,f) totals 240 but lacks the 100; (a,b)+(e,f)+(g,h) keeps it.
+    assert [f.swing_pct for f in got] == [100, 60, 30]

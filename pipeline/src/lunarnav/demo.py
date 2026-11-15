@@ -169,19 +169,41 @@ def _dist_km(a: dict[str, Any], b: dict[str, Any]) -> float:
 def diversify(
     flips: list[RankFlip], n: int, cluster_of: dict[str, str] | None = None
 ) -> list[RankFlip]:
-    """Top n flips (given best first) that share no place; then fill with the next best.
+    """n flips from distinct places, best first, keeping the biggest swings.
+
+    Among all distinct sets, the winner has the largest top swing, then the largest
+    second swing, and so on, so the most dramatic flip is not traded away for a set
+    with a larger total.
 
     Sites in one cluster count as one place, and a flip between two sites of the same
-    cluster is skipped in the first pass.
+    cluster never counts as distinct. If no such set of n exists, take the best-first
+    greedy distinct picks and fill the rest with the next best flips.
     """
     place = cluster_of or {}
+
+    def places(f: RankFlip) -> set[str]:
+        return {
+            place.get(f.winner_id, f.winner_id),
+            place.get(f.loser_id, f.loser_id),
+        }
+
+    candidates = [f for f in flips if len(places(f)) == 2]
+    best: tuple[tuple[float, ...], tuple[RankFlip, ...]] | None = None
+    for combo in combinations(candidates, n):
+        sets = [places(f) for f in combo]
+        if sum(len(p) for p in sets) != len(set().union(*sets)):
+            continue  # a place repeats
+        key = tuple(sorted((f.swing_pct for f in combo), reverse=True))
+        if best is None or key > best[0]:
+            best = (key, combo)
+    if best is not None:
+        return sorted(best[1], key=lambda f: -f.swing_pct)
     chosen: list[RankFlip] = []
     used: set[str] = set()
-    for f in flips:
-        w, lo = place.get(f.winner_id, f.winner_id), place.get(f.loser_id, f.loser_id)
-        if len(chosen) < n and w != lo and not ({w, lo} & used):
+    for f in candidates:
+        if len(chosen) < n and not (places(f) & used):
             chosen.append(f)
-            used |= {w, lo}
+            used |= places(f)
     for f in flips:
         if len(chosen) < n and f not in chosen:
             chosen.append(f)
@@ -258,7 +280,7 @@ def _refined(inputs: golden.Inputs, site_id: str, day: int) -> dict[str, Any]:
 def _sunset(m: dict[str, Any]) -> str:
     if m["sunlitPct"] == 0:
         return "no sunlight"  # "never" would read as always lit
-    return _fmt(m["firstSunsetH"], " h")
+    return "no sunset" if m["firstSunsetH"] is None else _fmt(m["firstSunsetH"], " h")
 
 
 def _fmt(x: float | None, unit: str = "") -> str:
@@ -294,7 +316,7 @@ def _shared_note(inputs: golden.Inputs, flips: list[RankFlip]) -> str:
     if not repeats:
         return ""
     nums = ", ".join(str(n) for n in repeats)
-    return f"; flip {nums} shares a place with an earlier flip because no further flip avoiding the places already shown met the margins"
+    return f"; flip {nums} shares a place with an earlier flip because no set of {len(flips)} flips from distinct places met the margins"
 
 
 def render_section(
