@@ -110,11 +110,27 @@ or additional authoritative release documentation is still required to close Q2.
 
 **Search status (#57, 2026-11-15):** a further search of the PGDA page, the release
 README, the labels, and public abstracts found no product-specific height for this 2016
-release. The only "2 m" found
-([Gläser et al.](https://ntrs.nasa.gov/api/citations/20170007365/downloads/20170007365.pdf))
-describes a different 20 m DTM product and must not be transferred to these rasters.
-The Mazarico et al. (2011) full text and the Barker et al. papers were **not** read.
-Producer confirmation has not been obtained.
+release. The [PDS GDRVIS product description](https://ode.rsl.wustl.edu/mars/pagehelp/Content/Missions_Instruments/LRO/LOLA/GDR/GDRVIS.htm)
+(the archive page for this product family, including the 2016 `AVGVISIB_*_201608`
+names) was also read in full and states no height. Heights that appear in other
+sources describe **different products** and must not be transferred to these rasters:
+
+| Source | Height stated | Why it does not apply to product 69 |
+|---|---|---|
+| [Gläser et al.](https://ntrs.nasa.gov/api/citations/20170007365/downloads/20170007365.pdf) | 2 m | different 20 m DTM product |
+| [Bryant (2009), JPL IPN 42-176](https://ipnpr.jpl.nasa.gov/progress_report/42-176/176C.pdf) | 2 m "tower" | Goldstone radar DEM, 2009–2028 averages |
+| [Barker et al. (2021)](https://ntrs.nasa.gov/api/citations/20205009660/downloads/Mike%20Barker_%20Paper_%20Improved%20Lola.pdf) | 1 m and 5 m | new 5 m/px LDEMs of four sites, Jan 2024–Jan 2026 |
+
+Barker et al. does show why the unknown matters. At their Site 1 the 1st percentile
+of average illumination is about 67–71% at Δz = 1 m, and rises sharply at Δz = 5 m
+(their Table 2, Fig. 19). Different DEM and dates, so this is a sensitivity
+illustration, not a correction factor for product 69. They also state that their
+horizon method follows Mazarico et al. (2011), but give no height for the 2016 rasters.
+
+The Mazarico et al. (2011) full text was **not** obtained (publisher paywall; the NTRS
+record has no PDF). Web-search summaries of it gave conflicting heights ("surface
+level" vs "10 m") that could not be traced to the paper; neither was accepted as
+evidence. Producer confirmation has not been obtained.
 
 **Proposed interim disposition (pending team approval; not yet agreed):** the observer
 height of PGDA product 69 is recorded as **unknown**. Until it is confirmed, #20 may
