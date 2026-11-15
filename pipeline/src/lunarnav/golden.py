@@ -26,11 +26,16 @@ from lunarnav.geometry import angular_radius_deg, az_el, visible_disk_fraction
 
 SEED = 20260101
 N_CASES = 240
-MARGIN_EXCLUSION_DEG = 1e-4  # cases this close to the Earth margin are dropped
+# Cases this close to the Earth margin are dropped. Parity allows 1e-3 deg on both
+# elevation and horizon, so the TS clearance may drift by 2e-3 deg.
+MARGIN_EXCLUSION_DEG = 5e-3
 PARTIAL_PER_SITE = 3  # per site and height, where such instants exist
 H_MS = 3_600_000
 MIN_MS = 60_000
 DURATION_H = 14 * 24
+# Hysteresis lead-in, as in missionMetrics (web/src/engine/metrics.ts).
+LEAD_IN_H = 48
+LEAD_IN_STEP_MIN = 10
 BODY_SUN, BODY_EARTH = 0, 1
 
 # Engine defaults (SPEC-engine.md -> VisibilityOpts).
@@ -44,10 +49,17 @@ OPTS = {
 
 # (id, siteId, landing UTC). Chosen so Sun and Earth each have transitions, with
 # different mixes: both setting, Sun-only setting (Earth stays up), long common windows.
+# The last lands with the Sun fraction inside the hysteresis band, where only the
+# lead-in decides the state at landing (seeding at landing is wrong for ~14 h).
 SCENARIOS: tuple[tuple[str, str, str], ...] = (
     ("nobile-rim-2-2030-12", "nobile-rim-2", "2030-12-01T00:00:00Z"),
     ("mons-mouton-im2-2028-06", "mons-mouton-im2", "2028-06-01T00:00:00Z"),
     ("connecting-ridge-2030-12", "connecting-ridge", "2030-12-01T00:00:00Z"),
+    (
+        "connecting-ridge-2029-04-borderline",
+        "connecting-ridge",
+        "2029-04-26T19:00:00Z",
+    ),
 )
 
 
@@ -249,6 +261,15 @@ def build_cases(inputs: Inputs) -> list[dict[str, Any]]:
     ]
 
 
+def lead_in_start_ms(eph: Ephemeris, landing_ms: int) -> int:
+    """Up to LEAD_IN_H before landing, in whole LEAD_IN_STEP_MIN steps, not before coverage."""
+    step_ms = LEAD_IN_STEP_MIN * MIN_MS
+    steps = min(
+        LEAD_IN_H * 60 // LEAD_IN_STEP_MIN, (landing_ms - eph.start_ms) // step_ms
+    )
+    return landing_ms - steps * step_ms
+
+
 def _scenario(
     inputs: Inputs, sc_id: str, site_id: str, landing_iso: str
 ) -> dict[str, Any]:
@@ -258,17 +279,21 @@ def _scenario(
         raise ValueError(f"landing time needs a UTC offset: {landing_iso}")
     landing_ms = round(landing.astimezone(UTC).timestamp() * 1000)
     n = DURATION_H * 60
-    t = landing_ms + np.arange(n + 1, dtype=np.float64) * MIN_MS
-    st = _site_state(inputs, site, OPTS["observerHeightM"], t)
+    # Walk from the lead-in so the hysteresis state at landing comes from history,
+    # then keep samples from landing on (the lead-in is a whole number of minutes).
+    pre = (landing_ms - lead_in_start_ms(inputs.ephemeris, landing_ms)) // MIN_MS
+    t = landing_ms + np.arange(-pre, n + 1, dtype=np.float64) * MIN_MS
+    walk = _site_state(inputs, site, OPTS["observerHeightM"], t)
 
     thr, hys = OPTS["sunThreshold"], OPTS["hysteresis"]
     sun_on = hysteresis_states(
-        st["sunFraction"], min(1.0, thr + hys), max(0.0, thr - hys)
-    )
-    clearance = st["earthElevDeg"] - st["earthHorizonDeg"] - OPTS["earthMarginDeg"]
+        walk["sunFraction"], min(1.0, thr + hys), max(0.0, thr - hys)
+    )[pre:]
+    clearance = walk["earthElevDeg"] - walk["earthHorizonDeg"] - OPTS["earthMarginDeg"]
     eh = OPTS["earthHysteresisDeg"]
-    earth_on = hysteresis_states(clearance, eh, -eh)
+    earth_on = hysteresis_states(clearance, eh, -eh)[pre:]
     both_on = sun_on & earth_on
+    st = {key: arr[pre:] for key, arr in walk.items()}
 
     # Minute k holds its state until k + 1, so the mission covers samples 0..n-1.
     s_stats = run_stats(sun_on[:n], 1)
@@ -319,8 +344,12 @@ def build_golden(inputs: Inputs) -> dict[str, Any]:
             "cases": "tUtcMs -> az/el, horizon, Sun fraction; earthVisible = "
             "earthElevDeg - earthHorizonDeg >= earthMarginDeg (no hysteresis). "
             f"The first {N_CASES} are uniform random site x time; the rest are extra "
-            "instants with the Sun disk partly hidden (0 < sunFraction < 1).",
-            "scenarios": "Brute-force 1-minute walk with engine hysteresis. Totals "
+            "instants with the Sun disk partly hidden (0 < sunFraction < 1). Cases "
+            f"within {MARGIN_EXCLUSION_DEG} deg of the Earth margin are dropped.",
+            "scenarios": "Brute-force 1-minute walk with engine hysteresis, started "
+            f"{LEAD_IN_H} h before landing in whole {LEAD_IN_STEP_MIN}-min steps "
+            "(clamped to the ephemeris start), like missionMetrics, so the state at "
+            "landing comes from history. Only samples from landing on are kept. Totals "
             "are minute counts over the half-open range [landing, landing + "
             "durationH): clip engine windows (closed range) at durationH before "
             "comparing. hourly.* has durationH + 1 samples taken on the hour "

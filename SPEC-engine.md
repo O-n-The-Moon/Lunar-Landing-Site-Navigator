@@ -55,6 +55,8 @@ Observer height is **per site**, not a visibility option: it lives only in `Site
 
 Events are found on the 10-min samples, then refined by bisection to **1 min**.
 
+Mission metrics take the Sun/Earth hysteresis state at landing from a **48 h lead-in**: sampling starts up to 48 h before landing (whole 10-min steps, clamped to the ephemeris start), so a landing inside the hysteresis band gets the state that history gives, not the midpoint seed. Only time from landing on counts toward the metrics. `golden.json` scenarios use the same lead-in.
+
 ## Performance
 - `sampleSite` + `detectWindows` + `missionMetrics` for 30 days: ≤ 5 ms per site (supports the SPEC.md 33 ms slip budget for 3 sites + rendering).
 - `scoreGrid` for 33k cells × 30 days at a 1 h step: ≤ 3 s in a Web Worker. Body vectors are computed once per hour and shared across cells; each cell only does local ENU dot products. No per-call allocation in the inner loop (preallocated typed arrays).
