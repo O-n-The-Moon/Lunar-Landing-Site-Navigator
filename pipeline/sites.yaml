@@ -15,9 +15,9 @@
 #   1737.4 km sphere; the inverse projection was cross-checked against PROJ (agrees to
 #   1e-13 deg). This is the region's geometric center, not its best-lit point.
 #   (The bounding boxes in the release's XML metadata do not match the grids; not used.)
-#   Not yet included:
+#   Excluded (team decision 2026-11-14: keep the 84 S scope limit):
 #   - Peak near Cabeus B (-83.6514, -68.7263) and Nobile Rim 2 (-83.9545, 58.7938):
-#     centers lie north of 84 S, outside the project's scope. Needs a team decision.
+#     centers lie north of 84 S, outside the project's DEM/grid scope.
 #
 # Chang'e-7 (SPEC Open Q3): left out. CNSA has not published a citable target coordinate.
 

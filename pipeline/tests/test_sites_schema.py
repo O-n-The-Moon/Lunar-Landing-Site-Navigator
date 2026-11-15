@@ -60,3 +60,17 @@ def test_site_field_values(site):
 def test_required_non_artemis_sites_present():
     ids = {s["id"] for s in SITES}
     assert {"mons-mouton-im2", "connecting-ridge", "shackleton-floor"} <= ids
+
+
+def test_artemis_regions_inside_scope_are_all_present():
+    # Peak near Cabeus B and Nobile Rim 2 lie north of 84 S and are excluded by design.
+    artemis = {s["id"] for s in SITES if s["category"] == "artemis3-region"}
+    assert artemis == {
+        "haworth",
+        "malapert-massif",
+        "mons-mouton",
+        "mons-mouton-plateau",
+        "nobile-rim-1",
+        "de-gerlache-rim-2",
+        "slater-plain",
+    }
