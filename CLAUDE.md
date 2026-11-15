@@ -2,7 +2,7 @@
 
 ## Claude Code specifics
 - Before starting work, read the GitHub issue (`gh issue view <N>`) and only the spec section it links.
-- Skills come from the `agent-skills` plugin (`.claude/settings.json`). Use them for these situations:
+- Skills come from the `agent-skills` plugin (`.claude/settings.json`). If a built-in Claude Code skill or slash command does the same job (`/code-review`, `/simplify`, `/security-review`, …), **use the `agent-skills` one instead**. Use them for these situations:
 
 | When | Use |
 |---|---|
@@ -14,6 +14,6 @@
 | Perf budgets: slip slider ≤ 33 ms, engine ≤ 5 ms/site, grid score ≤ 3 s, load ≤ 3 MB | `agent-skills:performance-optimization` (measure first) |
 | CI workflow (#2), Vercel deploy (#19) | `agent-skills:ci-cd-and-automation` |
 | Reviewing a teammate's PR | `agent-skills:code-review-and-quality` |
-| Before opening a PR | `/code-review` |
+| Before opening a PR | `agent-skills:code-review-and-quality`, run in an `agent-skills:code-reviewer` subagent (fresh context) on `git diff main...HEAD`; fix its findings first. Not the built-in `/code-review`. |
 | Commits, branches, PRs | `agent-skills:git-workflow-and-versioning` (branch/PR rules in `CONTRIBUTING.md` win) |
 - Personal overrides go in `CLAUDE.local.md` (gitignored), not here.

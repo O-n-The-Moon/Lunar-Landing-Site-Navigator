@@ -1,6 +1,7 @@
 // Metric cards (SPEC-app P0-3): one column per site, slipped-mission values with a Δ vs. the unslipped baseline.
 import type { MetricDelta, MissionMetrics } from '../../engine'
 import { formatUtc } from '../controls/date-controls'
+import { formatSlipH } from '../controls/slip-slider'
 import {
   formatLatDeg,
   formatLonDeg,
@@ -133,8 +134,6 @@ function SiteHeader({ site }: { site: ResolvedSite }) {
   )
 }
 
-const signedH = (h: number) => `${h >= 0 ? '+' : MINUS}${Math.abs(h)} h`
-
 type Column = { kind: 'site'; result: SiteResult } | { kind: 'unavailable'; site: UnavailableSite }
 
 /** Columns in scenario order (`siteIds`), so a site doesn't move when it drops in or out of coverage. */
@@ -164,7 +163,7 @@ export function MetricCards({ results }: { results: ScenarioResults }) {
             {slipped && (
               <>
                 {' '}
-                (slip <span className="num">{signedH(slipH)}</span>; Δ vs. unslipped baseline)
+                (slip <span className="num">{formatSlipH(slipH)}</span>; Δ vs. unslipped baseline)
               </>
             )}
           </caption>
