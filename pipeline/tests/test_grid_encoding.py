@@ -4,6 +4,7 @@ import json
 
 import numpy as np
 import pytest
+import yaml
 
 from lunarnav import horizons_grid
 from lunarnav.constants import GRID_AZ_BINS, GRID_NO_DATA, MOON_RADIUS_KM
@@ -18,6 +19,7 @@ from lunarnav.horizons_grid import (
     grid_manifest,
     write_grid,
 )
+from lunarnav.horizons_sites import SITES_YAML
 from test_horizon import SyntheticTerrain
 
 DEMS_PRESENT = (RAW_DIR / "dem/LDEM_80S_80M.LBL").exists() and (
@@ -149,39 +151,80 @@ def _containing_cell(lat_deg, lon_deg):
     return origin_km, center_km
 
 
-# Placeholder coordinates from SPEC-data-pipeline section 3 until sites.yaml
-# (#5) lands; rerun against the curated catalog then.
-RIDGE = (-89.45, -137.3)  # Shackleton-de Gerlache connecting ridge (narrow crest)
-IM2 = (-84.79, 29.2)  # IM-2 Athena, Mons Mouton plateau
+def _catalog():
+    sites = yaml.safe_load(SITES_YAML.read_text(encoding="utf-8"))["sites"]
+    return {s["id"]: (s["latDeg"], s["lonDeg"]) for s in sites}
 
 
-@pytest.mark.skipif(not DEMS_PRESENT, reason="LOLA DEMs not fetched")
-@pytest.mark.parametrize(
-    "lat_deg,lon_deg",
-    [
-        IM2,
-        pytest.param(
-            *RIDGE,
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "Known limitation (#24): the 2 km cell center is ~0.8 km off "
-                    "the narrow ridge crest and 96 m lower, so its horizon is "
-                    "~4.8 deg higher than the crest site's. Grid cells are "
-                    "cell-center samples by contract; ridge-crest sites must use "
-                    "their own sites.json mask, not the grid."
-                ),
-            ),
-        ),
-    ],
-)
-def test_grid_cell_matches_site_mask(lat_deg, lon_deg):
+CATALOG = _catalog()
+IM2 = CATALOG["mons-mouton-im2"]
+RIDGE = CATALOG["connecting-ridge"]
+
+# Measured median |grid cell - site mask| (deg, 2 m, 360 bins) on the shipped
+# 2 km grid, curated catalog from #5. Sites at or above 0.5 deg fail the #24
+# verification. This is the resolution limit of a 2 km cell-center grid on
+# rim/peak terrain, not a bug (#76, option (a)): curated sites must use their
+# own sites.json masks, and grid-derived answers carry a "grid-approximate
+# (2 km)" caveat. The medians below were measured when the 2 km grid was built
+# (2026-11) and are informational: they may drift if the DEMs or grid change.
+# strict xfail: if a future grid fixes a site, this test
+# fails and the entry must move to the passing set.
+GRID_OK_SITES = ["nobile-rim-2", "de-gerlache-rim-2", "shackleton-floor"]
+GRID_LIMIT_SITES = {
+    "mons-mouton-im2": 0.94,
+    "connecting-ridge": 0.95,
+    "peak-near-cabeus-b": 1.17,
+    "slater-plain": 1.74,
+    "haworth": 1.88,
+    "malapert-massif": 2.19,
+    "mons-mouton": 3.74,
+    "mons-mouton-plateau": 3.87,
+    "nobile-rim-1": 6.21,
+}
+
+
+def test_grid_site_partition_covers_whole_catalog():
+    assert sorted(GRID_OK_SITES + list(GRID_LIMIT_SITES)) == sorted(CATALOG)
+
+
+def _median_cell_vs_mask_deg(lat_deg, lon_deg):
     terrain = DemStack()
     origin_km, _ = _containing_cell(lat_deg, lon_deg)
     horizons_u8, _ = build_grid(terrain, origin_km, 2.0, nx=1, ny=1)
     cell_deg = decode_elev_deg(horizons_u8[0, 0])
-    site_deg = compute_horizon_deg(terrain, lat_deg, lon_deg, 2, 720)[::2]
-    assert np.median(np.abs(cell_deg - site_deg)) < 0.5
+    # Compare in the contract's representable range (-5..20.4 deg): the grid clamps.
+    # Clipping only shrinks differences at the saturated end, so it cannot turn a
+    # failing site into a passing one.
+    site_deg = np.clip(
+        compute_horizon_deg(terrain, lat_deg, lon_deg, 2, 720)[::2], -5, 20.4
+    )
+    return float(np.median(np.abs(cell_deg - site_deg)))
+
+
+@pytest.mark.skipif(not DEMS_PRESENT, reason="LOLA DEMs not fetched")
+@pytest.mark.parametrize(
+    "site_id",
+    [
+        *GRID_OK_SITES,
+        *[
+            pytest.param(
+                site_id,
+                marks=pytest.mark.xfail(
+                    strict=True,
+                    reason=(
+                        f"Known limitation (#24, #76): median {median_deg} deg "
+                        "from the site mask. A 2 km cell-center sample cannot "
+                        "represent rim/peak terrain; use the site's sites.json "
+                        "mask, not the grid."
+                    ),
+                ),
+            )
+            for site_id, median_deg in GRID_LIMIT_SITES.items()
+        ],
+    ],
+)
+def test_grid_cell_matches_site_mask(site_id):
+    assert _median_cell_vs_mask_deg(*CATALOG[site_id]) < 0.5
 
 
 @pytest.mark.skipif(not DEMS_PRESENT, reason="LOLA DEMs not fetched")
