@@ -110,10 +110,12 @@ export const fixtureOutputs: Record<string, FixtureSiteOutputs> = Object.fromEnt
   Object.entries(outputs.sites).map(([id, { frame, samples, ...rest }]) => {
     const site = fixtureSitesFile.sites.find((s) => s.id === id)
     if (!site) throw new Error(`outputs.json: unknown site ${id}`)
+    const horizonMaskDeg = site.horizonElevDeg[String(fixtureScenario.observerHeightM)]
+    if (!horizonMaskDeg) throw new Error(`outputs.json: site ${id} has no ${fixtureScenario.observerHeightM} m mask`)
     const ctx: SiteContext = {
       eph: fixtureEphemeris,
       frame,
-      horizonMaskDeg: site.horizonElevDeg[String(fixtureScenario.observerHeightM)],
+      horizonMaskDeg,
       azStepDeg: fixtureSitesFile.azStepDeg,
       observerHeightM: fixtureScenario.observerHeightM,
     }

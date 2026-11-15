@@ -113,7 +113,8 @@ export function computeScenarioResults(s: ScenarioState, curated: readonly Site[
       continue
     }
     sites.push({
-      site,
+      // Label with the height the outputs were computed for (the fixtures are 2 m only).
+      site: { ...site, observerHeightM: out.ctx.observerHeightM },
       ctx: out.ctx,
       baseline: { landingMs: s.landingMs, samples: out.samples, windows: out.windows, metrics: out.metrics.baseline },
       slipped: { landingMs: slippedLandingMs(s), samples: out.samples, windows: out.windows, metrics: out.metrics.slipped },

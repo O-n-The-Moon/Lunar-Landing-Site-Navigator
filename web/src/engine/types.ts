@@ -184,9 +184,10 @@ export interface SiteFrame {
 }
 
 /**
- * Everything the time-series functions need for one site at one observer height. The only place the engine
- * reads the observer height from (it differs per site: grid-snapped sites are 2 m only). Build curated sites
- * with `siteContext()` so the frame and mask match `observerHeightM`.
+ * Everything the time-series functions need for one site at one observer height. The height is per site
+ * (grid-snapped sites are 2 m only) and lives only here: the engine uses it through `frame` and `horizonMaskDeg`;
+ * `observerHeightM` records which height those were built for (for labels). Nothing re-checks a hand-built
+ * context, so build curated sites with `siteContext()`.
  */
 export interface SiteContext {
   eph: Ephemeris

@@ -290,6 +290,8 @@ describe('siteContext', () => {
     const low = siteContext(fixtureEphemeris, site, azStepDeg, 2)
     const high = siteContext(fixtureEphemeris, site, azStepDeg, 10)
     expect(low.horizonMaskDeg).toBe(site.horizonElevDeg['2'])
+    expect(high.horizonMaskDeg).toBe(site.horizonElevDeg['10'])
+    expect(high.horizonMaskDeg).not.toEqual(low.horizonMaskDeg)
     expect(Math.hypot(...high.frame.positionKm) - Math.hypot(...low.frame.positionKm)).toBeCloseTo(0.008, 9)
   })
 

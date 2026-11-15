@@ -198,9 +198,7 @@ export function createInitialState({ sites, landingMs = DEFAULT_LANDING_MS }: { 
     landingMs,
     durationH: DEFAULT_DURATION_H,
     slipH: 0,
-    observerHeightM: isObserverHeight(DEFAULT_OBSERVER_HEIGHT_M)
-      ? DEFAULT_OBSERVER_HEIGHT_M
-      : GRID_OBSERVER_HEIGHT_M,
+    observerHeightM: DEFAULT_OBSERVER_HEIGHT_M,
     sunThreshold: DEFAULT_VISIBILITY_OPTS.sunThreshold,
     earthMarginDeg: DEFAULT_VISIBILITY_OPTS.earthMarginDeg,
     cursorMs: landingMs,

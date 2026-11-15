@@ -38,7 +38,7 @@ nearestGridCell(grid: Grid, latDeg: number, lonDeg: number): { ix; iy; snapDistK
 
 `VisibilityOpts` defaults: `{ sunThreshold: 0.5, hysteresis: 0.05, earthMarginDeg: 1.0, earthHysteresisDeg: 0.1 }`.
 
-Observer height is **per site**, not a visibility option: `SiteContext.observerHeightM` is the only height the engine reads (default `DEFAULT_OBSERVER_HEIGHT_M` = 2 m; grid-snapped sites are 2 m only). Build curated-site contexts with `siteContext()` so the frame and mask can't disagree.
+Observer height is **per site**, not a visibility option: it lives only in `SiteContext`, whose `frame` and `horizonMaskDeg` are built for it and whose `observerHeightM` records which height that was, for labels (default `DEFAULT_OBSERVER_HEIGHT_M` = 2 m; grid-snapped sites are 2 m only). The engine does not re-check a hand-built context, so build curated-site contexts with `siteContext()`, which throws when the site has no mask for the height.
 
 ## Definitions (the contract with the UI)
 
