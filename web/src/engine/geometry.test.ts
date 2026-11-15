@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fixtureEphemeris, fixtureOutputs } from './__fixtures__'
+import { fixtureEphemeris, fixtureOutputs, fixtureSitesFile } from './__fixtures__'
 import {
   MAX_ABS_LAT_DEG,
   MOON_RADIUS_KM,
@@ -91,6 +91,23 @@ describe('siteFrame', () => {
     expect(dot(d(e), f.east)).toBeGreaterThan(0)
   })
 
+  it('normalizes longitude to −180…180 (east-positive)', () => {
+    expect(siteFrame(-85, 200, 0, 0).lonDeg).toBeCloseTo(-160, 12)
+    expect(siteFrame(-85, -190, 0, 0).lonDeg).toBeCloseTo(170, 12)
+    expect(siteFrame(-85, 180, 0, 0).lonDeg).toBe(180)
+    siteFrame(-85, 200, 0, 0).up.forEach((c, k) => expect(c).toBeCloseTo(siteFrame(-85, -160, 0, 0).up[k], 12))
+  })
+
+  it('reproduces the T2 fixture frames from site lat/lon/heights', () => {
+    for (const site of fixtureSitesFile.sites) {
+      const expected = fixtureOutputs[site.id].ctx.frame
+      const f = siteFrame(site.latDeg, site.lonDeg, site.surfaceHeightM, 2)
+      for (const key of ['positionKm', 'east', 'north', 'up'] as const) {
+        f[key].forEach((c, k) => expect(c).toBeCloseTo(expected[key][k], 9))
+      }
+    }
+  })
+
   it('clamps latitude to ±89.999° so north stays defined at the pole', () => {
     const f = siteFrame(-90, 45, 0, 2)
     expect(f.latDeg).toBe(-MAX_ABS_LAT_DEG)
@@ -115,6 +132,12 @@ describe('azEl', () => {
     const justWestOfNorth = azEl(site, add(site.positionKm, [0, -1, far])).azDeg
     expect(justWestOfNorth).toBeGreaterThan(359.99)
     expect(justWestOfNorth).toBeLessThan(360)
+  })
+
+  it('returns +0, never −0, for a body due north', () => {
+    // A frame whose east components are all −0 makes v·east = −0, and atan2(−0, n) = −0.
+    const negZeroEast = { ...site, east: [-0, -0, -0] as const }
+    expect(azEl(negZeroEast, add(site.positionKm, [0, 0, far])).azDeg).toBe(0)
   })
 
   it('measures elevation above the local horizontal, with topocentric distance', () => {
@@ -177,6 +200,11 @@ describe('horizonElevAt', () => {
   it('works on typed arrays', () => {
     expect(horizonElevAt(Float32Array.from(mask), 90, 135)).toBeCloseTo(1.5, 6)
   })
+
+  it('rejects a mask that does not cover 360° at the given step', () => {
+    expect(() => horizonElevAt([0, 1, 2], 90, 300)).toThrow(RangeError)
+    expect(() => horizonElevAt(mask, 0.5, 10)).toThrow(RangeError)
+  })
 })
 
 describe('angularRadiusDeg', () => {
@@ -187,6 +215,13 @@ describe('angularRadiusDeg', () => {
 
   it('uses asin(R/d): exact for a known ratio', () => {
     expect(angularRadiusDeg('earth', 6_371 * 2)).toBeCloseTo(30, 9)
+  })
+
+  it('returns NaN for a distance not outside the body (impossible geometry)', () => {
+    expect(angularRadiusDeg('earth', 6_371)).toBeNaN()
+    expect(angularRadiusDeg('sun', 0)).toBeNaN()
+    expect(angularRadiusDeg('sun', -5)).toBeNaN()
+    expect(angularRadiusDeg('sun', Number.NaN)).toBeNaN()
   })
 })
 
@@ -222,5 +257,11 @@ describe('visibleDiskFraction', () => {
   it('treats a zero radius as a point: visible iff the center is at or above the horizon', () => {
     expect(visibleDiskFraction(1, 1, 0)).toBe(1)
     expect(visibleDiskFraction(0.999, 1, 0)).toBe(0)
+  })
+
+  it('propagates bad input as NaN instead of silently using a point', () => {
+    expect(visibleDiskFraction(1, 0, Number.NaN)).toBeNaN()
+    expect(visibleDiskFraction(1, 0, -0.27)).toBeNaN()
+    expect(visibleDiskFraction(Number.NaN, 0, 0.27)).toBeNaN()
   })
 })
