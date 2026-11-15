@@ -5,7 +5,8 @@
 # Coordinates: planetocentric, lon east-positive -180..180 (MOON_ME, sphere R = 1737.4 km).
 # Sources printed in 0..360 E are converted with lon - 360.
 # No site north of 84 S (project scope: the 182 km polar grid ends at ~84 S; the DEMs
-# themselves reach further north). Chandrayaan-3 and Chang'e-6 are excluded by design.
+# themselves reach further north). Exception: artemis3-region sites may sit to 83.5 S,
+# because 250 km horizon rays must stay inside the 75 S DEM (team decision on #5). Chandrayaan-3 and Chang'e-6 are excluded by design.
 #
 # Artemis III regions (SPEC Open Q1):
 #   NASA publishes the nine regions (Oct 2024) as map polygons only, with no coordinates.
@@ -18,15 +19,19 @@
 #   center of that rectangle: not the best-lit point, and for rim-shaped regions it may
 #   fall outside the region's own outline (the outlines are not publicly downloadable).
 #   (The bounding boxes in the release's XML metadata do not match the grids; not used.)
-#   Excluded (team decision 2026-11-14: keep the 84 S scope limit):
-#   - Peak near Cabeus B (-83.6514, -68.7263) and Nobile Rim 2 (-83.9545, 58.7938):
-#     centers lie north of 84 S, outside the project's grid scope. Reversible if the
-#     scope is widened.
 #
 # Chang'e-7 (SPEC Open Q3): left out. CNSA has not published a citable target coordinate.
 
 sites:
   # Artemis III region centers (selection rule above). All cite the USGS data release.
+  # Center is north of 84 S; allowed by the Artemis-region exception (#5).
+  - id: peak-near-cabeus-b
+    name: Peak near Cabeus B (Artemis III region)
+    category: artemis3-region
+    latDeg: -83.6514
+    lonDeg: -68.7263
+    coordSource: https://doi.org/10.5066/P1MEQ6UK
+
   - id: haworth
     name: Haworth (Artemis III region)
     category: artemis3-region
@@ -61,6 +66,14 @@ sites:
     category: artemis3-region
     latDeg: -85.4338
     lonDeg: 37.3276
+    coordSource: https://doi.org/10.5066/P1MEQ6UK
+
+  # Center is north of 84 S; allowed by the Artemis-region exception (#5).
+  - id: nobile-rim-2
+    name: Nobile Rim 2 (Artemis III region)
+    category: artemis3-region
+    latDeg: -83.9545
+    lonDeg: 58.7938
     coordSource: https://doi.org/10.5066/P1MEQ6UK
 
   - id: de-gerlache-rim-2

@@ -15,6 +15,8 @@ CATEGORIES = {"artemis3-region", "clps", "international", "reference"}
 KEBAB_ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 # Project scope: the 182 km polar grid ends at ~84 S; nothing north of it (team decision).
 NORTHMOST_LAT_DEG = -84.0
+# Artemis III regions only (#5): 250 km horizon rays must stay inside the 75 S DEM.
+ARTEMIS_REGION_MAX_LAT_DEG = -83.5
 
 
 def _load_sites() -> list[dict]:
@@ -51,7 +53,12 @@ def test_site_field_values(site):
     lat, lon = site["latDeg"], site["lonDeg"]
     for value in (lat, lon):
         assert isinstance(value, int | float) and not isinstance(value, bool)
-    assert -MAX_ABS_LAT_DEG <= lat <= NORTHMOST_LAT_DEG, f"latDeg out of range: {lat}"
+    northmost = (
+        ARTEMIS_REGION_MAX_LAT_DEG
+        if site["category"] == "artemis3-region"
+        else NORTHMOST_LAT_DEG
+    )
+    assert -MAX_ABS_LAT_DEG <= lat <= northmost, f"latDeg out of range: {lat}"
     assert -180.0 <= lon <= 180.0, f"lonDeg must be east-positive -180..180: {lon}"
 
     assert isinstance(site["coordSource"], str)
@@ -63,15 +70,16 @@ def test_required_non_artemis_sites_present():
     assert {"mons-mouton-im2", "connecting-ridge", "shackleton-floor"} <= ids
 
 
-def test_artemis_regions_inside_scope_are_all_present():
-    # Peak near Cabeus B and Nobile Rim 2 lie north of 84 S and are excluded by design.
+def test_all_nine_artemis_regions_present():
     artemis = {s["id"] for s in SITES if s["category"] == "artemis3-region"}
     assert artemis == {
+        "peak-near-cabeus-b",
         "haworth",
         "malapert-massif",
-        "mons-mouton",
         "mons-mouton-plateau",
+        "mons-mouton",
         "nobile-rim-1",
+        "nobile-rim-2",
         "de-gerlache-rim-2",
         "slater-plain",
     }
