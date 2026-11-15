@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "projection": "polar-stereographic-south",
+  "sphereRadiusKm": 1737.4,
+  "originKm": [
+    -182,
+    -182
+  ],
+  "cellKm": 2,
+  "nx": 182,
+  "ny": 182,
+  "azBins": 360,
+  "heightM": 2,
+  "dtype": "uint8",
+  "encoding": "elevDeg = v * 0.1 - 5.0; 255 = no data",
+  "cellSurfaceHeightM": "grid-heights.bin (int16-le, row-major)"
+}
