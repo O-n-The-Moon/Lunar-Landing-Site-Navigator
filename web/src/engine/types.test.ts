@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_VISIBILITY_OPTS, NotImplementedError, notImplemented } from './types'
+import { DEFAULT_OBSERVER_HEIGHT_M, DEFAULT_VISIBILITY_OPTS, NotImplementedError, notImplemented } from './types'
 
 describe('notImplemented', () => {
   it('throws a NotImplementedError naming the function', () => {
@@ -15,7 +15,10 @@ describe('DEFAULT_VISIBILITY_OPTS', () => {
       hysteresis: 0.05,
       earthMarginDeg: 1.0,
       earthHysteresisDeg: 0.1,
-      observerHeightM: 2,
     })
+  })
+
+  it('leaves the observer height out: it is per site, in SiteContext', () => {
+    expect(DEFAULT_OBSERVER_HEIGHT_M).toBe(2)
   })
 })

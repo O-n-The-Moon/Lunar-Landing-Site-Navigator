@@ -1,5 +1,5 @@
 // Geometry: body vectors, site frames, az/el, horizon lookup, disk visibility.
-import type { AzEl, Body, Ephemeris, SiteFrame, Vec3 } from './types'
+import type { AzEl, Body, Ephemeris, Site, SiteContext, SiteFrame, Vec3 } from './types'
 
 export const MOON_RADIUS_KM = 1737.4
 export const SUN_RADIUS_KM = 695_700
@@ -53,6 +53,17 @@ export function siteFrame(latDeg: number, lonDeg: number, surfaceHeightM: number
     north: [-sinLat * cosLon, -sinLat * sinLon, cosLat],
     up,
   }
+}
+
+/**
+ * Context for a curated site at one observer height: the frame and the `sites.json` horizon mask for that same
+ * height. Throws RangeError if the site has no mask for it.
+ */
+export function siteContext(eph: Ephemeris, site: Site, azStepDeg: number, observerHeightM: number): SiteContext {
+  const horizonMaskDeg = site.horizonElevDeg[String(observerHeightM)]
+  if (!horizonMaskDeg) throw new RangeError(`site ${site.id} has no horizon mask for observer height ${observerHeightM} m`)
+  const frame = siteFrame(site.latDeg, site.lonDeg, site.surfaceHeightM, observerHeightM)
+  return { eph, frame, horizonMaskDeg, azStepDeg, observerHeightM }
 }
 
 /** Topocentric az/el of a body: direction = body − site. Azimuth clockwise from north in [0, 360). */

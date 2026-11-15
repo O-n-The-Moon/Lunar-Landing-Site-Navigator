@@ -183,12 +183,19 @@ export interface SiteFrame {
   up: Vec3
 }
 
-/** Everything the time-series functions need for one site at one observer height. */
+/**
+ * Everything the time-series functions need for one site at one observer height. The height is per site
+ * (grid-snapped sites are 2 m only) and lives only here: the engine uses it through `frame` and `horizonMaskDeg`;
+ * `observerHeightM` records which height those were built for (for labels). Nothing re-checks a hand-built
+ * context, so build curated sites with `siteContext()`.
+ */
 export interface SiteContext {
   eph: Ephemeris
   frame: SiteFrame
   horizonMaskDeg: ArrayLike<number>
   azStepDeg: number
+  /** Height above the surface that `frame` and `horizonMaskDeg` were built for. */
+  observerHeightM: number
 }
 
 export interface VisibilityOpts {
@@ -196,7 +203,6 @@ export interface VisibilityOpts {
   hysteresis: number
   earthMarginDeg: number
   earthHysteresisDeg: number
-  observerHeightM: number
 }
 
 export const DEFAULT_VISIBILITY_OPTS: Readonly<VisibilityOpts> = {
@@ -204,8 +210,9 @@ export const DEFAULT_VISIBILITY_OPTS: Readonly<VisibilityOpts> = {
   hysteresis: 0.05,
   earthMarginDeg: 1.0,
   earthHysteresisDeg: 0.1,
-  observerHeightM: 2,
 }
+
+export const DEFAULT_OBSERVER_HEIGHT_M = 2
 
 /** Parallel arrays, one entry per sample time. */
 export interface SiteSamples {

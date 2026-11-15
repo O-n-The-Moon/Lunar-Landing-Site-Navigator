@@ -7,6 +7,7 @@ import {
   azEl,
   bodyVectorKm,
   horizonElevAt,
+  siteContext,
   siteFrame,
   visibleDiskFraction,
 } from './geometry'
@@ -269,5 +270,41 @@ describe('visibleDiskFraction', () => {
     expect(visibleDiskFraction(1, 0, Number.NaN)).toBeNaN()
     expect(visibleDiskFraction(1, 0, -0.27)).toBeNaN()
     expect(visibleDiskFraction(Number.NaN, 0, 0.27)).toBeNaN()
+  })
+})
+
+describe('siteContext', () => {
+  const site = fixtureSitesFile.sites[0]
+  const { azStepDeg } = fixtureSitesFile
+
+  it('builds the frame and picks the mask for the same observer height', () => {
+    const ctx = siteContext(fixtureEphemeris, site, azStepDeg, 10)
+    expect(ctx.observerHeightM).toBe(10)
+    expect(ctx.horizonMaskDeg).toBe(site.horizonElevDeg['10'])
+    expect(ctx.frame).toEqual(siteFrame(site.latDeg, site.lonDeg, site.surfaceHeightM, 10))
+    expect(ctx.eph).toBe(fixtureEphemeris)
+    expect(ctx.azStepDeg).toBe(azStepDeg)
+  })
+
+  it('gives a different frame and mask at 2 m and 10 m', () => {
+    const low = siteContext(fixtureEphemeris, site, azStepDeg, 2)
+    const high = siteContext(fixtureEphemeris, site, azStepDeg, 10)
+    expect(low.horizonMaskDeg).toBe(site.horizonElevDeg['2'])
+    expect(high.horizonMaskDeg).toBe(site.horizonElevDeg['10'])
+    expect(high.horizonMaskDeg).not.toEqual(low.horizonMaskDeg)
+    expect(Math.hypot(...high.frame.positionKm) - Math.hypot(...low.frame.positionKm)).toBeCloseTo(0.008, 9)
+  })
+
+  it('matches the fixture context at 2 m', () => {
+    const ctx = siteContext(fixtureEphemeris, site, azStepDeg, 2)
+    const fixture = fixtureOutputs[site.id].ctx
+    expect(ctx.observerHeightM).toBe(fixture.observerHeightM)
+    expect(ctx.horizonMaskDeg).toBe(fixture.horizonMaskDeg)
+    for (let k = 0; k < 3; k++) expect(ctx.frame.positionKm[k]).toBeCloseTo(fixture.frame.positionKm[k], 6)
+  })
+
+  it('rejects a height the site has no horizon mask for', () => {
+    expect(() => siteContext(fixtureEphemeris, site, azStepDeg, 5)).toThrow(RangeError)
+    expect(() => siteContext(fixtureEphemeris, site, azStepDeg, Number.NaN)).toThrow(RangeError)
   })
 })

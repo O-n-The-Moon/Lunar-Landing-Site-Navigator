@@ -2,6 +2,7 @@
 // Every accuracy number shown here is read from validation.json; nothing is computed or assumed.
 import { useId, type ReactNode } from 'react'
 import {
+  DEFAULT_OBSERVER_HEIGHT_M,
   DEFAULT_VISIBILITY_OPTS,
   MOON_RADIUS_KM,
   type EphemerisManifest,
@@ -284,7 +285,7 @@ interface MethodsListProps {
 }
 
 function MethodsList({ azStepDeg, heightsM, ephemerisManifest }: MethodsListProps) {
-  const { sunThreshold, hysteresis, earthMarginDeg, earthHysteresisDeg, observerHeightM } = DEFAULT_VISIBILITY_OPTS
+  const { sunThreshold, hysteresis, earthMarginDeg, earthHysteresisDeg } = DEFAULT_VISIBILITY_OPTS
   // Same on/off levels as the engine's detectWindows (capped to [0, 1]).
   const sunOn = Math.min(1, sunThreshold + hysteresis)
   const sunOff = Math.max(0, sunThreshold - hysteresis)
@@ -306,7 +307,7 @@ function MethodsList({ azStepDeg, heightsM, ephemerisManifest }: MethodsListProp
         <dt>Terrain</dt>
         <dd>
           LOLA polar stereographic DEMs: <span className="num">{DEMS}</span>. Horizon masks every {azStepDeg}° of azimuth for observers{' '}
-          {heightsM.map((h) => `${h} m`).join(', ')} above the surface; {observerHeightM} m by default.
+          {heightsM.map((h) => `${h} m`).join(', ')} above the surface; {DEFAULT_OBSERVER_HEIGHT_M} m by default.
         </dd>
         <dt>Sun visibility</dt>
         <dd>

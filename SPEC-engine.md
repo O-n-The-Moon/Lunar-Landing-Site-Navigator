@@ -16,6 +16,7 @@ loadGrid(manifest: GridManifest, horizons: ArrayBuffer, heights: ArrayBuffer): G
 // geometry
 bodyVectorKm(eph: Ephemeris, body: Body, tUtcMs: number): Vec3        // linear interp between hourly samples
 siteFrame(latDeg: number, lonDeg: number, surfaceHeightM: number, observerHeightM: number): SiteFrame // position + ENU
+siteContext(eph: Ephemeris, site: Site, azStepDeg: number, observerHeightM: number): SiteContext // frame + sites.json mask for the same height
 azEl(site: SiteFrame, bodyVecKm: Vec3): AzEl                           // topocentric = body − site
 horizonElevAt(maskDeg: ArrayLike<number>, azStepDeg: number, azDeg: number): number // linear, wraps at 360
 angularRadiusDeg(body: Body, distKm: number): number                   // Sun 695,700 km, Earth 6,371 km
@@ -35,7 +36,9 @@ scoreGrid(grid: Grid, eph: Ephemeris, startMs: number, endMs: number, opts: Visi
 nearestGridCell(grid: Grid, latDeg: number, lonDeg: number): { ix; iy; snapDistKm } | null
 ```
 
-`VisibilityOpts` defaults: `{ sunThreshold: 0.5, hysteresis: 0.05, earthMarginDeg: 1.0, earthHysteresisDeg: 0.1, observerHeightM: 2 }`.
+`VisibilityOpts` defaults: `{ sunThreshold: 0.5, hysteresis: 0.05, earthMarginDeg: 1.0, earthHysteresisDeg: 0.1 }`.
+
+Observer height is **per site**, not a visibility option: it lives only in `SiteContext`, whose `frame` and `horizonMaskDeg` are built for it and whose `observerHeightM` records which height that was, for labels (default `DEFAULT_OBSERVER_HEIGHT_M` = 2 m; grid-snapped sites are 2 m only). The engine does not re-check a hand-built context, so build curated-site contexts with `siteContext()`, which throws when the site has no mask for the height.
 
 ## Definitions (the contract with the UI)
 

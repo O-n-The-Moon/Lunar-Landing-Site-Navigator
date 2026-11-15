@@ -16,6 +16,11 @@ describe('computeScenarioResults (fixture stand-in)', () => {
     expect(r.unavailableSiteIds).toEqual([])
   })
 
+  it('labels each site with the height its engine context was built for', () => {
+    const at10 = scenarioReducer(base, { type: 'setObserverHeight', heightM: 10 })
+    for (const r of computeScenarioResults(at10, curated).sites) expect(r.site.observerHeightM).toBe(r.ctx.observerHeightM)
+  })
+
   it('hides the delta at slip 0 and shows it otherwise', () => {
     expect(computeScenarioResults(base, curated).sites[0].delta).toBeNull()
     const slipped = scenarioReducer(base, { type: 'setSlip', slipH: 12 })
