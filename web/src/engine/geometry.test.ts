@@ -110,10 +110,14 @@ describe('siteFrame', () => {
 
   it('clamps latitude to ±89.999° so north stays defined at the pole', () => {
     const f = siteFrame(-90, 45, 0, 2)
-    expect(f.latDeg).toBe(-MAX_ABS_LAT_DEG)
+    expect(MAX_ABS_LAT_DEG).toBe(89.999)
+    expect(f.latDeg).toBe(-89.999)
     expect(f.lonDeg).toBe(45)
     for (const v of [f.east, f.north, f.up]) expect(v.every(Number.isFinite)).toBe(true)
-    expect(siteFrame(90, 0, 0, 0).latDeg).toBe(MAX_ABS_LAT_DEG)
+    // At the south pole, north (toward increasing latitude) points away from the pole along the site's meridian.
+    const s45 = Math.SQRT1_2
+    ;[s45, s45, 0].forEach((c, k) => expect(f.north[k]).toBeCloseTo(c, 4))
+    expect(siteFrame(90, 0, 0, 0).latDeg).toBe(89.999)
   })
 })
 
@@ -157,7 +161,8 @@ describe('azEl', () => {
     expect(distKm).toBeCloseTo(Math.hypot(MOON_RADIUS_KM, far), 6)
   })
 
-  it('reproduces the T2 fixture samples (same conventions, independent code)', () => {
+  // Consistency, not correctness: generate.mjs uses the same formulas. Correctness is pinned by the axis tests above.
+  it('reproduces the T2 fixture samples', () => {
     for (const { ctx, samples } of Object.values(fixtureOutputs)) {
       for (const i of [0, 7, 100, samples.tUtcMs.length - 1]) {
         const t = samples.tUtcMs[i]
@@ -204,6 +209,7 @@ describe('horizonElevAt', () => {
   it('rejects a mask that does not cover 360° at the given step', () => {
     expect(() => horizonElevAt([0, 1, 2], 90, 300)).toThrow(RangeError)
     expect(() => horizonElevAt(mask, 0.5, 10)).toThrow(RangeError)
+    expect(() => horizonElevAt(mask, Number.NaN, 10)).toThrow(RangeError)
   })
 })
 

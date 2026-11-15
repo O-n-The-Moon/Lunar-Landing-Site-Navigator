@@ -39,8 +39,10 @@ export function siteFrame(latDeg: number, lonDeg: number, surfaceHeightM: number
     lon = (((lonDeg % 360) + 360) % 360)
     if (lon > 180) lon -= 360
   }
-  const [sinLat, cosLat] = [Math.sin(lat * DEG), Math.cos(lat * DEG)]
-  const [sinLon, cosLon] = [Math.sin(lon * DEG), Math.cos(lon * DEG)]
+  const sinLat = Math.sin(lat * DEG)
+  const cosLat = Math.cos(lat * DEG)
+  const sinLon = Math.sin(lon * DEG)
+  const cosLon = Math.cos(lon * DEG)
   const rKm = MOON_RADIUS_KM + (surfaceHeightM + observerHeightM) / 1000
   const up: Vec3 = [cosLat * cosLon, cosLat * sinLon, sinLat]
   return {
@@ -71,7 +73,7 @@ export function azEl(site: SiteFrame, bodyVecKm: Vec3): AzEl {
 /** Terrain horizon elevation at an azimuth, linear between bins, wrapping at 360°. The mask must cover exactly 360°. */
 export function horizonElevAt(maskDeg: ArrayLike<number>, azStepDeg: number, azDeg: number): number {
   const n = maskDeg.length
-  if (Math.abs(n * azStepDeg - 360) > 1e-9) {
+  if (!(Math.abs(n * azStepDeg - 360) <= 1e-9)) {
     throw new RangeError(`mask of ${n} bins at ${azStepDeg}° does not cover 360°`)
   }
   const x = ((((azDeg % 360) + 360) % 360) / azStepDeg) % n
