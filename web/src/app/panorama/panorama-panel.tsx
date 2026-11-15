@@ -25,25 +25,32 @@ export function PanoramaPanel() {
   const { focusedSiteId, cursorMs } = useScenario()
   const results = useScenarioResults()
   const focused = results.sites.find((r) => r.site.id === focusedSiteId)
+  const unavailable = results.unavailable.find((x) => x.id === focusedSiteId)
 
   let content
   if (!focused) {
-    content = (
-      <p className="hint">
-        {focusedSiteId === null ? 'Add a site to see its horizon.' : `No horizon yet for: ${focusedSiteId}`}
-      </p>
-    )
+    content =
+      focusedSiteId === null ? (
+        <p className="hint">Add a site to see its horizon.</p>
+      ) : (
+        <p className="hint warn">
+          {unavailable ? `No horizon for ${unavailable.name}: ${unavailable.reason}` : `No horizon for ${focusedSiteId}.`}
+        </p>
+      )
   } else {
     const { ctx, slipped, site } = focused
     let bodies: { sun: PanoramaBody; earth: PanoramaBody } | null = null
+    let error = ''
     try {
       bodies = {
         sun: bodyAt(ctx, 'sun', cursorMs, slipped.windows.sun),
         earth: bodyAt(ctx, 'earth', cursorMs, slipped.windows.earth),
       }
     } catch (e) {
-      // bodyVectorKm throws RangeError outside the ephemeris coverage.
+      // The engine throws RangeError for bad inputs: cursor outside the ephemeris (bodyVectorKm), or a horizon mask
+      // that doesn't cover 360° (horizonElevAt). Show its message rather than guessing which.
       if (!(e instanceof RangeError)) throw e
+      error = e.message
     }
     content = bodies ? (
       <HorizonPanorama
@@ -55,7 +62,9 @@ export function PanoramaPanel() {
         earth={bodies.earth}
       />
     ) : (
-      <p className="hint warn">Cursor time is outside the ephemeris coverage.</p>
+      <p className="hint warn">
+        Can't draw the horizon for {site.name}: {error}
+      </p>
     )
   }
 
