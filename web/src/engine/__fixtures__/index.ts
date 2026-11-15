@@ -14,6 +14,7 @@ import type {
   ValidationFile,
   VisibilityOpts,
 } from '../types'
+import { dataUrlToArrayBuffer } from './data-url'
 import ephemerisBin from './ephemeris.bin?inline'
 import ephemerisJson from './ephemeris.json'
 import gridHeightsBin from './grid-heights.bin?inline'
@@ -26,13 +27,6 @@ import pgdaLayersJson from './pgda-layers.json'
 import pgdaSunPngUrl from './pgda-sun.png'
 import sitesJson from './sites.json'
 import validationJson from './validation.json'
-
-function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
-  const bin = atob(dataUrl.slice(dataUrl.indexOf(',') + 1))
-  const bytes = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-  return bytes.buffer
-}
 
 // --- contract files ---------------------------------------------------------
 
