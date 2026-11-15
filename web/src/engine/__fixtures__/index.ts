@@ -64,6 +64,7 @@ export interface FixtureScenario {
   baselineLandingMs: number
   slipH: number
   durationH: number
+  observerHeightM: number
   opts: VisibilityOpts
 }
 
@@ -112,8 +113,9 @@ export const fixtureOutputs: Record<string, FixtureSiteOutputs> = Object.fromEnt
     const ctx: SiteContext = {
       eph: fixtureEphemeris,
       frame,
-      horizonMaskDeg: site.horizonElevDeg[String(fixtureScenario.opts.observerHeightM)],
+      horizonMaskDeg: site.horizonElevDeg[String(fixtureScenario.observerHeightM)],
       azStepDeg: fixtureSitesFile.azStepDeg,
+      observerHeightM: fixtureScenario.observerHeightM,
     }
     return [id, { ...rest, ctx, samples: toSamples(samples, ctx) }]
   }),

@@ -28,6 +28,7 @@ function syntheticCtx(sunElevDeg: number[], earthElevDeg: number[]): SiteContext
     frame,
     horizonMaskDeg: new Array<number>(360).fill(0),
     azStepDeg: 1,
+    observerHeightM: 0,
   }
 }
 

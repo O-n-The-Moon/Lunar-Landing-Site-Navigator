@@ -71,7 +71,6 @@ export function visibilityOpts(s: ScenarioState): VisibilityOpts {
     ...DEFAULT_VISIBILITY_OPTS,
     sunThreshold: s.sunThreshold,
     earthMarginDeg: s.earthMarginDeg,
-    observerHeightM: s.observerHeightM,
   }
 }
 

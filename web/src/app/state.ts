@@ -1,7 +1,7 @@
 // Scenario state for every V1 feature (SPEC-app.md → State): useReducer + context, no state library.
 // Later issues read and dispatch; they should not need to change this file.
 import { createContext, createElement, useContext, useReducer, type Dispatch, type ReactNode } from 'react'
-import { DEFAULT_VISIBILITY_OPTS, type GridCellRef, type Site } from '../engine'
+import { DEFAULT_OBSERVER_HEIGHT_M, DEFAULT_VISIBILITY_OPTS, type GridCellRef, type Site } from '../engine'
 
 export const HOUR_MS = 3_600_000
 export const MAX_SITES = 3
@@ -198,8 +198,8 @@ export function createInitialState({ sites, landingMs = DEFAULT_LANDING_MS }: { 
     landingMs,
     durationH: DEFAULT_DURATION_H,
     slipH: 0,
-    observerHeightM: isObserverHeight(DEFAULT_VISIBILITY_OPTS.observerHeightM)
-      ? DEFAULT_VISIBILITY_OPTS.observerHeightM
+    observerHeightM: isObserverHeight(DEFAULT_OBSERVER_HEIGHT_M)
+      ? DEFAULT_OBSERVER_HEIGHT_M
       : GRID_OBSERVER_HEIGHT_M,
     sunThreshold: DEFAULT_VISIBILITY_OPTS.sunThreshold,
     earthMarginDeg: DEFAULT_VISIBILITY_OPTS.earthMarginDeg,

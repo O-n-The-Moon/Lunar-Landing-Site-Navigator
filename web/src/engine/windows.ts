@@ -130,8 +130,7 @@ function intersect(a: Window[], b: Window[]): Window[] {
  * using `samples.ctx`. Sunlit: on at fraction ≥ threshold + hysteresis, off at ≤ threshold − hysteresis, both
  * levels capped to [0, 1] so they stay reachable. Earth link: clearance = elev − horizon − earthMarginDeg; on at
  * ≥ +earthHysteresisDeg, off at ≤ −earthHysteresisDeg. A refined event time is the first time (to 1 min) at
- * which the new state holds. The observer height is the one `samples.ctx` was built for; `opts.observerHeightM`
- * is not read here.
+ * which the new state holds. The observer height is `samples.ctx.observerHeightM`.
  */
 export function detectWindows(samples: SiteSamples, opts: VisibilityOpts): DetectedWindows {
   const { sunThreshold, hysteresis, earthMarginDeg, earthHysteresisDeg } = opts

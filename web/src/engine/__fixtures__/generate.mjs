@@ -16,7 +16,8 @@ const H_MS = 3_600_000
 const START_UTC = '2026-03-01T00:00:00Z'
 const START_MS = Date.parse(START_UTC)
 const HOURS = 48
-const OPTS = { sunThreshold: 0.5, hysteresis: 0.05, earthMarginDeg: 1.0, earthHysteresisDeg: 0.1, observerHeightM: 2 }
+const OPTS = { sunThreshold: 0.5, hysteresis: 0.05, earthMarginDeg: 1.0, earthHysteresisDeg: 0.1 }
+const OBSERVER_HEIGHT_M = 2
 const round = (x, d = 6) => Math.round(x * 10 ** d) / 10 ** d
 
 // ---------------------------------------------------------------------------
@@ -158,8 +159,8 @@ writeJson('sites.json', { schemaVersion: 1, azStepDeg: 0.5, heightsM: [2, 10], s
 // Output fixtures: samples → windows → metrics → deltas, per site at 2 m.
 // ---------------------------------------------------------------------------
 function sampleSite(site, startMs, endMs, stepMin) {
-  const frame = siteFrame(site.latDeg, site.lonDeg, site.surfaceHeightM, OPTS.observerHeightM)
-  const m = site.horizonElevDeg[OPTS.observerHeightM]
+  const frame = siteFrame(site.latDeg, site.lonDeg, site.surfaceHeightM, OBSERVER_HEIGHT_M)
+  const m = site.horizonElevDeg[OBSERVER_HEIGHT_M]
   const out = { stepMin, tUtcMs: [], sunAzDeg: [], sunElevDeg: [], sunHorizonDeg: [], sunFraction: [], earthAzDeg: [], earthElevDeg: [], earthHorizonDeg: [] }
   for (let t = startMs; t <= endMs; t += stepMin * 60_000) {
     const sun = azEl(frame, bodyVec('sun', t))
@@ -274,14 +275,14 @@ function diffMetrics(a, b) {
   }
 }
 
-const SCENARIO = { startMs: START_MS, endMs: START_MS + HOURS * H_MS, baselineLandingMs: START_MS, slipH: 12, durationH: 24, opts: OPTS }
+const SCENARIO = { startMs: START_MS, endMs: START_MS + HOURS * H_MS, baselineLandingMs: START_MS, slipH: 12, durationH: 24, observerHeightM: OBSERVER_HEIGHT_M, opts: OPTS }
 const outputs = { scenario: SCENARIO, sites: {} }
 for (const site of sites) {
   const samples = sampleSite(site, SCENARIO.startMs, SCENARIO.endMs, 10)
   const windows = detectWindows(samples)
   const baseline = missionMetrics(samples, windows, SCENARIO.baselineLandingMs, SCENARIO.durationH)
   const slipped = missionMetrics(samples, windows, SCENARIO.baselineLandingMs + SCENARIO.slipH * H_MS, SCENARIO.durationH)
-  const f = siteFrame(site.latDeg, site.lonDeg, site.surfaceHeightM, OPTS.observerHeightM)
+  const f = siteFrame(site.latDeg, site.lonDeg, site.surfaceHeightM, OBSERVER_HEIGHT_M)
   const frame = { latDeg: site.latDeg, lonDeg: site.lonDeg, positionKm: f.pos, east: f.east, north: f.north, up: f.up }
   outputs.sites[site.id] = { frame, samples, windows, metrics: { baseline, slipped }, metricDelta: diffMetrics(baseline, slipped) }
 }
