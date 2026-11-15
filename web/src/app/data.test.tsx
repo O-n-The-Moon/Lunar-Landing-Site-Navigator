@@ -48,6 +48,7 @@ describe('fetchDataSource', () => {
   it('loads and decodes the core contract files', async () => {
     const core = await fetchDataSource('/data/', fakeFetch()).loadCore()
     expect(core.ephemeris.count).toBe(fixtureEphemerisManifest.count)
+    expect(core.ephemerisManifest.kernels).toEqual(fixtureEphemerisManifest.kernels)
     expect(core.sitesFile.sites.map((s) => s.id)).toEqual(['fixture-plateau', 'fixture-ridge'])
     expect(core.validation.schemaVersion).toBe(1)
   })

@@ -1,13 +1,13 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { fixtureSitesFile, fixtureValidation } from '../../engine/__fixtures__'
+import { fixtureEphemerisManifest, fixtureSitesFile, fixtureValidation } from '../../engine/__fixtures__'
 import type { ValidationFile } from '../../engine'
 import { ValidationReport } from './validation-panel'
 
 afterEach(cleanup)
 
 const renderReport = (validation: ValidationFile = fixtureValidation) =>
-  render(<ValidationReport validation={validation} sitesFile={fixtureSitesFile} />)
+  render(<ValidationReport validation={validation} sitesFile={fixtureSitesFile} ephemerisManifest={fixtureEphemerisManifest} />)
 
 const siteName = (id: string) => fixtureSitesFile.sites.find((s) => s.id === id)!.name
 const table = (name: RegExp) => within(screen.getByRole('region', { name })).getByRole('table')
@@ -68,7 +68,8 @@ describe('ValidationReport (fixture validation.json)', () => {
     renderReport()
     const methods = screen.getByRole('region', { name: 'Methods' })
     expect(methods).toHaveTextContent(/MOON_ME/)
-    expect(methods).toHaveTextContent(/de440s\.bsp/)
+    expect(methods).toHaveTextContent(`NAIF SPICE kernels: ${fixtureEphemerisManifest.kernels.join(', ')}`)
+    expect(methods).toHaveTextContent(fixtureEphemerisManifest.abcorr)
     expect(methods).toHaveTextContent(/LDEM_80S_80M/)
     expect(methods).toHaveTextContent(/geometric DTE/i)
     expect(methods).toHaveTextContent(new RegExp(`heights ${fixtureSitesFile.heightsM.map((h) => `${h} m`).join(', ')}`))

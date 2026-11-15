@@ -4,6 +4,7 @@ import { useId, type ReactNode } from 'react'
 import {
   DEFAULT_VISIBILITY_OPTS,
   MOON_RADIUS_KM,
+  type EphemerisManifest,
   type HorizonsValidation,
   type PgdaValidation,
   type PgdaValidationRow,
@@ -14,17 +15,19 @@ import { useCoreData } from '../data'
 import './validation-panel.css'
 
 export function ValidationPanel() {
-  const { validation, sitesFile } = useCoreData()
-  return <ValidationReport validation={validation} sitesFile={sitesFile} />
+  const { validation, sitesFile, ephemerisManifest } = useCoreData()
+  return <ValidationReport validation={validation} sitesFile={sitesFile} ephemerisManifest={ephemerisManifest} />
 }
 
 export interface ValidationReportProps {
   validation: ValidationFile
   /** Used for site names and the horizon-mask parameters in the methods list. */
   sitesFile: Pick<SitesFile, 'sites' | 'azStepDeg' | 'heightsM'>
+  /** Frame, aberration correction and kernel names for the methods list. */
+  ephemerisManifest: Pick<EphemerisManifest, 'frame' | 'abcorr' | 'kernels'>
 }
 
-export function ValidationReport({ validation, sitesFile }: ValidationReportProps) {
+export function ValidationReport({ validation, sitesFile, ephemerisManifest }: ValidationReportProps) {
   const names = new Map(sitesFile.sites.map((s) => [s.id, s.name]))
   const siteName = (id: string) => names.get(id) ?? id
   const { horizons, pgda } = validation
@@ -55,7 +58,7 @@ export function ValidationReport({ validation, sitesFile }: ValidationReportProp
       </ul>
       <HorizonsSection horizons={horizons} siteName={siteName} />
       <PgdaSection pgda={pgda} siteName={siteName} />
-      <MethodsList azStepDeg={sitesFile.azStepDeg} heightsM={sitesFile.heightsM} />
+      <MethodsList azStepDeg={sitesFile.azStepDeg} heightsM={sitesFile.heightsM} ephemerisManifest={ephemerisManifest} />
     </section>
   )
 }
@@ -215,11 +218,16 @@ function ScrollTable({ caption, children }: { caption: string; children: ReactNo
   )
 }
 
-// Kernel and DEM names mirror pipeline/src/lunarnav/fetch.py (the app doesn't load the manifests that list them).
-const KERNELS = 'naif0012.tls, de440s.bsp, moon_pa_de440_200625.bpc, moon_de440_250416.tf, pck00011.tpc'
+// DEM names mirror pipeline/src/lunarnav/dem.py: no data-contract file records them yet (follow-up issue).
 const DEMS = 'LDEM_80S_80M (near field), LDEM_75S_240M (far field)'
 
-function MethodsList({ azStepDeg, heightsM }: { azStepDeg: number; heightsM: readonly number[] }) {
+interface MethodsListProps {
+  azStepDeg: number
+  heightsM: readonly number[]
+  ephemerisManifest: ValidationReportProps['ephemerisManifest']
+}
+
+function MethodsList({ azStepDeg, heightsM, ephemerisManifest }: MethodsListProps) {
   const headingId = useId()
   const { sunThreshold, earthMarginDeg } = DEFAULT_VISIBILITY_OPTS
   return (
@@ -228,12 +236,13 @@ function MethodsList({ azStepDeg, heightsM }: { azStepDeg: number; heightsM: rea
       <dl className="validation-methods">
         <dt>Frame</dt>
         <dd>
-          MOON_ME (mean Earth / polar axis), planetocentric latitude and longitude (east positive), sphere R = {MOON_RADIUS_KM} km. Azimuth
+          {ephemerisManifest.frame} (mean Earth / polar axis), planetocentric latitude and longitude (east positive), sphere R = {MOON_RADIUS_KM} km. Azimuth
           clockwise from local north; elevation above the local spherical horizontal.
         </dd>
         <dt>Ephemeris</dt>
         <dd>
-          NAIF SPICE kernels: <span className="num">{KERNELS}</span>. Topocentric Sun and Earth vectors per site. Times in UTC.
+          NAIF SPICE kernels: <span className="num">{ephemerisManifest.kernels.join(', ')}</span>. Aberration correction{' '}
+          <span className="num">{ephemerisManifest.abcorr}</span>. Topocentric Sun and Earth vectors per site. Times in UTC.
         </dd>
         <dt>Terrain</dt>
         <dd>
@@ -254,8 +263,7 @@ function MethodsList({ azStepDeg, heightsM }: { azStepDeg: number; heightsM: rea
         <dd>Smooth-sphere geometry only, compared with JPL Horizons at the same sites and epochs. It does not test terrain.</dd>
         <dt>PGDA check</dt>
         <dd>
-          Long-term average Sun visibility (mean visible-disk fraction) and Earth visibility (time Earth center is above the terrain horizon),
-          compared with PGDA product 69 at each curated site.
+          Long-term average Sun and Earth visibility from our terrain horizon masks, compared with PGDA product 69 at each curated site.
         </dd>
       </dl>
     </section>
