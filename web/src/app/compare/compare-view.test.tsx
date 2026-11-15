@@ -63,5 +63,7 @@ describe('CompareView with the slip slider', () => {
     const { table, days } = await renderCompare()
     fireEvent.change(days, { target: { value: '2' } })
     expect(plateauSunlit(table())).toHaveTextContent(/no data.*slipped run is outside the ephemeris/i)
+    // The caption states the slip the way the slider does.
+    expect(within(table()).getByText(/mission metrics/i)).toHaveTextContent(/slip \+2 d;/)
   })
 })
