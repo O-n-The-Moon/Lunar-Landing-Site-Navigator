@@ -33,7 +33,7 @@ A single-page planner tool. Load → pick sites → set date → drag the slip �
 ### P0-2 Scenario controls
 - Site picker: curated list grouped by category, showing slope; add up to 3; remove; set a focused site.
 - Custom site: lat/lon input, snapped to the nearest grid cell; label shows "Custom 85.12°S 30.40°E (snapped 0.8 km)". Outside coverage → inline error.
-- Landing date/time (UTC), mission duration (1–30 days, default 14), **slip slider** (−30…+90 days, 1-day steps, plus fine ±12 h), observer height (2 / 10 m; grid-snapped sites: 2 m only, labelled), Sun threshold, Earth margin.
+- Landing date/time (UTC), mission duration (1–30 days, default 14), **slip slider** (−30…+90 days, 1-day steps, plus fine ±12 h), observer height (2 / 10 m; grid-snapped sites: 2 m only, labelled), Sun threshold (visible-disk fraction 0–1, default 0.5), Earth margin (0–10°, default 1°).
 - **Accept:** all controls drive the engine; the slip slider meets SPEC.md criterion 5.
 
 ### P0-3 Metric cards (compare)
