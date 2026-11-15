@@ -113,9 +113,17 @@ describe('gridSiteContext', () => {
  * up to 48 whole hours of lead-in, the windowsFromSeries hysteresis rule on the samples, and each sample from
  * startMs on weighted by the part of its hour inside [startMs, endMs).
  */
-function referenceCellScores(grid: Grid, ix: number, iy: number, startMs: number, endMs: number, opts: VisibilityOpts) {
+function referenceCellScores(
+  grid: Grid,
+  ix: number,
+  iy: number,
+  startMs: number,
+  endMs: number,
+  opts: VisibilityOpts,
+  { leadIn = true } = {},
+) {
   const ctx = gridSiteContext(fixtureEphemeris, grid, { ix, iy })
-  const preH = Math.min(48, Math.floor((startMs - fixtureEphemeris.startUtcMs) / H_MS))
+  const preH = leadIn ? Math.min(48, Math.floor((startMs - fixtureEphemeris.startUtcMs) / H_MS)) : 0
   const n = Math.ceil((endMs - startMs) / H_MS)
   const s = sampleSite(ctx, startMs - preH * H_MS, startMs + (n - 1) * H_MS, 60)
   const { onFraction, offFraction } = sunHysteresisLevels(opts)
@@ -198,10 +206,15 @@ describe('scoreGrid', () => {
     const opts: VisibilityOpts = { ...DEFAULT_VISIBILITY_OPTS, sunThreshold: 0.5, hysteresis: 0.5 }
     const startMs = T0 + 24 * H_MS
     const scores = scoreGrid(fixtureGrid, fixtureEphemeris, startMs, T_END, opts)
+    let cellsWhereLeadInMatters = 0
     for (let c = 0; c < 63; c++) {
       const want = referenceCellScores(fixtureGrid, c % 8, Math.floor(c / 8), startMs, T_END, opts)
       expect(scores.sunPct[c]).toBeCloseTo(want.sun, 3)
+      const seededAtStart = referenceCellScores(fixtureGrid, c % 8, Math.floor(c / 8), startMs, T_END, opts, { leadIn: false })
+      if (Math.abs(seededAtStart.sun - want.sun) > 1e-3) cellsWhereLeadInMatters++
     }
+    // Guards the test itself: the fixture must contain cells whose state at startMs depends on the lead-in.
+    expect(cellsWhereLeadInMatters).toBeGreaterThan(0)
   })
 
   it('never scores "both" above Sun or Earth', () => {

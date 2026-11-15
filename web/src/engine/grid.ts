@@ -16,6 +16,13 @@ function cellIndex(grid: Grid, ix: number, iy: number): number {
   return ok ? iy * nx + ix : -1
 }
 
+/** Decodes cell `c`'s horizon (`elevDeg = v · 0.1 − 5`, per `grid.json` → encoding) into `out[0 … azBins − 1]`. */
+function decodeCellHorizonDeg(grid: Grid, c: number, out: Float64Array): void {
+  const { azBins } = grid.manifest
+  const base = c * azBins
+  for (let i = 0; i < azBins; i++) out[i] = grid.horizonsU8[base + i] * 0.1 - 5
+}
+
 /** True if any azimuth bin of the cell is 255 (the pipeline writes no-data cells as 255 in every bin). */
 function isNoData(grid: Grid, c: number): boolean {
   const { azBins } = grid.manifest
@@ -57,7 +64,8 @@ export function nearestGridCell(grid: Grid, latDeg: number, lonDeg: number): Gri
   const c = cellIndex(grid, ix, iy)
   if (c < 0 || isNoData(grid, c)) return null
   const center = cellCenterLatLon(grid, ix, iy)
-  const lonNormDeg = lonDeg - 360 * Math.round(lonDeg / 360) // −180…180, so 315° and −45° give identical distances
+  // Haversine is already periodic in longitude; normalizing to −180…180 only removes the float noise of a 360° shift.
+  const lonNormDeg = lonDeg - 360 * Math.round(lonDeg / 360)
   return { ix, iy, snapDistKm: greatCircleKm(sphereRadiusKm, latDeg, lonNormDeg, center.latDeg, center.lonDeg) }
 }
 
@@ -72,7 +80,7 @@ export function gridSiteContext(eph: Ephemeris, grid: Grid, cell: Pick<GridCellR
   if (isNoData(grid, c)) throw new RangeError(`cell (${cell.ix}, ${cell.iy}) has no horizon data`)
   const { azBins, heightM } = grid.manifest
   const horizonMaskDeg = new Float64Array(azBins)
-  for (let i = 0; i < azBins; i++) horizonMaskDeg[i] = grid.horizonsU8[c * azBins + i] * 0.1 - 5
+  decodeCellHorizonDeg(grid, c, horizonMaskDeg)
   const { latDeg, lonDeg } = cellCenterLatLon(grid, cell.ix, cell.iy)
   const frame = siteFrame(latDeg, lonDeg, grid.surfaceHeightM[c], heightM)
   return { eph, frame, horizonMaskDeg, azStepDeg: 360 / azBins, observerHeightM: heightM }
@@ -139,6 +147,7 @@ export function scoreGrid(
   const sunSeed = (onFraction + offFraction) / 2
   const { earthMarginDeg, earthHysteresisDeg: earthOn } = opts
   const earthOff = -earthOn
+  const earthSeed = (earthOn + earthOff) / 2 // 0: the band is symmetric
   const out: GridScores = {
     startMs,
     endMs,
@@ -159,6 +168,7 @@ export function scoreGrid(
     sunSeed,
     earthOn,
     earthOff,
+    earthSeed,
     earthMarginDeg,
     azBins,
     binsPerDeg,
@@ -176,8 +186,7 @@ export function scoreGrid(
         out.sunPct[c] = out.earthPct[c] = out.bothPct[c] = NaN
         continue
       }
-      const base = c * azBins
-      for (let i = 0; i < azBins; i++) mask[i] = grid.horizonsU8[base + i] * 0.1 - 5
+      decodeCellHorizonDeg(grid, c, mask)
       mask[azBins] = mask[0]
       const { latDeg, lonDeg } = cellCenterLatLon(grid, ix, iy)
       const f = siteFrame(latDeg, lonDeg, grid.surfaceHeightM[c], heightM)
@@ -207,6 +216,7 @@ interface SharedSamples {
   sunSeed: number
   earthOn: number
   earthOff: number
+  earthSeed: number
   earthMarginDeg: number
   azBins: number
   binsPerDeg: number
@@ -227,10 +237,12 @@ function horizonAtDeg(mask: Float64Array, azBins: number, binsPerDeg: number, e:
  * (measured ~13% faster than the loop inlined in scoreGrid). Writes [sun %, Earth %, both %] into `pct`.
  */
 function scoreCell(s: SharedSamples, frame: Float64Array, mask: Float64Array, pct: Float64Array): void {
-  const { m, sunKm, earthKm, sunRadiusDeg, weightPct, onFraction, offFraction, earthOn, earthOff, earthMarginDeg, azBins, binsPerDeg } = s
+  const { m, sunKm, earthKm, sunRadiusDeg, weightPct, onFraction, offFraction, sunSeed, earthOn, earthOff, earthSeed } = s
+  const { earthMarginDeg, azBins, binsPerDeg } = s
+  // Site position and east / north / up unit vectors.
   const px = frame[0], py = frame[1], pz = frame[2]
   const ex = frame[3], ey = frame[4], ez = frame[5]
-  const nx = frame[6], ny = frame[7], nz = frame[8]
+  const northX = frame[6], northY = frame[7], northZ = frame[8]
   const ux = frame[9], uy = frame[10], uz = frame[11]
   let sunOn = false
   let earthLink = false
@@ -243,7 +255,7 @@ function scoreCell(s: SharedSamples, frame: Float64Array, mask: Float64Array, pc
     let vy = sunKm[k * 3 + 1] - py
     let vz = sunKm[k * 3 + 2] - pz
     let e = vx * ex + vy * ey + vz * ez
-    let n = vx * nx + vy * ny + vz * nz
+    let n = vx * northX + vy * northY + vz * northZ
     let u = vx * ux + vy * uy + vz * uz
     const sunAboveDeg = Math.atan2(u, Math.sqrt(e * e + n * n)) / DEG - horizonAtDeg(mask, azBins, binsPerDeg, e, n)
     const d = Math.max(-1, Math.min(1, sunAboveDeg / sunRadiusDeg[k]))
@@ -254,15 +266,15 @@ function scoreCell(s: SharedSamples, frame: Float64Array, mask: Float64Array, pc
     vy = earthKm[k * 3 + 1] - py
     vz = earthKm[k * 3 + 2] - pz
     e = vx * ex + vy * ey + vz * ez
-    n = vx * nx + vy * ny + vz * nz
+    n = vx * northX + vy * northY + vz * northZ
     u = vx * ux + vy * uy + vz * uz
     const clearDeg =
       Math.atan2(u, Math.sqrt(e * e + n * n)) / DEG - horizonAtDeg(mask, azBins, binsPerDeg, e, n) - earthMarginDeg
 
     // Hysteresis as in detectWindows: seed from the band midpoint, then on at ≥ on, off at ≤ off and < on.
     if (k === 0) {
-      sunOn = frac >= s.sunSeed
-      earthLink = clearDeg >= 0
+      sunOn = frac >= sunSeed
+      earthLink = clearDeg >= earthSeed
     } else {
       if (!sunOn && frac >= onFraction) sunOn = true
       else if (sunOn && frac <= offFraction && frac < onFraction) sunOn = false
