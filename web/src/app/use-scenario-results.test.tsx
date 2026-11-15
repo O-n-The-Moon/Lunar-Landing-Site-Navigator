@@ -86,6 +86,7 @@ describe('computeScenarioResults (real engine)', () => {
 
   it('lists a custom site as unavailable with a reason instead of inventing numbers', () => {
     const r = computeScenarioResults(apply(customSite), core)
+    expect(r.siteIds).toEqual(['fixture-plateau', 'fixture-ridge', 'custom-1-2'])
     expect(r.sites).toHaveLength(2)
     expect(r.unavailable).toEqual([{ id: 'custom-1-2', name: 'Custom 85.12°S 30.40°E', reason: expect.stringMatching(/custom/i) }])
   })

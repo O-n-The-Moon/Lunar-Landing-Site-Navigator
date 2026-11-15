@@ -75,6 +75,8 @@ export interface ScenarioResults {
   baselineLandingMs: number
   slippedLandingMs: number
   durationH: number
+  /** Every scenario site id, in scenario order (each is in `sites` or `unavailable`); views lay out columns by it. */
+  siteIds: string[]
   /** Scenario order, evaluable sites only. */
   sites: SiteResult[]
   /** Scenario order. */
@@ -208,6 +210,7 @@ export function assembleResults(
     baselineLandingMs: mission.landingMs,
     slippedLandingMs: mission.landingMs + mission.slipH * HOUR_MS,
     durationH: mission.durationH,
+    siteIds: setups.map((x) => ('ctx' in x ? x.site.id : x.id)),
     sites,
     unavailable,
   }

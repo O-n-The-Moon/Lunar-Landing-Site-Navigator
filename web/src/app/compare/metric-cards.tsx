@@ -1,7 +1,14 @@
 // Metric cards (SPEC-app P0-3): one column per site, slipped-mission values with a Δ vs. the unslipped baseline.
-import type { EventDelta, MetricDelta, MissionMetrics } from '../../engine'
+import type { MetricDelta, MissionMetrics } from '../../engine'
 import { formatUtc } from '../controls/date-controls'
-import { formatLatDeg, formatLonDeg, type ResolvedSite, type ScenarioResults } from '../use-scenario-results'
+import {
+  formatLatDeg,
+  formatLonDeg,
+  type ResolvedSite,
+  type ScenarioResults,
+  type SiteResult,
+  type UnavailableSite,
+} from '../use-scenario-results'
 import './metric-cards.css'
 
 /** Slopes above this are flagged (SPEC-app P0-3). */
@@ -16,12 +23,13 @@ interface DeltaView {
 interface MetricRow {
   label: string
   value: (m: MissionMetrics) => string
-  delta: (d: MetricDelta) => DeltaView
+  /** a = baseline, b = slipped, d = diffMetrics(a, b). */
+  delta: (d: MetricDelta, a: MissionMetrics, b: MissionMetrics) => DeltaView
 }
 
 const MINUS = '−'
 const pct = (v: number) => `${v.toFixed(1)} %`
-const hours = (v: number | null) => (v === null ? 'None' : `${v.toFixed(1)} h`)
+const hours = (v: number) => `${v.toFixed(1)} h`
 
 /** Signed Δ at display precision; one that rounds to zero is neutral. `higherIsBetter` sets the color. */
 function numDelta(v: number, digits: number, unit: string, higherIsBetter: boolean): DeltaView {
@@ -31,19 +39,39 @@ function numDelta(v: number, digits: number, unit: string, higherIsBetter: boole
   return { text: `${up ? '+' : MINUS}${abs}${unit}`, tone: up === higherIsBetter ? 'better' : 'worse' }
 }
 
-/** Δ of a "first sunset / Earthset" time: later (or never) is better. */
-function eventDelta(d: EventDelta): DeltaView {
-  switch (d.change) {
-    case 'shifted':
-      return numDelta(d.deltaH ?? 0, 1, ' h', true)
-    case 'appeared':
-      return { text: 'now sets', tone: 'worse' }
-    case 'disappeared':
-      return { text: 'no longer sets', tone: 'better' }
-    case 'none':
-      return { text: 'no change', tone: 'neutral' }
-  }
+/**
+ * A "first sunset / Earthset" outcome. The engine's null means "no on→off transition", which covers both a body
+ * that never comes up and one that never sets, so the on-time percentage tells them apart.
+ */
+type EventState = { kind: 'never-up' } | { kind: 'sets'; h: number } | { kind: 'never-sets' }
+const eventState = (onPct: number, firstOffH: number | null): EventState =>
+  onPct === 0 ? { kind: 'never-up' } : firstOffH === null ? { kind: 'never-sets' } : { kind: 'sets', h: firstOffH }
+/** Worst to best: never up, sets (later is better), never sets. */
+const EVENT_RANK = { 'never-up': 0, sets: 1, 'never-sets': 2 } as const
+
+interface EventWords {
+  neverUp: string
+  nowUp: string
+  neverSets: string
 }
+const SUN_WORDS: EventWords = { neverUp: 'Never sunlit', nowUp: 'now sunlit', neverSets: 'No sunset' }
+const EARTH_WORDS: EventWords = { neverUp: 'Never in view', nowUp: 'now in view', neverSets: 'No Earthset' }
+
+function eventValue(s: EventState, w: EventWords): string {
+  return s.kind === 'sets' ? hours(s.h) : s.kind === 'never-up' ? w.neverUp : w.neverSets
+}
+
+function eventDelta(a: EventState, b: EventState, w: EventWords): DeltaView {
+  if (a.kind === 'sets' && b.kind === 'sets') return numDelta(b.h - a.h, 1, ' h', true)
+  if (a.kind === b.kind) return { text: 'no change', tone: 'neutral' }
+  const tone = EVENT_RANK[b.kind] > EVENT_RANK[a.kind] ? 'better' : 'worse'
+  const text =
+    b.kind === 'never-up' ? w.neverUp.toLowerCase() : b.kind === 'never-sets' ? 'no longer sets' : a.kind === 'never-up' ? w.nowUp : 'now sets'
+  return { text, tone }
+}
+
+const sunEvent = (m: MissionMetrics) => eventState(m.sunlitPct, m.firstSunsetH)
+const earthEvent = (m: MissionMetrics) => eventState(m.earthPct, m.firstEarthsetH)
 
 const ROWS: MetricRow[] = [
   { label: 'Sunlit', value: (m) => pct(m.sunlitPct), delta: (d) => numDelta(d.sunlitPct, 1, ' pp', true) },
@@ -57,13 +85,13 @@ const ROWS: MetricRow[] = [
   },
   {
     label: 'First sunset after landing',
-    value: (m) => (m.sunlitPct === 0 ? 'Never sunlit' : hours(m.firstSunsetH)),
-    delta: (d) => eventDelta(d.firstSunsetH),
+    value: (m) => eventValue(sunEvent(m), SUN_WORDS),
+    delta: (_d, a, b) => eventDelta(sunEvent(a), sunEvent(b), SUN_WORDS),
   },
   {
     label: 'First Earthset after landing',
-    value: (m) => (m.earthPct === 0 ? 'Never in view' : hours(m.firstEarthsetH)),
-    delta: (d) => eventDelta(d.firstEarthsetH),
+    value: (m) => eventValue(earthEvent(m), EARTH_WORDS),
+    delta: (_d, a, b) => eventDelta(earthEvent(a), earthEvent(b), EARTH_WORDS),
   },
   {
     label: 'Mean Sun fraction',
@@ -107,11 +135,25 @@ function SiteHeader({ site }: { site: ResolvedSite }) {
 
 const signedH = (h: number) => `${h >= 0 ? '+' : MINUS}${Math.abs(h)} h`
 
+type Column = { kind: 'site'; result: SiteResult } | { kind: 'unavailable'; site: UnavailableSite }
+
+/** Columns in scenario order (`siteIds`), so a site doesn't move when it drops in or out of coverage. */
+function columns({ siteIds, sites, unavailable }: ScenarioResults): Column[] {
+  return siteIds.flatMap((id): Column[] => {
+    const result = sites.find((x) => x.site.id === id)
+    if (result) return [{ kind: 'site', result }]
+    const site = unavailable.find((x) => x.id === id)
+    return site ? [{ kind: 'unavailable', site }] : []
+  })
+}
+
 export function MetricCards({ results }: { results: ScenarioResults }) {
-  const { sites, unavailable, opts, durationH, baselineLandingMs, slippedLandingMs } = results
-  if (sites.length === 0 && unavailable.length === 0) return <p className="hint">Add a site to compare.</p>
+  const { opts, durationH, baselineLandingMs, slippedLandingMs } = results
+  const cols = columns(results)
+  if (cols.length === 0) return <p className="hint">Add a site to compare.</p>
   const slipH = (slippedLandingMs - baselineLandingMs) / 3_600_000
   const slipped = slipH !== 0
+  const colId = (c: Column) => (c.kind === 'site' ? c.result.site.id : c.site.id)
 
   return (
     <div className="metric-cards">
@@ -131,41 +173,50 @@ export function MetricCards({ results }: { results: ScenarioResults }) {
               <th scope="col">
                 <span className="visually-hidden">Metric</span>
               </th>
-              {sites.map((x) => (
-                <SiteHeader key={x.site.id} site={x.site} />
-              ))}
-              {unavailable.map((x) => (
-                <th key={x.id} scope="col">
-                  <span className="metric-site-name">{x.name}</span>
-                </th>
-              ))}
+              {cols.map((c) =>
+                c.kind === 'site' ? (
+                  <SiteHeader key={colId(c)} site={c.result.site} />
+                ) : (
+                  <th key={colId(c)} scope="col">
+                    <span className="metric-site-name">{c.site.name}</span>
+                  </th>
+                ),
+              )}
             </tr>
           </thead>
           <tbody>
             {ROWS.map((row, i) => (
               <tr key={row.label}>
                 <th scope="row">{row.label}</th>
-                {sites.map((x) => (
-                  <td key={x.site.id} className="num">
-                    {row.value(x.slipped.metrics)}
-                    {x.delta && <Delta view={row.delta(x.delta)} />}
-                  </td>
-                ))}
-                {i === 0 &&
-                  unavailable.map((x) => (
-                    <td key={x.id} rowSpan={ROWS.length + 1} className="metric-unavailable">
-                      No data: {x.reason}
+                {cols.map((c) =>
+                  c.kind === 'site' ? (
+                    <td key={colId(c)} className="num">
+                      {row.value(c.result.slipped.metrics)}
+                      {c.result.delta && (
+                        <Delta view={row.delta(c.result.delta, c.result.baseline.metrics, c.result.slipped.metrics)} />
+                      )}
                     </td>
-                  ))}
+                  ) : (
+                    <td key={colId(c)} className={i === 0 ? 'metric-unavailable' : 'muted'}>
+                      {i === 0 ? `No data: ${c.site.reason}` : '—'}
+                    </td>
+                  ),
+                )}
               </tr>
             ))}
             <tr>
               <th scope="row">Slope</th>
-              {sites.map((x) => (
-                <td key={x.site.id} className="num">
-                  <Slope slopeDeg={x.site.slopeDeg} />
-                </td>
-              ))}
+              {cols.map((c) =>
+                c.kind === 'site' ? (
+                  <td key={colId(c)} className="num">
+                    <Slope slopeDeg={c.result.site.slopeDeg} />
+                  </td>
+                ) : (
+                  <td key={colId(c)} className="muted">
+                    —
+                  </td>
+                ),
+              )}
             </tr>
           </tbody>
         </table>

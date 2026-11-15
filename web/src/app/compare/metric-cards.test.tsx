@@ -1,6 +1,6 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { DEFAULT_VISIBILITY_OPTS } from '../../engine'
+import { DEFAULT_VISIBILITY_OPTS, diffMetrics, type MissionMetrics } from '../../engine'
 import { fixtureOutputs, fixtureScenario, fixtureSitesFile } from '../../engine/__fixtures__'
 import { HOUR_MS } from '../state'
 import type { ScenarioResults, SiteResult } from '../use-scenario-results'
@@ -28,9 +28,21 @@ function fixtureResults({ slipped }: { slipped: boolean }): ScenarioResults {
     baselineLandingMs: landingMs,
     slippedLandingMs: landingMs + slipH * HOUR_MS,
     durationH: fixtureScenario.durationH,
+    siteIds: sites.map((x) => x.site.id),
     sites,
     unavailable: [],
   }
+}
+
+/** The fixture scenario with the plateau's baseline and slipped metrics patched. */
+function withPlateau(baseline: Partial<MissionMetrics>, slipped: Partial<MissionMetrics>): ScenarioResults {
+  const results = fixtureResults({ slipped: true })
+  const [p] = results.sites
+  const b = { ...p.baseline.metrics, ...baseline }
+  const sl = { ...p.slipped.metrics, ...slipped }
+  results.sites = [{ ...p, baseline: { ...p.baseline, metrics: b }, slipped: { ...p.slipped, metrics: sl }, delta: diffMetrics(b, sl) }]
+  results.siteIds = [p.site.id]
+  return results
 }
 
 const table = () => screen.getByRole('table', { name: /mission metrics/i })
@@ -64,7 +76,8 @@ describe('MetricCards', () => {
     expect(cell(/longest sun gap/i, p)).toHaveTextContent('10.6 h')
     expect(cell(/longest earth gap/i, p)).toHaveTextContent('0.0 h')
     expect(cell(/first sunset/i, p)).toHaveTextContent('13.4 h')
-    expect(cell(/first earthset/i, p)).toHaveTextContent(/none/i)
+    // Earth link 100 %: it never sets.
+    expect(cell(/first earthset/i, p)).toHaveTextContent('No Earthset')
     expect(cell(/mean sun fraction/i, p)).toHaveTextContent('0.56')
     expect(cell(/slope/i, p)).toHaveTextContent('4.2°')
   })
@@ -109,14 +122,30 @@ describe('MetricCards', () => {
   })
 
   it('marks a better Δ green', () => {
-    const results = fixtureResults({ slipped: true })
-    const [plateau] = results.sites
-    results.sites = [{ ...plateau, delta: { ...plateau.delta!, sunlitPct: 3.25, firstSunsetH: { deltaH: null, change: 'disappeared' } } }]
-    render(<MetricCards results={results} />)
+    render(<MetricCards results={withPlateau({ sunlitPct: 50 }, { sunlitPct: 53.25, firstSunsetH: null })} />)
     expect(cell(/^sunlit/i, /plateau/i).querySelector('.delta')).toHaveClass('better')
     expect(cell(/^sunlit/i, /plateau/i)).toHaveTextContent('+3.3 pp')
+    expect(cell(/first sunset/i, /plateau/i)).toHaveTextContent('No sunset')
     expect(cell(/first sunset/i, /plateau/i)).toHaveTextContent(/no longer sets/i)
     expect(cell(/first sunset/i, /plateau/i).querySelector('.delta')).toHaveClass('better')
+  })
+
+  it('tells "never up" apart from "never sets" in the event Δ', () => {
+    // Baseline never sunlit; the slipped mission gets sunlight that later sets: a gain, not "now sets".
+    const { unmount } = render(
+      <MetricCards results={withPlateau({ sunlitPct: 0, firstSunsetH: null }, { sunlitPct: 20, firstSunsetH: 30 })} />,
+    )
+    const gained = cell(/first sunset/i, /plateau/i)
+    expect(gained).toHaveTextContent('30.0 h')
+    expect(gained).toHaveTextContent(/now sunlit/i)
+    expect(gained.querySelector('.delta')).toHaveClass('better')
+    unmount()
+
+    // Baseline always sunlit, slipped never sunlit: both null in the engine, but a total loss.
+    render(<MetricCards results={withPlateau({ sunlitPct: 100, firstSunsetH: null }, { sunlitPct: 0, firstSunsetH: null })} />)
+    const lost = cell(/first sunset/i, /plateau/i)
+    expect(lost).toHaveTextContent('Never sunlit')
+    expect(lost.querySelector('.delta')).toHaveClass('worse')
   })
 
   it('shows a Δ that rounds to zero as neutral', () => {
@@ -146,17 +175,21 @@ describe('MetricCards', () => {
     expect(cell(/slope/i, /plateau/i)).toHaveTextContent('—')
   })
 
-  it('gives unavailable sites a column with the reason instead of numbers', () => {
+  it('gives unavailable sites a column with the reason, in scenario order', () => {
     const results = fixtureResults({ slipped: false })
     results.unavailable = [{ id: 'custom-1-2', name: 'Custom 85.12°S 30.40°E', reason: 'Custom-site metrics are not available yet.' }]
+    results.siteIds = ['fixture-plateau', 'custom-1-2', 'fixture-ridge']
     render(<MetricCards results={results} />)
     const headers = within(table()).getAllByRole('columnheader').slice(1)
     expect(headers.map((h) => h.textContent)).toEqual([
       expect.stringMatching(/plateau/i),
-      expect.stringMatching(/ridge/i),
       expect.stringMatching(/custom 85\.12°S/i),
+      expect.stringMatching(/ridge/i),
     ])
     expect(cell(/^sunlit/i, /custom/i)).toHaveTextContent(/no data.*custom-site metrics are not available yet/i)
+    // Columns after it stay aligned in every row.
+    expect(cell(/slope/i, /ridge/i)).toHaveTextContent('11.5°')
+    expect(cell(/slope/i, /custom/i)).toHaveTextContent('—')
   })
 
   it('states the assumptions the numbers depend on', () => {
@@ -169,7 +202,7 @@ describe('MetricCards', () => {
   })
 
   it('asks for a site when there are none', () => {
-    render(<MetricCards results={{ ...fixtureResults({ slipped: false }), sites: [] }} />)
+    render(<MetricCards results={{ ...fixtureResults({ slipped: false }), sites: [], siteIds: [] }} />)
     expect(screen.queryByRole('table')).toBeNull()
     expect(screen.getByText(/add a site/i)).toBeInTheDocument()
   })
