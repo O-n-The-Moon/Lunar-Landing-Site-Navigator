@@ -98,7 +98,8 @@ def build_grid(
     surface_m = np.asarray(terrain.height_m(x_km, y_km), dtype=np.float64)
     if not np.all(np.isfinite(surface_m)):
         raise ValueError("Missing terrain at a grid cell center")
-    if np.any(np.abs(surface_m) > np.iinfo(np.int16).max):
+    int16 = np.iinfo(np.int16)
+    if np.any((np.rint(surface_m) < int16.min) | (np.rint(surface_m) > int16.max)):
         raise ValueError("Cell surface height does not fit int16 meters")
     horizons_u8 = np.full((ny, nx, GRID_AZ_BINS), GRID_NO_DATA, dtype=np.uint8)
     start_s = time.perf_counter()

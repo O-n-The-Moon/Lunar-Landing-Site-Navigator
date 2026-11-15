@@ -198,3 +198,38 @@ def test_grid_cell_equals_horizon_at_its_center(lat_deg, lon_deg):
     )
     decoded = decode_elev_deg(horizons_u8[0, 0])
     assert np.max(np.abs(decoded - np.clip(center_deg, -5, 20.4))) <= 0.05 + 1e-9
+
+
+def test_build_grid_reraises_unrelated_value_errors(monkeypatch):
+    """Only the out-of-coverage scan becomes no data; other errors still fail."""
+
+    def broken_horizon(*args, **kwargs):
+        raise ValueError("DEM cell size must be finite and in (0, 250] km")
+
+    monkeypatch.setattr(horizons_grid, "compute_horizon_deg", broken_horizon)
+    with pytest.raises(ValueError, match="DEM cell size"):
+        build_grid(SyntheticTerrain(), (-2.0, -2.0), 2.0, nx=1, ny=1)
+
+
+SHIPPED_HORIZONS = horizons_grid.GRID_HORIZONS_BIN
+
+
+@pytest.mark.skipif(
+    not (DEMS_PRESENT and SHIPPED_HORIZONS.exists()),
+    reason="LOLA DEMs or generated grid-horizons.bin not present",
+)
+@pytest.mark.parametrize("iy,ix", [(90, 90), (40, 120), (150, 60)])
+def test_shipped_grid_matches_recomputed_cells(iy, ix):
+    """Guards the committed data file, not just the code path."""
+    manifest = json.loads(horizons_grid.GRID_JSON.read_text())
+    nx, ny, bins = manifest["nx"], manifest["ny"], manifest["azBins"]
+    shipped = np.fromfile(SHIPPED_HORIZONS, dtype=np.uint8).reshape(ny, nx, bins)
+    x_km, y_km = cell_centers_km(
+        tuple(manifest["originKm"]), manifest["cellKm"], nx, ny
+    )
+    lat_deg, lon_deg = xy_km_to_lat_lon(x_km[iy, ix], y_km[iy, ix])
+    expected_deg = compute_horizon_deg(
+        DemStack(), float(lat_deg), float(lon_deg), manifest["heightM"], bins
+    )
+    decoded = decode_elev_deg(shipped[iy, ix])
+    assert np.max(np.abs(decoded - np.clip(expected_deg, -5, 20.4))) <= 0.05 + 1e-9
