@@ -96,6 +96,8 @@ export type EngineData = { ephemeris: Ephemeris; sitesFile: SitesFile }
 
 export const formatLatDeg = (latDeg: number) => `${Math.abs(latDeg).toFixed(2)}°${latDeg < 0 ? 'S' : 'N'}`
 export const formatLonDeg = (lonDeg: number) => `${Math.abs(lonDeg).toFixed(2)}°${lonDeg < 0 ? 'W' : 'E'}`
+/** "Custom 85.12°S 30.40°E": a custom site named by the point as entered. */
+export const customSiteName = (latDeg: number, lonDeg: number) => `Custom ${formatLatDeg(latDeg)} ${formatLonDeg(lonDeg)}`
 
 export function visibilityOpts(s: Pick<ScenarioState, 'sunThreshold' | 'earthMarginDeg'>): VisibilityOpts {
   return {
@@ -110,7 +112,7 @@ export function resolveSite(ref: ScenarioSite, curated: readonly Site[], observe
     return {
       id: ref.id,
       kind: 'custom',
-      name: `Custom ${formatLatDeg(ref.latDeg)} ${formatLonDeg(ref.lonDeg)}`,
+      name: customSiteName(ref.latDeg, ref.lonDeg),
       latDeg: ref.latDeg,
       lonDeg: ref.lonDeg,
       slopeDeg: null,
@@ -147,7 +149,9 @@ function customSetup(site: ResolvedSite, cell: GridCellRef, ephemeris: Ephemeris
   if (grid.status === 'error') return { id: site.id, name: site.name, reason: `Terrain grid failed to load (${grid.message}).` }
   try {
     const ctx = gridSiteContext(ephemeris, grid.grid, cell)
-    return { site: { ...site, gridCellKm: grid.grid.manifest.cellKm }, ctx }
+    const { cellKm } = grid.grid.manifest
+    // In the name, so every view that labels the results (cards, timeline, panorama) says they are grid-derived.
+    return { site: { ...site, name: `${site.name} · grid-approximate (${cellKm} km)`, gridCellKm: cellKm }, ctx }
   } catch (e) {
     if (!(e instanceof RangeError)) throw e
     return { id: site.id, name: site.name, reason: 'No terrain data for this grid cell.' }

@@ -3,7 +3,7 @@ import type { Dispatch, ReactNode } from 'react'
 import { describe, expect, it } from 'vitest'
 import { diffMetrics, gridSiteContext, missionMetrics, siteContext, type Window } from '../engine'
 import { fixtureEphemeris, fixtureGrid, fixtureSitesFile } from '../engine/__fixtures__'
-import { DataProvider, fixtureDataSource, useCoreDataState } from './data'
+import { DataProvider, fixtureDataSource, useCoreDataState, type DataSource } from './data'
 import {
   HOUR_MS,
   ScenarioProvider,
@@ -106,7 +106,13 @@ describe('computeScenarioResults (real engine)', () => {
     const custom = r.sites.find((x) => x.site.kind === 'custom')
     const ctx = gridSiteContext(fixtureEphemeris, fixtureGrid, { ix: 4, iy: 4 })
     expect(custom?.baseline.metrics).toEqual(missionMetrics(ctx, base.landingMs, 24, visibilityOpts(s)))
-    expect(custom?.site).toMatchObject({ id: 'custom-4-4', observerHeightM: 2, snapDistKm: 0.6, gridCellKm: 2 })
+    expect(custom?.site).toMatchObject({
+      id: 'custom-4-4',
+      name: 'Custom 89.97°S 30.00°E · grid-approximate (2 km)', // every view that names the site shows it
+      observerHeightM: 2,
+      snapDistKm: 0.6,
+      gridCellKm: 2,
+    })
     // Curated sites keep their own sites.json masks at the scenario height.
     for (const x of r.sites.filter((y) => y.site.kind === 'curated')) {
       expect(x.site).toMatchObject({ observerHeightM: 10, gridCellKm: null })
@@ -141,10 +147,10 @@ describe('computeScenarioResults (real engine)', () => {
 })
 
 describe('useScenarioResults', () => {
-  function renderResults() {
+  function renderResults(source: DataSource = fixtureDataSource()) {
     let dispatch: Dispatch<ScenarioAction> = () => {}
     const wrapper = ({ children }: { children: ReactNode }) => (
-      <DataProvider source={fixtureDataSource()}>
+      <DataProvider source={source}>
         <CoreGate>
           <ScenarioProvider initialState={base}>{children}</ScenarioProvider>
         </CoreGate>
@@ -181,6 +187,29 @@ describe('useScenarioResults', () => {
     dispatch(fixtureCustomSite)
     await waitFor(() => expect(result.current.sites.map((x) => x.site.id)).toContain('custom-4-4'))
     expect(result.current.unavailable).toEqual([])
+  })
+
+  it('does not recompute while the grid reports load progress', async () => {
+    const fixtures = fixtureDataSource()
+    let report: (fraction: number) => void = () => {}
+    let finish: () => void = () => {}
+    const source: DataSource = {
+      ...fixtures,
+      loadGrid: (onProgress) =>
+        new Promise((resolve) => {
+          report = onProgress
+          finish = () => void fixtures.loadGrid(() => {}).then(resolve)
+        }),
+    }
+    const { result, dispatch } = renderResults(source)
+    await waitFor(() => expect(result.current).toBeTruthy())
+    dispatch(fixtureCustomSite)
+    const loading = result.current
+    act(() => report(0.1))
+    act(() => report(0.5))
+    expect(result.current).toBe(loading)
+    act(() => finish())
+    await waitFor(() => expect(result.current.sites.map((x) => x.site.id)).toContain('custom-4-4'))
   })
 
   it('reuses the baseline runs when only the slip changes', async () => {

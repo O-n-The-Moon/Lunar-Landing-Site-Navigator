@@ -1,14 +1,14 @@
 // Custom site (SPEC-app P0-2): a typed lat/lon snapped to the nearest terrain-grid cell. Its horizon is that cell's
-// (2 m observer, grid-approximate); curated sites never use the grid. The ~12 MB grid loads on first use of the inputs.
+// (2 m observer, grid-approximate); curated sites never use the grid. The ~12 MB grid loads once the user types here.
 import { useId, useState, type FormEvent } from 'react'
 import { nearestGridCell, type Grid } from '../../engine'
 import { useGrid } from '../data'
 import { MAX_SITES, customSiteId, useScenario, useScenarioDispatch, type ScenarioAction, type ScenarioSite } from '../state'
-import { formatLatDeg, formatLonDeg } from '../use-scenario-results'
+import { customSiteName } from '../use-scenario-results'
 
 /** "Custom 85.12°S 30.40°E (snapped 0.8 km)": the point as entered and its distance to the grid cell used. */
 export const customSiteLabel = (latDeg: number, lonDeg: number, snapDistKm: number) =>
-  `Custom ${formatLatDeg(latDeg)} ${formatLonDeg(lonDeg)} (snapped ${snapDistKm.toFixed(1)} km)`
+  `${customSiteName(latDeg, lonDeg)} (snapped ${snapDistKm.toFixed(1)} km)`
 
 type Outcome = { kind: 'error'; text: string } | { kind: 'added'; text: string }
 
@@ -43,7 +43,7 @@ export function CustomSite() {
   const [latText, setLatText] = useState('')
   const [lonText, setLonText] = useState('')
   const [outcome, setOutcome] = useState<Outcome | null>(null)
-  // The grid starts loading the first time the user focuses an input (or submits), not at startup.
+  // The grid starts loading on the first keystroke (or submit): not at startup, and not when tabbing past.
   const [wanted, setWanted] = useState(false)
   const { state: grid, retry } = useGrid(wanted)
   const latId = useId()
@@ -68,16 +68,17 @@ export function CustomSite() {
     setLonText('')
   }
 
-  /** Editing clears a stale error, keeping a success message until the next submit. */
-  const clearError = () => {
-    if (outcome?.kind === 'error') setOutcome(null)
+  /** Typing starts the grid load and clears the last message (it would be stale). */
+  const onEdit = (set: (v: string) => void, v: string) => {
+    set(v)
+    setWanted(true)
+    setOutcome(null)
   }
 
   const invalid = outcome?.kind === 'error'
   const inputProps = {
     type: 'number',
     step: 'any',
-    inputMode: 'decimal',
     disabled: full,
     'aria-invalid': invalid,
     'aria-describedby': invalid ? messageId : undefined,
@@ -85,63 +86,57 @@ export function CustomSite() {
 
   return (
     <form onSubmit={onSubmit} noValidate>
-    <fieldset className="control" onFocus={() => setWanted(true)}>
-      <legend>Custom site</legend>
-      <label htmlFor={latId}>Latitude (°, south negative)</label>
-      <input
-        id={latId}
-        {...inputProps}
-        placeholder="-85.12"
-        value={latText}
-        onChange={(e) => {
-          setLatText(e.target.value)
-          clearError()
-        }}
-      />
-      <label htmlFor={lonId}>Longitude (°E)</label>
-      <input
-        id={lonId}
-        {...inputProps}
-        placeholder="30.40"
-        value={lonText}
-        onChange={(e) => {
-          setLonText(e.target.value)
-          clearError()
-        }}
-      />
-      <button type="submit" disabled={full || (wanted && !gridReady)}>
-        Snap &amp; add
-      </button>
+      <fieldset className="control">
+        <legend>Custom site</legend>
+        <label htmlFor={latId}>Latitude (°, south negative)</label>
+        <input
+          id={latId}
+          {...inputProps}
+          placeholder="-85.12"
+          value={latText}
+          onChange={(e) => onEdit(setLatText, e.target.value)}
+        />
+        <label htmlFor={lonId}>Longitude (°E)</label>
+        <input
+          id={lonId}
+          {...inputProps}
+          placeholder="30.40"
+          value={lonText}
+          onChange={(e) => onEdit(setLonText, e.target.value)}
+        />
+        <button type="submit" disabled={full || (wanted && !gridReady)}>
+          Snap &amp; add
+        </button>
 
-      {full ? (
-        <p className="hint">Maximum {MAX_SITES} sites. Remove one to add a custom site.</p>
-      ) : (
-        <p className="hint">Snaps to the nearest terrain-grid cell; 2 m observer, grid-approximate terrain.</p>
-      )}
-      {grid.status === 'loading' && (
-        <p className="hint" role="status">
-          Loading terrain grid{grid.progress === null ? '…' : ` ${Math.round(grid.progress * 100)}%`}
-        </p>
-      )}
-      {grid.status === 'error' && (
-        <div className="row">
-          <p className="hint error" role="alert">
-            Could not load the terrain grid: {grid.message}
+        {full ? (
+          <p className="hint">Maximum {MAX_SITES} sites. Remove one to add a custom site.</p>
+        ) : (
+          <p className="hint">Snaps to the nearest terrain-grid cell; 2 m observer, grid-approximate terrain.</p>
+        )}
+        {grid.status === 'loading' && (
+          <p className="hint" role="status">
+            Loading terrain grid{grid.progress === null ? '…' : ` ${Math.round(grid.progress * 100)}%`}
           </p>
-          <button type="button" onClick={retry}>
-            Retry
-          </button>
-        </div>
-      )}
-      {outcome?.kind === 'error' && (
-        <p id={messageId} className="hint error" role="alert">
-          {outcome.text}
+        )}
+        {grid.status === 'error' && (
+          <div className="row">
+            <p className="hint error" role="alert">
+              Could not load the terrain grid: {grid.message}
+            </p>
+            <button type="button" onClick={retry}>
+              Retry
+            </button>
+          </div>
+        )}
+        {outcome?.kind === 'error' && (
+          <p id={messageId} className="hint error" role="alert">
+            {outcome.text}
+          </p>
+        )}
+        <p className="hint num" role="status">
+          {outcome?.kind === 'added' ? outcome.text : ''}
         </p>
-      )}
-      <p className="hint num" role="status">
-        {outcome?.kind === 'added' ? outcome.text : ''}
-      </p>
-    </fieldset>
+      </fieldset>
     </form>
   )
 }

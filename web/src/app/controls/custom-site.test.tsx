@@ -52,19 +52,38 @@ describe('CustomSite', () => {
     expect(header).toHaveTextContent(/observer 2 m · snapped 0\.6 km/)
   })
 
-  it('does not load the terrain grid until the custom-site inputs are used', async () => {
+  it('does not load the terrain grid until the user types a coordinate (tabbing past is not enough)', async () => {
     const fixtures = fixtureDataSource()
     const source: DataSource = { ...fixtures, loadGrid: vi.fn(fixtures.loadGrid) }
     const { user, lat } = await renderCustomSite(source)
-    expect(source.loadGrid).not.toHaveBeenCalled()
     await user.click(lat)
+    await user.tab()
+    expect(source.loadGrid).not.toHaveBeenCalled()
+    await user.type(lat, '-8') // a lone '-' is not a number yet, so the first digit starts the load
     expect(source.loadGrid).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables Add while the terrain grid loads, with progress', async () => {
+    const fixtures = fixtureDataSource()
+    let finish: () => void = () => {}
+    const loadGrid: DataSource['loadGrid'] = (onProgress) =>
+      new Promise((resolve) => {
+        onProgress(0.4)
+        finish = () => void fixtures.loadGrid(() => {}).then(resolve)
+      })
+    const { user, group, lat, add } = await renderCustomSite({ ...fixtures, loadGrid })
+    await user.type(lat, '-89.97')
+    expect(add).toBeDisabled()
+    expect(within(group).getByText(/loading terrain grid 40%/i)).toBeInTheDocument()
+    finish()
+    await waitFor(() => expect(add).toBeEnabled())
   })
 
   it('shows an inline error outside the grid coverage and adds nothing', async () => {
     const { group, lat, enter } = await renderCustomSite()
     await enter('-85', '0')
     expect(within(group).getByRole('alert')).toHaveTextContent(/outside the terrain grid/i)
+    expect(within(group).getByRole('alert')).not.toHaveTextContent(/negative/i) // that hint is for positive latitudes
     expect(lat).toHaveAttribute('aria-invalid', 'true')
     expect(siteNames()).toHaveLength(2)
   })
@@ -98,6 +117,15 @@ describe('CustomSite', () => {
     expect(within(group).getByRole('status')).toHaveTextContent('Custom 89.97°S 30.00°W')
   })
 
+  it('clears the last message when the user edits the inputs again', async () => {
+    const { user, group, lat, enter } = await renderCustomSite()
+    await user.click(screen.getAllByRole('button', { name: /^remove/i })[0])
+    await enter('-89.97', '30')
+    expect(within(group).getByRole('status')).toHaveTextContent(/added/i)
+    await user.type(lat, '-8')
+    expect(within(group).queryByText(/added/i)).toBeNull()
+  })
+
   it('refuses a grid cell that is already in the scenario', async () => {
     const { user, group, enter } = await renderCustomSite()
     await user.click(screen.getAllByRole('button', { name: /^remove/i })[0]) // room for two custom sites
@@ -119,7 +147,7 @@ describe('CustomSite', () => {
     const loadGrid = vi.fn<DataSource['loadGrid']>().mockRejectedValueOnce(new Error('grid.json: HTTP 503'))
     loadGrid.mockImplementation(fixtures.loadGrid)
     const { user, group, lat } = await renderCustomSite({ ...fixtures, loadGrid })
-    await user.click(lat)
+    await user.type(lat, '-8') // a lone '-' is not a number yet, so the first digit starts the load
     expect(await within(group).findByRole('alert')).toHaveTextContent(/grid\.json: HTTP 503/)
     await user.click(within(group).getByRole('button', { name: /retry/i }))
     await waitFor(() => expect(within(group).getByRole('button', { name: /add/i })).toBeEnabled())

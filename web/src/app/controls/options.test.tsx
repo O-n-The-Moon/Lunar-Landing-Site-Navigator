@@ -40,6 +40,12 @@ describe('Options', () => {
     expect(within(height).getByRole('radio', { name: '10 m' })).toBeChecked()
   })
 
+  it('does not warn about custom sites at 10 m when the scenario has none', async () => {
+    const { group } = renderOptions()
+    await userEvent.click(within(group).getByRole('radio', { name: '10 m' }))
+    expect(within(group).queryByText(/custom sites still use/i)).toBeNull()
+  })
+
   it('says custom (grid) sites stay at 2 m, and stresses it when one is in the scenario at 10 m', async () => {
     const { group } = renderOptions(true)
     expect(within(group).getByText(/custom.*grid.*2 m only/i)).toBeInTheDocument()

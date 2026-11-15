@@ -175,18 +175,6 @@ describe('MetricCards', () => {
     expect(cell(/slope/i, /plateau/i)).toHaveTextContent('—')
   })
 
-  it('labels a custom site column grid-approximate with its snap distance; curated columns are not', () => {
-    const results = fixtureResults({ slipped: false })
-    const site = { ...results.sites[0].site, id: 'custom-4-4', kind: 'custom' as const, name: 'Custom 89.97°S 30.00°E', slopeDeg: null, snapDistKm: 0.58, gridCellKm: 2 }
-    results.sites[0] = { ...results.sites[0], site }
-    results.siteIds = ['custom-4-4', 'fixture-ridge']
-    render(<MetricCards results={results} />)
-    const [custom, ridge] = within(table()).getAllByRole('columnheader').slice(1)
-    expect(custom).toHaveTextContent(/snapped 0\.6 km/)
-    expect(custom).toHaveTextContent(/grid-approximate \(2 km\)/)
-    expect(ridge).not.toHaveTextContent(/grid-approximate/)
-  })
-
   it('gives unavailable sites a column with the reason, in scenario order', () => {
     const results = fixtureResults({ slipped: false })
     results.unavailable = [{ id: 'custom-1-2', name: 'Custom 85.12°S 30.40°E', reason: 'Custom-site metrics are not available yet.' }]
