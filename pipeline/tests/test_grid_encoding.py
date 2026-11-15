@@ -233,3 +233,22 @@ def test_shipped_grid_matches_recomputed_cells(iy, ix):
     )
     decoded = decode_elev_deg(shipped[iy, ix])
     assert np.max(np.abs(decoded - np.clip(expected_deg, -5, 20.4))) <= 0.05 + 1e-9
+
+
+@pytest.mark.skipif(
+    not SHIPPED_HORIZONS.exists(), reason="generated grid-horizons.bin not present"
+)
+def test_shipped_grid_no_data_only_beyond_dem_reach():
+    """No interior holes: 255 only where a 250 km scan leaves the 75 S far DEM."""
+    manifest = json.loads(horizons_grid.GRID_JSON.read_text())
+    nx, ny, bins = manifest["nx"], manifest["ny"], manifest["azBins"]
+    shipped = np.fromfile(SHIPPED_HORIZONS, dtype=np.uint8).reshape(ny, nx, bins)
+    no_data = shipped == GRID_NO_DATA
+    assert np.array_equal(no_data.all(axis=2), no_data.any(axis=2))  # whole cells
+    x_km, y_km = cell_centers_km(
+        tuple(manifest["originKm"]), manifest["cellKm"], nx, ny
+    )
+    far_reach_km = lat_lon_to_xy_km(-75.0, 0.0)[1] - 250
+    np.testing.assert_array_equal(
+        no_data.all(axis=2), np.hypot(x_km, y_km) > far_reach_km
+    )

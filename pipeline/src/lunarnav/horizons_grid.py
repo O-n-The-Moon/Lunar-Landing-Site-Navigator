@@ -45,8 +45,8 @@ def encode_elev_u8(elev_deg: ArrayLike) -> NDArray[np.uint8]:
     """elevDeg -> round((elevDeg + 5) / 0.1), clamped to 0..254; NaN -> 255."""
     elev_deg = np.asarray(elev_deg, dtype=np.float64)
     codes = np.rint((elev_deg - ELEV_OFFSET_DEG) / ELEV_STEP_DEG)
-    codes = np.clip(np.nan_to_num(codes, nan=GRID_NO_DATA), 0, _MAX_CODE)
-    return np.where(np.isnan(elev_deg), GRID_NO_DATA, codes).astype(np.uint8)
+    codes = np.where(np.isnan(codes), GRID_NO_DATA, np.clip(codes, 0, _MAX_CODE))
+    return codes.astype(np.uint8)
 
 
 def decode_elev_deg(codes: ArrayLike) -> NDArray[np.float64]:
@@ -98,8 +98,9 @@ def build_grid(
     surface_m = np.asarray(terrain.height_m(x_km, y_km), dtype=np.float64)
     if not np.all(np.isfinite(surface_m)):
         raise ValueError("Missing terrain at a grid cell center")
+    surface_m = np.rint(surface_m)
     int16 = np.iinfo(np.int16)
-    if np.any((np.rint(surface_m) < int16.min) | (np.rint(surface_m) > int16.max)):
+    if np.any((surface_m < int16.min) | (surface_m > int16.max)):
         raise ValueError("Cell surface height does not fit int16 meters")
     horizons_u8 = np.full((ny, nx, GRID_AZ_BINS), GRID_NO_DATA, dtype=np.uint8)
     start_s = time.perf_counter()
@@ -127,7 +128,7 @@ def build_grid(
                 file=sys.stderr,
                 flush=True,
             )
-    return horizons_u8, np.rint(surface_m).astype(np.int16)
+    return horizons_u8, surface_m.astype(np.int16)
 
 
 def write_grid(
