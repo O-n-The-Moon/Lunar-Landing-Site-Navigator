@@ -53,6 +53,11 @@ describe('fetchDataSource', () => {
     expect(core.validation.schemaVersion).toBe(1)
   })
 
+  it('the fixture source provides the same core shape, including the ephemeris manifest', async () => {
+    const core = await fixtureDataSource().loadCore()
+    expect(core.ephemerisManifest).toBe(fixtureEphemerisManifest)
+  })
+
   it('names the missing file when the server falls back to index.html', async () => {
     const fetchFn = fakeFetch({ 'sites.json': () => new Response('<html>', { headers: { 'content-type': 'text/html' } }) })
     await expect(fetchDataSource('/data/', fetchFn).loadCore()).rejects.toThrow('sites.json: not found')
