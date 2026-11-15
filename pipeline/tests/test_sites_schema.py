@@ -13,7 +13,7 @@ SITES_YAML = Path(__file__).resolve().parents[1] / "sites.yaml"
 REQUIRED_KEYS = {"id", "name", "category", "latDeg", "lonDeg", "coordSource"}
 CATEGORIES = {"artemis3-region", "clps", "international", "reference"}
 KEBAB_ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
-# DEM coverage starts at 84 S; nothing north of it (SPEC-data-pipeline.md section 3).
+# Project scope: the 182 km polar grid ends at ~84 S; nothing north of it (team decision).
 NORTHMOST_LAT_DEG = -84.0
 
 
@@ -49,9 +49,10 @@ def test_site_field_values(site):
     assert site["category"] in CATEGORIES
 
     lat, lon = site["latDeg"], site["lonDeg"]
-    assert isinstance(lat, float) and isinstance(lon, float)
+    for value in (lat, lon):
+        assert isinstance(value, int | float) and not isinstance(value, bool)
     assert -MAX_ABS_LAT_DEG <= lat <= NORTHMOST_LAT_DEG, f"latDeg out of range: {lat}"
-    assert -180.0 <= lon < 180.0, f"lonDeg must be east-positive -180..180: {lon}"
+    assert -180.0 <= lon <= 180.0, f"lonDeg must be east-positive -180..180: {lon}"
 
     assert isinstance(site["coordSource"], str)
     assert site["coordSource"].startswith("https://"), "coordSource must be a URL"

@@ -4,7 +4,8 @@
 # category: artemis3-region | clps | international | reference
 # Coordinates: planetocentric, lon east-positive -180..180 (MOON_ME, sphere R = 1737.4 km).
 # Sources printed in 0..360 E are converted with lon - 360.
-# No site north of 84 S (DEM coverage); Chandrayaan-3 and Chang'e-6 are excluded by design.
+# No site north of 84 S (project scope: the 182 km polar grid ends at ~84 S; the DEMs
+# themselves reach further north). Chandrayaan-3 and Chang'e-6 are excluded by design.
 #
 # Artemis III regions (SPEC Open Q1):
 #   NASA publishes the nine regions (Oct 2024) as map polygons only, with no coordinates.
@@ -13,11 +14,14 @@
 #   the region's 1 km navigation grid in the USGS data release (McClernan 2024,
 #   doi:10.5066/P1MEQ6UK). The grid's own .prj is Lunar Polar Stereographic (south) on the
 #   1737.4 km sphere; the inverse projection was cross-checked against PROJ (agrees to
-#   1e-13 deg). This is the region's geometric center, not its best-lit point.
+#   1e-13 deg). The grids are rectangles covering each region, so the point is the
+#   center of that rectangle: not the best-lit point, and for rim-shaped regions it may
+#   fall outside the region's own outline (the outlines are not publicly downloadable).
 #   (The bounding boxes in the release's XML metadata do not match the grids; not used.)
 #   Excluded (team decision 2026-11-14: keep the 84 S scope limit):
 #   - Peak near Cabeus B (-83.6514, -68.7263) and Nobile Rim 2 (-83.9545, 58.7938):
-#     centers lie north of 84 S, outside the project's DEM/grid scope.
+#     centers lie north of 84 S, outside the project's grid scope. Reversible if the
+#     scope is widened.
 #
 # Chang'e-7 (SPEC Open Q3): left out. CNSA has not published a citable target coordinate.
 
