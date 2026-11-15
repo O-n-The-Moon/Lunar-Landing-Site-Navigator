@@ -12,12 +12,15 @@ import {
   elevToY,
   type PanoramaBody,
 } from './horizon-panorama'
+import { renderedRidge, renderedRidgeYAt } from './test-helpers'
 
 afterEach(cleanup)
 
 const plateau = fixtureOutputs['fixture-plateau']
 const { samples, ctx, windows } = plateau
-const isIn = (ws: Window[], t: number) => ws.some((w) => w.startMs <= t && t < w.endMs)
+/** The timeline's rule: half-open [start, end), except a window clipped at the range end includes that end. */
+const isIn = (ws: Window[], t: number) =>
+  ws.some((w) => w.startMs <= t && (t < w.endMs || (w.clippedEnd && t === w.endMs)))
 
 function bodyAt(i: number, body: 'sun' | 'earth'): PanoramaBody {
   const azDeg = body === 'sun' ? samples.sunAzDeg[i] : samples.earthAzDeg[i]
@@ -67,9 +70,18 @@ describe('HorizonPanorama', () => {
     expect(path?.getAttribute('fill')).not.toBe('none')
     // One point per bin plus the 360° wrap, then the two bottom corners.
     expect(path?.getAttribute('d')?.match(/L/g)?.length).toBe(ctx.horizonMaskDeg.length + 2)
+    // Every ridge vertex sits at bin i's azimuth and (clamped) mask elevation; the 360° point repeats bin 0.
+    const ridge = renderedRidge()
+    const n = ctx.horizonMaskDeg.length
+    expect(ridge).toHaveLength(n + 1)
+    const clamp = (e: number) => Math.min(ELEV_MAX_DEG, Math.max(ELEV_MIN_DEG, e))
+    for (let i = 0; i <= n; i++) {
+      expect(ridge[i][0]).toBeCloseTo(azToX(i * ctx.azStepDeg), 9)
+      expect(ridge[i][1]).toBeCloseTo(elevToY(clamp(ctx.horizonMaskDeg[i % n])), 9)
+    }
   })
 
-  it('draws round Sun and Earth disks, to angular scale in elevation', () => {
+  it('draws Sun and Earth disks to angular scale on both axes', () => {
     renderAt(0)
     const sun = bodyAt(0, 'sun')
     const earth = bodyAt(0, 'earth')
@@ -79,17 +91,16 @@ describe('HorizonPanorama', () => {
       const d = disk(name)
       expect(d.cx).toBeCloseTo(azToX(b.azDeg), 6)
       expect(d.cy).toBeCloseTo(elevToY(b.elevDeg), 6)
-      // Vertical extent is the true angular size (what decides lit / blocked against the terrain); the disk is round.
+      expect(d.rx).toBeCloseTo(b.radiusDeg * AZ_UNITS_PER_DEG, 6)
       expect(d.ry).toBeCloseTo(b.radiusDeg * ELEV_UNITS_PER_DEG, 6)
-      expect(d.rx).toBe(d.ry)
     }
-    expect(screen.getByText(/disk size to scale in elevation/)).toBeTruthy()
+    expect(screen.getByText(/to angular scale on both axes/)).toBeTruthy()
   })
 
   it('colors Earth (ocean gradient + land) while in view, outline only when not', () => {
     renderAt(0)
     expect(bodyAt(0, 'earth').visible).toBe(true)
-    const fill = document.querySelector('circle[fill^="url(#"]')
+    const fill = document.querySelector('ellipse[fill^="url(#"]')
     const id = fill?.getAttribute('fill')?.slice(5, -1) ?? ''
     expect(document.getElementById(id)?.tagName.toLowerCase()).toBe('radialgradient')
     cleanup()
@@ -103,25 +114,31 @@ describe('HorizonPanorama', () => {
         earth={{ ...bodyAt(0, 'earth'), visible: false }}
       />,
     )
-    expect(document.querySelector('circle[fill^="url(#"]')).toBeNull()
+    expect(document.querySelector('ellipse[fill^="url(#"]')).toBeNull()
     expect(document.querySelector('ellipse[data-body="earth"]')?.getAttribute('stroke-dasharray')).toBe('2 2')
   })
 
   it('at a time the timeline marks Sun "blocked", draws the Sun disk below the silhouette', () => {
-    // A sample inside a gap between Sun windows (the timeline shows "not lit"), mid-gap so the disk is fully hidden
-    // (near the gap edges it is partly above the terrain), and above the bottom of the plot so it is drawn.
+    // A sample inside a gap between Sun windows (the timeline shows "not lit") where the terrain hides the disk across
+    // its whole true width. (The engine tests the horizon at the disk's center azimuth only, so on a steep ridge a
+    // "0 %" disk can still show a sliver at one edge; the true-width drawing shows that, so avoid such samples here.)
+    const hiddenAcrossWidth = (k: number) => {
+      const az = samples.sunAzDeg[k]
+      const elev = samples.sunElevDeg[k]
+      const r = bodyAt(k, 'sun').radiusDeg
+      return [-1, -0.5, 0, 0.5, 1].every((f) => elev + r < horizonElevAt(ctx.horizonMaskDeg, ctx.azStepDeg, az + f * r))
+    }
     const i = samples.tUtcMs.findIndex(
-      (t, k) => !isIn(windows.sun, t) && samples.sunFraction[k] === 0 && samples.sunElevDeg[k] > ELEV_MIN_DEG,
+      (t, k) => !isIn(windows.sun, t) && samples.sunElevDeg[k] > ELEV_MIN_DEG && hiddenAcrossWidth(k),
     )
     expect(i).toBeGreaterThan(-1)
     renderAt(i)
-    const sun = bodyAt(i, 'sun')
     const d = disk('sun')
-    const terrainY = elevToY(horizonElevAt(ctx.horizonMaskDeg, ctx.azStepDeg, sun.azDeg))
-    // SVG y grows downward: the whole disk (top edge) is below the terrain line.
-    expect(d.cy - d.ry).toBeGreaterThan(terrainY)
+    // SVG y grows downward: the disk's top is below the rendered ridge across the disk's width.
+    for (const x of [d.cx - d.rx, d.cx, d.cx + d.rx]) expect(d.cy - d.ry).toBeGreaterThan(renderedRidgeYAt(x))
+    expect(document.querySelector('ellipse[data-fill="sun"]')).toBeNull()
     expect(screen.getByRole('img', { name: /Fixture plateau horizon/ })).toBeTruthy()
-    expect(within(screen.getByRole('figure')).getByText(/Sun.*blocked/i)).toBeTruthy()
+    expect(within(screen.getByRole('figure')).getByText(/^Sun blocked/)).toBeTruthy()
   })
 
   it('marks a body outside the elevation range at the edge instead of drawing it off-scale', () => {
@@ -137,6 +154,21 @@ describe('HorizonPanorama', () => {
     )
     expect(document.querySelector('ellipse[data-body="sun"]')).toBeNull()
     expect(screen.getByText(/Sun below −5°/)).toBeTruthy()
+  })
+
+  it('draws visible fills under the terrain and outlines over it, so the ridge cuts into a partly blocked disk', () => {
+    renderAt(0)
+    expect(bodyAt(0, 'sun').visible).toBe(true)
+    const terrain = document.querySelector('path[data-terrain]')
+    const sunFill = document.querySelector('ellipse[data-fill="sun"]')
+    const earthFill = document.querySelector('ellipse[fill^="url(#"]')
+    const sunOutline = document.querySelector('ellipse[data-body="sun"]')
+    if (!terrain || !sunFill || !earthFill || !sunOutline) throw new Error('missing element')
+    const before = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+    expect(before(sunFill, terrain)).toBe(true)
+    expect(before(earthFill, terrain)).toBe(true)
+    expect(before(terrain, sunOutline)).toBe(true)
+    expect(sunOutline.getAttribute('fill')).toBe('none')
   })
 
   const renderBodies = (sun: Partial<PanoramaBody>, earth: Partial<PanoramaBody>) =>
@@ -166,15 +198,26 @@ describe('HorizonPanorama', () => {
   })
 
   it('wraps a disk that crosses 0°/360° to the other edge', () => {
-    renderBodies({ azDeg: 0.5 }, { azDeg: 359 })
+    renderBodies({ azDeg: 0.1 }, { azDeg: 359.5 })
     const xs = (body: string) =>
       [...document.querySelectorAll(`ellipse[data-body="${body}"]`)].map((el) => Number(el.getAttribute('cx'))).sort((a, b) => a - b)
-    expect(xs('earth')).toEqual([azToX(359) - plotW, azToX(359)])
-    expect(xs('sun')).toEqual([azToX(0.5), azToX(0.5) + plotW])
+    expect(xs('earth')).toEqual([azToX(359.5) - plotW, azToX(359.5)])
+    expect(xs('sun')).toEqual([azToX(0.1), azToX(0.1) + plotW])
     // Well inside the plot: no copy.
     cleanup()
     renderBodies({ azDeg: 180 }, { azDeg: 90 })
     expect(document.querySelectorAll('ellipse[data-body]')).toHaveLength(2)
+  })
+
+  it('draws a disk whose limb is in range even when its center is not', () => {
+    const r = bodyAt(0, 'earth').radiusDeg
+    renderBodies({}, { elevDeg: ELEV_MIN_DEG - r / 2 })
+    expect(document.querySelector('ellipse[data-body="earth"]')).toBeTruthy()
+    expect(screen.queryByText(/Earth below/)).toBeNull()
+    cleanup()
+    renderBodies({}, { elevDeg: ELEV_MIN_DEG - r * 1.5 })
+    expect(document.querySelector('ellipse[data-body="earth"]')).toBeNull()
+    expect(screen.getByText(/Earth below −5°/)).toBeTruthy()
   })
 
   it('keeps body and off-range labels inside the plot', () => {

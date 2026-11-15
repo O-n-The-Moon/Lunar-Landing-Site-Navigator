@@ -1,7 +1,8 @@
+import { useId } from 'react'
+
 // Unrolled 360° horizon panorama for one site (SPEC-app P0-5), not a fisheye: at the pole everything sits within
 // a few degrees of the horizon. x = azimuth 0–360 (N at the left), y = elevation −5…+12°, vertically exaggerated
-// (labelled). Sun and Earth disks are round, with their size to angular scale in elevation (labelled).
-import { useId } from 'react'
+// (labelled). Sun and Earth disks are drawn to angular scale on both axes, so they are tall ovals here.
 // Prop-driven: positions, radii and lit state come from the engine (via the panel); this component does no physics.
 // Mission tracks, hover readout and re-centering come in T22 #23.
 
@@ -72,7 +73,7 @@ function terrainPath(maskDeg: ArrayLike<number>, azStepDeg: number): string {
 }
 
 /** Earth fill: a lit blue sphere with a green landmass, clipped to the disk. Only drawn while Earth is in view. */
-function EarthFill({ id, cx, cy, r }: { id: string; cx: number; cy: number; r: number }) {
+function EarthFill({ id, cx, cy, rx, ry }: { id: string; cx: number; cy: number; rx: number; ry: number }) {
   return (
     <g aria-hidden="true">
       <defs>
@@ -82,16 +83,32 @@ function EarthFill({ id, cx, cy, r }: { id: string; cx: number; cy: number; r: n
           <stop offset="100%" style={{ stopColor: 'var(--accent)', stopOpacity: 0.7 }} />
         </radialGradient>
         <clipPath id={`${id}-clip`}>
-          <circle cx={cx} cy={cy} r={r} />
+          <ellipse cx={cx} cy={cy} rx={rx} ry={ry} />
         </clipPath>
       </defs>
-      <circle cx={cx} cy={cy} r={r} fill={`url(#${id}-ocean)`} />
+      <ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill={`url(#${id}-ocean)`} />
       <g clipPath={`url(#${id}-clip)`} fill="var(--good)" opacity={0.85}>
-        <ellipse cx={cx - r * 0.25} cy={cy + r * 0.1} rx={r * 0.35} ry={r * 0.55} transform={`rotate(-20 ${cx} ${cy})`} />
-        <ellipse cx={cx + r * 0.45} cy={cy - r * 0.35} rx={r * 0.2} ry={r * 0.15} />
+        <ellipse cx={cx - rx * 0.25} cy={cy + ry * 0.1} rx={rx * 0.35} ry={ry * 0.55} />
+        <ellipse cx={cx + rx * 0.45} cy={cy - ry * 0.35} rx={rx * 0.2} ry={ry * 0.15} />
       </g>
     </g>
   )
+}
+
+/** Disk semi-axes in viewBox units: true angular radius on both axes, so the terrain blocks it at its true width. */
+const diskRadii = (b: PanoramaBody) => ({ rx: b.radiusDeg * AZ_UNITS_PER_DEG, ry: b.radiusDeg * ELEV_UNITS_PER_DEG })
+/** Any part of the disk inside the elevation range (the plot clip trims the rest). */
+const diskInRange = (b: PanoramaBody) => b.elevDeg + b.radiusDeg >= ELEV_MIN_DEG && b.elevDeg - b.radiusDeg <= ELEV_MAX_DEG
+
+/** Disk center(s) on screen: a disk crossing 0°/360° is also drawn at the other edge. Null when off the plot. */
+function diskCopies(b: PanoramaBody): { xs: number[]; cy: number; rx: number; ry: number } | null {
+  if (!diskInRange(b)) return null
+  const x = azToX(b.azDeg)
+  const { rx, ry } = diskRadii(b)
+  const xs = [x]
+  if (x + rx > PLOT_W) xs.push(x - PLOT_W)
+  if (x - rx < 0) xs.push(x + PLOT_W)
+  return { xs, cy: elevToY(b.elevDeg), rx, ry }
 }
 
 /** Edge-label placement: anchored so text near the 0°/360° edges stays inside the plot. */
@@ -104,7 +121,7 @@ function edgeAnchor(x: number): { x: number; textAnchor: 'start' | 'middle' | 'e
 
 /** Disks are drawn inside the plot clip; this places the text labels, which are not clipped. */
 function BodyLabel({ b, label, color }: { b: PanoramaBody; label: string; color: string }) {
-  if (b.elevDeg < ELEV_MIN_DEG || b.elevDeg > ELEV_MAX_DEG) {
+  if (!diskInRange(b)) {
     const below = b.elevDeg < ELEV_MIN_DEG
     return (
       <text {...edgeAnchor(azToX(b.azDeg))} y={below ? PLOT_H - 4 : FONT} fontSize={FONT} fill={color}>
@@ -113,9 +130,9 @@ function BodyLabel({ b, label, color }: { b: PanoramaBody; label: string; color:
     )
   }
   const cy = elevToY(b.elevDeg)
-  const r = diskRadius(b)
-  // Above the disk, or below it when that would leave the plot top.
-  const y = cy - r - 4 - FONT >= 0 ? cy - r - 4 : cy + r + FONT
+  const { ry } = diskRadii(b)
+  // Above the disk, or below it when that would leave the plot top; always inside the plot.
+  const y = Math.min(PLOT_H - 4, Math.max(FONT, cy - ry - 4 - FONT >= 0 ? cy - ry - 4 : cy + ry + FONT))
   return (
     <text {...edgeAnchor(azToX(b.azDeg))} y={y} fontSize={FONT} fill={color}>
       {label}
@@ -124,47 +141,54 @@ function BodyLabel({ b, label, color }: { b: PanoramaBody; label: string; color:
 }
 
 /**
- * Round on screen: the radius is to scale in elevation (what decides lit / blocked against the terrain),
- * so the disk is widened by the vertical exaggeration in azimuth.
+ * Disk fill, drawn UNDER the terrain so a ridge visibly cuts into a partly blocked disk. Only while visible
+ * (Sun lit / Earth in view); a not-visible disk has no fill.
  */
-const diskRadius = (b: PanoramaBody) => b.radiusDeg * ELEV_UNITS_PER_DEG
-
-function BodyDisk({ b, body, color, idPrefix }: { b: PanoramaBody; body: 'sun' | 'earth'; color: string; idPrefix: string }) {
-  if (b.elevDeg < ELEV_MIN_DEG || b.elevDeg > ELEV_MAX_DEG) return null
-  const x = azToX(b.azDeg)
-  const cy = elevToY(b.elevDeg)
-  const r = diskRadius(b)
-  // A disk crossing 0°/360° is also drawn at the other edge; the plot clip trims both copies.
-  const xs = [x]
-  if (x + r > PLOT_W) xs.push(x - PLOT_W)
-  if (x - r < 0) xs.push(x + PLOT_W)
-  const isEarth = body === 'earth'
+function BodyFill({ b, body, color, idPrefix }: { b: PanoramaBody; body: 'sun' | 'earth'; color: string; idPrefix: string }) {
+  const d = diskCopies(b)
+  if (!d || !b.visible) return null
   return (
     <>
-      {xs.map((cx, k) => (
-        <g key={k}>
-          {isEarth && b.visible && <EarthFill id={`${idPrefix}-earth-${k}`} cx={cx} cy={cy} r={r} />}
-          {/* Not visible: dashed outline only, so the disk stays findable behind the terrain. */}
-          <ellipse
-            data-body={body}
-            cx={cx}
-            cy={cy}
-            rx={r}
-            ry={r}
-            fill={b.visible && !isEarth ? color : 'none'}
-            stroke={color}
-            strokeWidth={1}
-            strokeDasharray={b.visible ? undefined : '2 2'}
-            vectorEffect="non-scaling-stroke"
-          />
-        </g>
+      {d.xs.map((cx, k) =>
+        body === 'earth' ? (
+          <EarthFill key={k} id={`${idPrefix}-earth-${k}`} cx={cx} cy={d.cy} rx={d.rx} ry={d.ry} />
+        ) : (
+          <ellipse key={k} data-fill={body} cx={cx} cy={d.cy} rx={d.rx} ry={d.ry} fill={color} />
+        ),
+      )}
+    </>
+  )
+}
+
+/** Disk outline, drawn OVER the terrain: solid when visible, dashed when not (so a hidden disk stays findable). */
+function BodyOutline({ b, body, color }: { b: PanoramaBody; body: 'sun' | 'earth'; color: string }) {
+  const d = diskCopies(b)
+  if (!d) return null
+  return (
+    <>
+      {d.xs.map((cx, k) => (
+        <ellipse
+          key={k}
+          data-body={body}
+          cx={cx}
+          cy={d.cy}
+          rx={d.rx}
+          ry={d.ry}
+          fill="none"
+          stroke={color}
+          strokeWidth={1}
+          strokeDasharray={b.visible ? undefined : '2 2'}
+          vectorEffect="non-scaling-stroke"
+        />
       ))}
     </>
   )
 }
 
 export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerHeightM, sun, earth }: HorizonPanoramaProps) {
-  const idPrefix = useId().replace(/:/g, '')
+  // useId() contains characters that aren't safe in url(#…) references (":r0:" in React 18, "«r0»" in 19).
+  const idPrefix = useId().replace(/[^a-zA-Z0-9_-]/g, '')
+  const captionId = `${idPrefix}-caption`
   const bodies = { sun, earth }
   const status = BODIES.map(({ key, label, on, off }) => {
     const b = bodies[key]
@@ -173,7 +197,7 @@ export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerH
 
   return (
     <figure style={{ margin: 0 }}>
-      <figcaption style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-3)', alignItems: 'baseline' }}>
+      <figcaption id={captionId} style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-3)', alignItems: 'baseline' }}>
         <strong>{siteName}</strong>
         {status.map((s) => (
           <span key={s} className="num">
@@ -183,7 +207,8 @@ export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerH
       </figcaption>
       <svg
         role="img"
-        aria-label={`${siteName} horizon panorama at the cursor time. ${status.join('. ')}.`}
+        aria-label={`${siteName} horizon panorama`}
+        aria-describedby={captionId}
         viewBox={`${-PAD.left} ${-PAD.top} ${PLOT_W + PAD.left + PAD.right} ${PLOT_H + PAD.top + PAD.bottom}`}
         width="100%"
         style={{ display: 'block', height: 'auto' }}
@@ -210,6 +235,16 @@ export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerH
             {label}
           </text>
         ))}
+        <defs>
+          <clipPath id={`${idPrefix}-plot`}>
+            <rect x={0} y={0} width={PLOT_W} height={PLOT_H} />
+          </clipPath>
+        </defs>
+        <g clipPath={`url(#${idPrefix}-plot)`}>
+          {BODIES.map(({ key, color }) => (
+            <BodyFill key={key} b={bodies[key]} body={key} color={color} idPrefix={idPrefix} />
+          ))}
+        </g>
         {/* Fill ~3:1 against the sky (--surface-2) and the ridge line well above, so the silhouette reads as a
             solid shape (WCAG 1.4.11), while dashed disks behind the terrain stay visible on it (Sun ~3:1, Earth ~2.4:1). */}
         <path
@@ -222,14 +257,9 @@ export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerH
           strokeWidth={1}
           vectorEffect="non-scaling-stroke"
         />
-        <defs>
-          <clipPath id={`${idPrefix}-plot`}>
-            <rect x={0} y={0} width={PLOT_W} height={PLOT_H} />
-          </clipPath>
-        </defs>
         <g clipPath={`url(#${idPrefix}-plot)`}>
           {BODIES.map(({ key, color }) => (
-            <BodyDisk key={key} b={bodies[key]} body={key} color={color} idPrefix={idPrefix} />
+            <BodyOutline key={key} b={bodies[key]} body={key} color={color} />
           ))}
         </g>
         {BODIES.map(({ key, label, color }) => (
@@ -243,7 +273,9 @@ export function HorizonPanorama({ siteName, horizonMaskDeg, azStepDeg, observerH
         </text>
       </svg>
       <p className="muted" style={{ margin: 0, fontSize: '0.75rem' }}>
-        Sun / Earth disk size to scale in elevation; drawn round, so widened {EXAGGERATION}× in azimuth.
+        Sun / Earth disks to angular scale on both axes (ovals because of the {EXAGGERATION}× vertical exaggeration). Lit / in view
+        follow the timeline's rules (Sun visible-disk threshold, Earth clearance margin, with hysteresis), so a disk can
+        look partly clear of the terrain and still count as blocked.
       </p>
     </figure>
   )
