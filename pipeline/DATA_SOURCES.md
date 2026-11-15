@@ -157,17 +157,31 @@ the 2016 rasters, but it is the best primary evidence available:
 gave "10 m" for the base maps are contradicted by the paper (10 m is the sensitivity
 case). Producer confirmation has not been obtained.
 
-**Proposed interim disposition (pending team approval; not yet agreed):** the observer
-height of PGDA product 69 is recorded as **unknown**. Until it is confirmed, #20 may
-compare against these rasters only as an any-disk-visible, height-unspecified
-reference. It must not report "height-matched" agreement, and must not publish a PGDA
-accuracy figure (including the ±5 percentage-point criterion) in `validation.json`.
+**Disposition for #20 (approved by the issue owner, 2026-11-15; SPEC wording changes
+still need team agreement):** the observer height of PGDA product 69 stays recorded as
+**not documented**; the working assumption is **surface level (0 m)**, from
+Mazarico et al. (2011) for the 2010 maps, and it is not confirmed for the 2016 release.
+#20 should:
 
-This does not block fetching or DEM work. It **does block claiming a height-matched
-PGDA validation** in #20. The spec's mean-Sun-fraction and Earth-center comparison
-also differs from these label definitions. #20 must reconcile the validation
-definitions with the team before asserting the ±5 percentage-point criterion.
-T3 does not change the data contract or invent a validation accuracy number.
+1. **Compare like with like (validation only).** Use the PGDA definition: a body counts
+   as visible when any part of its disc clears the terrain horizon mask (Sun elevation
+   + 0.265°; Earth elevation + its actual angular radius, about 0.95°). The app's own
+   metrics (mean disc fraction, Earth centre plus margin) are unchanged.
+2. **Run at 0 m** as the primary comparison, with the 2 m and 10 m site heights as
+   sensitivity runs. A consistent best match at 0 m supports the assumption; a mixed
+   result keeps the claim conditional.
+3. **Use an hourly timestep** over about 18.6 years, as the PGDA release describes.
+4. **Match the pixel carefully:** bilinear sample at the site, plus the range over
+   ±1–2 pixels at rim sites (our near-field DEM is 80 m, the raster 120 m).
+5. **Publish the ±5 percentage-point result only with a conditional label:** "agreement
+   with PGDA under the any-disc definition, surface level assumed". Never present it as
+   accuracy against truth or as "height-matched". Report per-site rows, with an
+   explanation for each outlier.
+
+This does not block fetching or DEM work. Changing the validation wording in `SPEC.md`
+(Success Criteria) and `SPEC-data-pipeline.md` (§ PGDA validation: definition, heights,
+timestep) requires team agreement and is **not** made here. T3 does not change the data
+contract or invent a validation accuracy number.
 
 ## Verification and environment
 
