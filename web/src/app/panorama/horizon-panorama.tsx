@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useState, type PointerEvent } from 'react'
 import { horizonElevAt } from '../../engine'
 import type { DayTick, MissionTracks, TrackPoint } from './tracks'
 
@@ -19,6 +19,10 @@ const PLOT_W = 360 * AZ_UNITS_PER_DEG
 const PLOT_H = (ELEV_MAX_DEG - ELEV_MIN_DEG) * ELEV_UNITS_PER_DEG
 // Right padding fits half an azimuth label ("315°") at the right edge, which a re-centered view can put there.
 const PAD = { left: 36, right: 20, top: 22, bottom: 26 }
+const VIEW_W = PLOT_W + PAD.left + PAD.right
+const VIEW_H = PLOT_H + PAD.top + PAD.bottom
+/** The hover readout snaps to a track sample within this many screen pixels of the pointer. */
+const HOVER_SNAP_PX = 12
 const FONT = 12
 
 /** x of an azimuth measured from the plot's left edge (0…360°). */
@@ -72,6 +76,7 @@ const AZ_TICKS = [
 ] as const
 const ELEV_TICKS = [-5, 0, 5, 10]
 const fmtDeg = (d: number, digits = 1) => `${d < 0 ? '−' : ''}${Math.abs(d).toFixed(digits)}°`
+const formatUtc = (ms: number) => `${new Date(ms).toISOString().slice(0, 16).replace('T', ' ')} UTC`
 
 const BODIES = [
   { key: 'sun', label: 'Sun', color: 'var(--warn)', on: 'lit', off: 'blocked' },
@@ -213,6 +218,63 @@ function TrackLegend() {
   )
 }
 
+/** Pointer position in plot (viewBox) units, and how many units one screen pixel spans. */
+interface HoverPos {
+  x: number
+  y: number
+  unitsPerPx: number
+}
+
+type Readout =
+  | { kind: 'track'; body: (typeof BODIES)[number]; p: TrackPoint; x: number; y: number }
+  | { kind: 'sky'; azDeg: number; elevDeg: number; horizonDeg: number; x: number }
+
+/** The track sample nearest the pointer (within HOVER_SNAP_PX on screen), else the pointer's own sky position. */
+function readoutAt(
+  h: HoverPos,
+  tracks: MissionTracks | undefined,
+  leftAzDeg: number,
+  maskDeg: ArrayLike<number>,
+  azStepDeg: number,
+): Readout {
+  let best: Readout | null = null
+  let bestD2 = (HOVER_SNAP_PX * h.unitsPerPx) ** 2
+  for (const body of BODIES) {
+    for (const p of tracks?.[body.key] ?? []) {
+      const x = screenX(p.azDeg, leftAzDeg)
+      const y = elevToY(p.elevDeg)
+      const d2 = (x - h.x) ** 2 + (y - h.y) ** 2
+      if (d2 < bestD2) {
+        bestD2 = d2
+        best = { kind: 'track', body, p, x, y }
+      }
+    }
+  }
+  if (best) return best
+  const azDeg = mod360(leftAzDeg + h.x / AZ_UNITS_PER_DEG)
+  const elevDeg = ELEV_MAX_DEG - h.y / ELEV_UNITS_PER_DEG
+  return { kind: 'sky', azDeg, elevDeg, horizonDeg: horizonElevAt(maskDeg, azStepDeg, azDeg), x: h.x }
+}
+
+function readoutText(r: Readout | null): string {
+  if (!r) return 'Hover the panorama for azimuth, elevation and terrain horizon; on a track, its time.'
+  if (r.kind === 'sky') return `Pointer · az ${fmtDeg(r.azDeg)} · elev ${fmtDeg(r.elevDeg, 2)} · terrain ${fmtDeg(r.horizonDeg, 2)}`
+  const { body, p } = r
+  return `${body.label} · ${formatUtc(p.tUtcMs)} · az ${fmtDeg(p.azDeg)} · elev ${fmtDeg(p.elevDeg, 2)} · terrain ${fmtDeg(p.horizonDeg, 2)} · ${p.visible ? body.on : body.off}`
+}
+
+/** Crosshair at the hovered azimuth, plus a dot on the snapped track sample. */
+function HoverMarker({ r }: { r: Readout }) {
+  return (
+    <g pointerEvents="none">
+      <line x1={r.x} x2={r.x} y1={0} y2={PLOT_H} stroke="var(--text)" strokeOpacity={0.5} strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />
+      {r.kind === 'track' && (
+        <circle data-hover-point="" cx={r.x} cy={r.y} r={4} fill="none" stroke={r.body.color} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+      )}
+    </g>
+  )
+}
+
 /** Disk semi-axes in viewBox units: true angular radius on both axes, so the terrain blocks it at its true width. */
 const diskRadii = (b: PanoramaBody) => ({ rx: b.radiusDeg * AZ_UNITS_PER_DEG, ry: b.radiusDeg * ELEV_UNITS_PER_DEG })
 /** Any part of the disk inside the elevation range (the plot clip trims the rest). */
@@ -321,6 +383,17 @@ export function HorizonPanorama({
   tracks,
 }: HorizonPanoramaProps) {
   const leftAzDeg = mod360(centerAzDeg - 180)
+  const [hover, setHover] = useState<HoverPos | null>(null)
+  const readout = hover ? readoutAt(hover, tracks, leftAzDeg, horizonMaskDeg, azStepDeg) : null
+  // The SVG keeps its aspect ratio (width 100%, height auto), so one scale maps both axes from CSS px to viewBox units.
+  const onPointerMove = (e: PointerEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    if (!(r.width > 0)) return
+    const unitsPerPx = VIEW_W / r.width
+    const x = (e.clientX - r.left) * unitsPerPx - PAD.left
+    const y = (e.clientY - r.top) * unitsPerPx - PAD.top
+    setHover(x >= 0 && x <= PLOT_W && y >= 0 && y <= PLOT_H ? { x, y, unitsPerPx } : null)
+  }
   // useId() contains characters that aren't safe in url(#…) references (":r0:" in React 18, "«r0»" in 19).
   const idPrefix = useId().replace(/[^a-zA-Z0-9_-]/g, '')
   const captionId = `${idPrefix}-caption`
@@ -344,9 +417,11 @@ export function HorizonPanorama({
         role="img"
         aria-label={`${siteName} horizon panorama`}
         aria-describedby={captionId}
-        viewBox={`${-PAD.left} ${-PAD.top} ${PLOT_W + PAD.left + PAD.right} ${PLOT_H + PAD.top + PAD.bottom}`}
+        viewBox={`${-PAD.left} ${-PAD.top} ${VIEW_W} ${VIEW_H}`}
         width="100%"
-        style={{ display: 'block', height: 'auto' }}
+        style={{ display: 'block', height: 'auto', cursor: 'crosshair' }}
+        onPointerMove={onPointerMove}
+        onPointerLeave={() => setHover(null)}
       >
         <rect x={0} y={0} width={PLOT_W} height={PLOT_H} fill="var(--surface-2)" />
         {ELEV_TICKS.map((e) => (
@@ -405,6 +480,7 @@ export function HorizonPanorama({
             <BodyOutline key={key} b={bodies[key]} body={key} color={color} leftAzDeg={leftAzDeg} />
           ))}
         </g>
+        {readout && <HoverMarker r={readout} />}
         {BODIES.map(({ key, label, color }) => (
           <BodyLabel key={key} b={bodies[key]} label={label} color={color} leftAzDeg={leftAzDeg} />
         ))}
@@ -415,6 +491,11 @@ export function HorizonPanorama({
           Terrain horizon at {observerHeightM} m observer height · elevation 0° = local spherical horizontal
         </text>
       </svg>
+      {/* Always rendered (placeholder when idle) so the layout doesn't jump. Pointer-only: the same values at the
+          cursor time are in the caption, which the keyboard-operable timeline cursor drives. */}
+      <p data-hover-readout="" className="num" style={{ margin: 0, fontSize: '0.75rem' }}>
+        {readoutText(readout)}
+      </p>
       {tracks && <TrackLegend />}
       <p className="muted" style={{ margin: 0, fontSize: '0.75rem' }}>
         Sun / Earth disks to angular scale on both axes (ovals because of the {EXAGGERATION}× vertical exaggeration). Lit / in view

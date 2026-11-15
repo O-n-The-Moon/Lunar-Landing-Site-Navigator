@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { angularRadiusDeg, horizonElevAt, type Window } from '../../engine'
 import { fixtureOutputs } from '../../engine/__fixtures__'
@@ -361,5 +361,65 @@ describe('HorizonPanorama mission tracks', () => {
     // The first sample starts a subpath (in whichever style it has), at the middle of the plot.
     const style = first.visible ? 'visible' : 'hidden'
     expect(subpaths(`path[data-track="sun-${style}"]`)[0][0]).toEqual([plotW / 2, r2(elevToY(first.elevDeg))])
+  })
+})
+
+describe('HorizonPanorama hover readout', () => {
+  const tracks = missionTracks(samples, windows, { startMs: samples.tUtcMs[0], endMs: samples.tUtcMs.at(-1) ?? 0 })
+  const renderHover = (centerAzDeg?: number) =>
+    render(
+      <HorizonPanorama
+        siteName="Fixture plateau"
+        horizonMaskDeg={ctx.horizonMaskDeg}
+        azStepDeg={ctx.azStepDeg}
+        observerHeightM={ctx.observerHeightM}
+        sun={bodyAt(0, 'sun')}
+        earth={bodyAt(0, 'earth')}
+        tracks={tracks}
+        centerAzDeg={centerAzDeg}
+      />,
+    )
+  /** Hover at plot coordinates (viewBox units), with the SVG laid out at 1 CSS px per viewBox unit. */
+  function hoverAt(x: number, y: number) {
+    const svg = screen.getByRole('img', { name: /horizon panorama/ })
+    const [vx, vy, vw, vh] = (svg.getAttribute('viewBox') ?? '').split(' ').map(Number)
+    svg.getBoundingClientRect = () => ({ left: 0, top: 0, width: vw, height: vh, right: vw, bottom: vh, x: 0, y: 0, toJSON: () => ({}) })
+    fireEvent.pointerMove(svg, { clientX: x - vx, clientY: y - vy })
+    return svg
+  }
+  const readout = () => document.querySelector('[data-hover-readout]')?.textContent ?? ''
+
+  it('on a track: shows that sample\'s body, UTC time, az, elevation, terrain horizon and state', () => {
+    renderHover()
+    const p = tracks.sun[Math.floor(tracks.sun.length / 2)]
+    hoverAt(azToX(p.azDeg) + 0.05, elevToY(p.elevDeg) - 0.05)
+    const time = new Date(p.tUtcMs).toISOString().slice(0, 16).replace('T', ' ')
+    expect(readout()).toContain(`Sun · ${time} UTC`)
+    const deg = (d: number, k: number) => `${d < 0 ? '−' : ''}${Math.abs(d).toFixed(k)}°`
+    expect(readout()).toContain(`az ${deg(p.azDeg, 1)}`)
+    expect(readout()).toContain(`elev ${deg(p.elevDeg, 2)}`)
+    expect(readout()).toContain(`terrain ${deg(p.horizonDeg, 2)}`)
+    expect(readout()).toMatch(p.visible ? /· lit$/ : /· blocked$/)
+    expect(document.querySelector('circle[data-hover-point]')).toBeTruthy()
+  })
+
+  it('off the tracks: shows the pointer az / elevation and the terrain horizon there, no time', () => {
+    const centerAzDeg = 200 // left edge 20°
+    renderHover(centerAzDeg)
+    // Top of the plot, far from both tracks (they stay within a few degrees of the horizon).
+    const x = azToX(100)
+    hoverAt(x, elevToY(11.5))
+    const az = 20 + 100
+    const terrain = horizonElevAt(ctx.horizonMaskDeg, ctx.azStepDeg, az)
+    expect(readout()).toBe(`Pointer · az ${az.toFixed(1)}° · elev 11.50° · terrain ${terrain < 0 ? '−' : ''}${Math.abs(terrain).toFixed(2)}°`)
+    expect(document.querySelector('circle[data-hover-point]')).toBeNull()
+  })
+
+  it('clears the readout when the pointer leaves the plot', () => {
+    renderHover()
+    const svg = hoverAt(azToX(100), elevToY(11.5))
+    expect(readout()).toMatch(/^Pointer/)
+    fireEvent.pointerLeave(svg)
+    expect(readout()).toMatch(/^Hover/)
   })
 })
