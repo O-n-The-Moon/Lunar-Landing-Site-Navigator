@@ -48,8 +48,14 @@ describe('fetchDataSource', () => {
   it('loads and decodes the core contract files', async () => {
     const core = await fetchDataSource('/data/', fakeFetch()).loadCore()
     expect(core.ephemeris.count).toBe(fixtureEphemerisManifest.count)
+    expect(core.ephemerisManifest.kernels).toEqual(fixtureEphemerisManifest.kernels)
     expect(core.sitesFile.sites.map((s) => s.id)).toEqual(['fixture-plateau', 'fixture-ridge'])
     expect(core.validation.schemaVersion).toBe(1)
+  })
+
+  it('the fixture source provides the same core shape, including the ephemeris manifest', async () => {
+    const core = await fixtureDataSource().loadCore()
+    expect(core.ephemerisManifest).toBe(fixtureEphemerisManifest)
   })
 
   it('names the missing file when the server falls back to index.html', async () => {

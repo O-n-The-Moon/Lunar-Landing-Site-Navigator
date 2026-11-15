@@ -33,6 +33,8 @@ export type LoadState<T> =
 /** Loaded on startup. */
 export interface CoreData {
   ephemeris: Ephemeris
+  /** Kept for provenance (frame, aberration correction, kernel names) shown in the validation panel. */
+  ephemerisManifest: EphemerisManifest
   sitesFile: SitesFile
   validation: ValidationFile
 }
@@ -125,6 +127,7 @@ export function fetchDataSource(baseUrl = `${import.meta.env.BASE_URL}data/`, fe
       ])
       return {
         ephemeris: loadEphemeris(ephManifest as EphemerisManifest, ephBin),
+        ephemerisManifest: ephManifest as EphemerisManifest,
         sitesFile: parseSites(sitesJson),
         validation: parseValidation(validationJson),
       }
@@ -153,7 +156,12 @@ export function fixtureDataSource(): DataSource {
     kind: 'fixtures',
     async loadCore() {
       const f = await load()
-      return { ephemeris: f.fixtureEphemeris, sitesFile: f.fixtureSitesFile, validation: f.fixtureValidation }
+      return {
+        ephemeris: f.fixtureEphemeris,
+        ephemerisManifest: f.fixtureEphemerisManifest,
+        sitesFile: f.fixtureSitesFile,
+        validation: f.fixtureValidation,
+      }
     },
     async loadGrid(onProgress) {
       const f = await load()
