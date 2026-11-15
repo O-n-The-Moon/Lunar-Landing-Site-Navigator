@@ -41,7 +41,7 @@ nearestGridCell(grid: Grid, latDeg: number, lonDeg: number): { ix; iy; snapDistK
 
 | Term | Definition |
 |---|---|
-| **Sunlit** | Sun visible-disk fraction ≥ `sunThreshold` (turns on at ≥ threshold + hysteresis, off at ≤ threshold − hysteresis) |
+| **Sunlit** | Sun visible-disk fraction ≥ `sunThreshold` (turns on at ≥ threshold + hysteresis, off at ≤ threshold − hysteresis; both levels are capped to [0, 1] so they stay reachable, and turning off also needs fraction < the on level, so hysteresis 0 doesn't toggle on a value exactly at the threshold). `sunThreshold` ∉ [0, 1] is a `RangeError` |
 | **Earth link (geometric DTE)** | Earth-center elevation ≥ terrain horizon + `earthMarginDeg` (± hysteresis) |
 | **Both** | Sunlit ∧ Earth link |
 | `sunlitPct`, `earthPct`, `bothPct` | % of mission duration in each state |
