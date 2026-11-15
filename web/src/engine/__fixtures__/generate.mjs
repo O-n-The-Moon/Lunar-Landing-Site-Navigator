@@ -209,8 +209,9 @@ function intersect(a, b) {
         out.push({
           startMs: s,
           endMs: e,
-          clippedStart: (s === x.startMs && x.clippedStart) || (s === y.startMs && y.clippedStart),
-          clippedEnd: (e === x.endMs && x.clippedEnd) || (e === y.endMs && y.clippedEnd),
+          // Clipped only if no input has a real edge here (same rule as the engine's intersect).
+          clippedStart: !((s === x.startMs && !x.clippedStart) || (s === y.startMs && !y.clippedStart)),
+          clippedEnd: !((e === x.endMs && !x.clippedEnd) || (e === y.endMs && !y.clippedEnd)),
         })
       }
     }

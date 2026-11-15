@@ -5,6 +5,7 @@ import {
   DEFAULT_OBSERVER_HEIGHT_M,
   DEFAULT_VISIBILITY_OPTS,
   MOON_RADIUS_KM,
+  sunHysteresisLevels,
   type EphemerisManifest,
   type HorizonsValidation,
   type PgdaValidation,
@@ -286,9 +287,7 @@ interface MethodsListProps {
 
 function MethodsList({ azStepDeg, heightsM, ephemerisManifest }: MethodsListProps) {
   const { sunThreshold, hysteresis, earthMarginDeg, earthHysteresisDeg } = DEFAULT_VISIBILITY_OPTS
-  // Same on/off levels as the engine's detectWindows (capped to [0, 1]).
-  const sunOn = Math.min(1, sunThreshold + hysteresis)
-  const sunOff = Math.max(0, sunThreshold - hysteresis)
+  const { onFraction: sunOn, offFraction: sunOff } = sunHysteresisLevels(DEFAULT_VISIBILITY_OPTS)
   return (
     <div className="validation-section">
       <h4>Methods</h4>

@@ -101,7 +101,10 @@ function windowsFromSeries(
   return wins
 }
 
-/** Overlaps of two sorted, non-overlapping window lists. An edge is clipped if it comes from a clipped edge. */
+/**
+ * Overlaps of two sorted, non-overlapping window lists. An edge is clipped only if no input has a real
+ * (non-clipped) edge at that time: a real transition still ends the overlap even where the other input is clipped.
+ */
 function intersect(a: Window[], b: Window[]): Window[] {
   const out: Window[] = []
   let i = 0
@@ -115,14 +118,22 @@ function intersect(a: Window[], b: Window[]): Window[] {
       out.push({
         startMs,
         endMs,
-        clippedStart: (startMs === x.startMs && x.clippedStart) || (startMs === y.startMs && y.clippedStart),
-        clippedEnd: (endMs === x.endMs && x.clippedEnd) || (endMs === y.endMs && y.clippedEnd),
+        clippedStart: !((startMs === x.startMs && !x.clippedStart) || (startMs === y.startMs && !y.clippedStart)),
+        clippedEnd: !((endMs === x.endMs && !x.clippedEnd) || (endMs === y.endMs && !y.clippedEnd)),
       })
     }
     if (x.endMs < y.endMs) i++
     else j++
   }
   return out
+}
+
+/** Sun visible-fraction levels: sunlit turns on at `onFraction`, off at `offFraction` (threshold ± hysteresis, capped to [0, 1]). */
+export function sunHysteresisLevels(opts: VisibilityOpts): { onFraction: number; offFraction: number } {
+  return {
+    onFraction: Math.min(1, opts.sunThreshold + opts.hysteresis),
+    offFraction: Math.max(0, opts.sunThreshold - opts.hysteresis),
+  }
 }
 
 /**
@@ -141,9 +152,8 @@ export function detectWindows(samples: SiteSamples, opts: VisibilityOpts): Detec
   }
   const { ctx, tUtcMs } = samples
   const earthClearanceDeg = samples.earthElevDeg.map((e, i) => e - samples.earthHorizonDeg[i] - earthMarginDeg)
-  const sunOnAt = Math.min(1, sunThreshold + hysteresis)
-  const sunOffAt = Math.max(0, sunThreshold - hysteresis)
-  const sun = windowsFromSeries(tUtcMs, samples.sunFraction, sunOnAt, sunOffAt, (tMs) => sunAt(ctx, tMs).fraction)
+  const { onFraction, offFraction } = sunHysteresisLevels(opts)
+  const sun = windowsFromSeries(tUtcMs, samples.sunFraction, onFraction, offFraction, (tMs) => sunAt(ctx, tMs).fraction)
   const earth = windowsFromSeries(tUtcMs, earthClearanceDeg, earthHysteresisDeg, -earthHysteresisDeg, (tMs) => {
     const e = earthAt(ctx, tMs)
     return e.elevDeg - e.horizonDeg - earthMarginDeg
