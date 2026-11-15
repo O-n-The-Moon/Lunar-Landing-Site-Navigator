@@ -55,8 +55,16 @@ const ROWS: MetricRow[] = [
     value: (m) => hours(m.longestEarthGapH),
     delta: (d) => numDelta(d.longestEarthGapH, 1, ' h', false),
   },
-  { label: 'First sunset after landing', value: (m) => hours(m.firstSunsetH), delta: (d) => eventDelta(d.firstSunsetH) },
-  { label: 'First Earthset after landing', value: (m) => hours(m.firstEarthsetH), delta: (d) => eventDelta(d.firstEarthsetH) },
+  {
+    label: 'First sunset after landing',
+    value: (m) => (m.sunlitPct === 0 ? 'Never sunlit' : hours(m.firstSunsetH)),
+    delta: (d) => eventDelta(d.firstSunsetH),
+  },
+  {
+    label: 'First Earthset after landing',
+    value: (m) => (m.earthPct === 0 ? 'Never in view' : hours(m.firstEarthsetH)),
+    delta: (d) => eventDelta(d.firstEarthsetH),
+  },
   {
     label: 'Mean Sun fraction',
     value: (m) => m.meanSunFraction.toFixed(2),

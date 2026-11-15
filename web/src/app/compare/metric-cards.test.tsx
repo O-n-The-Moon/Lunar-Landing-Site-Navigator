@@ -69,6 +69,16 @@ describe('MetricCards', () => {
     expect(cell(/slope/i, p)).toHaveTextContent('4.2°')
   })
 
+  it('says "never" instead of "None" when the body is never up during the mission', () => {
+    const results = fixtureResults({ slipped: false })
+    const [plateau] = results.sites
+    const dark = { ...plateau.slipped.metrics, sunlitPct: 0, firstSunsetH: null, earthPct: 0, firstEarthsetH: null }
+    results.sites = [{ ...plateau, slipped: { ...plateau.slipped, metrics: dark } }]
+    render(<MetricCards results={results} />)
+    expect(cell(/first sunset/i, /plateau/i)).toHaveTextContent('Never sunlit')
+    expect(cell(/first earthset/i, /plateau/i)).toHaveTextContent('Never in view')
+  })
+
   it('shows no Δ at slip 0', () => {
     render(<MetricCards results={fixtureResults({ slipped: false })} />)
     expect(within(table()).queryByText(/Δ|better|worse/)).toBeNull()
