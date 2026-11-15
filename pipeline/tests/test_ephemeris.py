@@ -160,11 +160,16 @@ def test_ephemeris_cli_dispatch_and_main(monkeypatch):
 
 
 def test_build_all_runs_ephemeris_before_other_steps(monkeypatch):
-    build = Mock()
-    monkeypatch.setattr(ephemeris, "build_ephemeris", build)
-    with pytest.raises(NotImplementedError):
-        cli.main(["build-all"])
-    build.assert_called_once_with()
+    calls = []
+    monkeypatch.setattr(ephemeris, "build_ephemeris", lambda: calls.append("ephemeris"))
+    # Later steps (sites, grid, pgda) are real now; stub them so this test only
+    # checks ordering and never rebuilds data files.
+    assert cli.BUILD_STEPS[0] is ephemeris.main
+    monkeypatch.setattr(
+        cli, "BUILD_STEPS", (ephemeris.main, lambda: calls.append("later"))
+    )
+    cli.main(["build-all"])
+    assert calls == ["ephemeris", "later"]
 
 
 def test_committed_ephemeris_shape_ranges_and_manifest():
