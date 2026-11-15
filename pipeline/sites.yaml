@@ -4,9 +4,11 @@
 # category: artemis3-region | clps | international | reference
 # Coordinates: planetocentric, lon east-positive -180..180 (MOON_ME, sphere R = 1737.4 km).
 # Sources printed in 0..360 E are converted with lon - 360.
-# No site north of 84 S (project scope: the 182 km polar grid ends at ~84 S; the DEMs
-# themselves reach further north). Exception: artemis3-region sites may sit to 83.5 S,
-# because 250 km horizon rays must stay inside the 75 S DEM (team decision on #5). Chandrayaan-3 and Chang'e-6 are excluded by design.
+# No site north of 84 S (project scope: the +/-182 km polar grid, 182 x 182 cells of 2 km,
+# ends at ~84 S; the DEMs themselves reach further north).
+# Exception: artemis3-region sites may sit to 83.5 S, because 250 km horizon rays must
+# stay inside the 75 S DEM (team decision on #5).
+# Chandrayaan-3 and Chang'e-6 are excluded by design.
 #
 # Artemis III regions (SPEC Open Q1):
 #   NASA publishes the nine regions (Oct 2024) as map polygons only, with no coordinates.
@@ -18,7 +20,10 @@
 #   1e-13 deg). The grids are rectangles covering each region, so the point is the
 #   center of that rectangle: not the best-lit point, and for rim-shaped regions it may
 #   fall outside the region's own outline (the outlines are not publicly downloadable).
-#   (The bounding boxes in the release's XML metadata do not match the grids; not used.)
+#   Grid file per region: <Region>/<Region>_PolarLGRS_ACC_1km_S_Grid.{dbf,prj} inside
+#   <Region>.zip (e.g. Haworth/Haworth_PolarLGRS_ACC_1km_S_Grid.dbf).
+#   (The <bounding> boxes in the release's XML metadata are built from only two grid
+#   corners, so they do not cover the grids; not used.)
 #
 # Chang'e-7 (SPEC Open Q3): left out. CNSA has not published a citable target coordinate.
 
@@ -91,7 +96,7 @@ sites:
     coordSource: https://doi.org/10.5066/P1MEQ6UK
 
   # As-landed position from the NAIF IM-2 frame kernel (LANDING_SITE: -84.79059, 29.19567).
-  # LROC gives the pre-landing target as -84.78, 29.13 (https://www.lroc.asu.edu/images/1401).
+  # LROC gives the pre-landing target as -84.78, 29.13 (https://lroc.im-ldi.com/images/1401).
   - id: mons-mouton-im2
     name: IM-2 Athena (Mons Mouton)
     category: clps

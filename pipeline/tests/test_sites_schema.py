@@ -13,7 +13,7 @@ SITES_YAML = Path(__file__).resolve().parents[1] / "sites.yaml"
 REQUIRED_KEYS = {"id", "name", "category", "latDeg", "lonDeg", "coordSource"}
 CATEGORIES = {"artemis3-region", "clps", "international", "reference"}
 KEBAB_ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
-# Project scope: the 182 km polar grid ends at ~84 S; nothing north of it (team decision).
+# Project scope: the +/-182 km polar grid (182 x 182 cells, 2 km) ends at ~84 S.
 NORTHMOST_LAT_DEG = -84.0
 # Artemis III regions only (#5): 250 km horizon rays must stay inside the 75 S DEM.
 ARTEMIS_REGION_MAX_LAT_DEG = -83.5
@@ -68,6 +68,21 @@ def test_site_field_values(site):
 def test_required_non_artemis_sites_present():
     ids = {s["id"] for s in SITES}
     assert {"mons-mouton-im2", "connecting-ridge", "shackleton-floor"} <= ids
+
+
+@pytest.mark.parametrize(
+    ("site_id", "lat_deg", "lon_deg"),
+    [
+        # Spot-checked against their sources on #5; guards against accidental edits.
+        ("mons-mouton-im2", -84.79059, 29.19567),  # NAIF IM-2 frame kernel
+        ("shackleton-floor", -89.67, 129.78),  # IAU Gazetteer 5450
+        ("mons-mouton", -85.4218, 31.6755),  # USGS grid corner math (PR #5)
+    ],
+)
+def test_spot_checked_coordinates(site_id, lat_deg, lon_deg):
+    site = next(s for s in SITES if s["id"] == site_id)
+    assert site["latDeg"] == pytest.approx(lat_deg, abs=1e-4)
+    assert site["lonDeg"] == pytest.approx(lon_deg, abs=1e-4)
 
 
 def test_all_nine_artemis_regions_present():
