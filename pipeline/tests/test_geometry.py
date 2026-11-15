@@ -71,6 +71,16 @@ def test_az_el_subtracts_site_for_earth_parallax():
     assert dist_km == pytest.approx(np.hypot(384400, MOON_RADIUS_KM))
 
 
+def test_az_el_oblique_direction_and_wrap():
+    # At (0, 0), east=+Y, north=+Z, up=+X. Offset (3,4,12) has range 13.
+    az_deg, elev_deg, dist_km = az_el([MOON_RADIUS_KM + 3, 4, 12], 0, 0)
+    assert az_deg == pytest.approx(np.rad2deg(np.arctan2(4, 12)))
+    assert elev_deg == pytest.approx(np.rad2deg(np.arcsin(3 / 13)))
+    assert dist_km == pytest.approx(13)
+    az_deg, _, _ = az_el([MOON_RADIUS_KM, -0.001, 1], 0, 0)
+    assert 359.9 < az_deg < 360
+
+
 def test_az_el_broadcasts_sites_and_times():
     body_km = np.array([[[384400, 0, 0]], [[0, 384400, 0]]])
     az_deg, elev_deg, dist_km = az_el(body_km, [0, -85, -90], [90, -30, 25])
