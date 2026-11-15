@@ -159,3 +159,33 @@ def test_diversify_skips_flips_between_two_sites_of_one_cluster():
     flips = [_flip("a", "b", 100), _flip("c", "d", 90)]
     got = demo.diversify(flips, 1, {"a": "a", "b": "a"})
     assert (got[0].winner_id, got[0].loser_id) == ("c", "d")
+
+
+def test_rank_flips_require_a_real_margin_before_and_after_the_slip():
+    # Day 0 is a near-tie (a leads by 1); after the slip b leads by 40.
+    both = {"a": np.array([41.0, 0.0]), "b": np.array([40.0, 40.0])}
+    assert demo.rank_flips(both, 1, 0, 0, min_gap_pct=5.0) == []
+    assert len(demo.rank_flips(both, 1, 0, 0, min_gap_pct=0.5)) == 1
+
+
+def test_window_pcts_rejects_an_empty_window():
+    with pytest.raises(ValueError):
+        demo.window_pcts(np.ones(4, dtype=bool), 1, 0, 2)
+
+
+def test_search_rejects_a_negative_first_day():
+    both = {"a": np.array([1.0, 2.0, 3.0]), "b": np.array([3.0, 2.0, 1.0])}
+    with pytest.raises(ValueError):
+        demo.rank_flips(both, 1, -1, 1)
+    with pytest.raises(ValueError):
+        demo.site_losses(both, 1, -1, 1)
+
+
+def _loss(site: str, drop: float) -> demo.SiteLoss:
+    return demo.SiteLoss(site, 0, 1, drop, 0.0, drop)
+
+
+def test_diversify_losses_counts_one_cluster_as_one_place():
+    losses = [_loss("a", 100), _loss("b", 99), _loss("c", 90)]
+    got = demo.diversify_losses(losses, 2, {"a": "a", "b": "a"})
+    assert [r.site_id for r in got] == ["a", "c"]

@@ -23,6 +23,7 @@ from lunarnav.constants import MOON_RADIUS_KM
 MISSION_DAYS = 14
 MAX_SLIP_DAYS = 30
 FIRST_LANDING = datetime(2027, 1, 1, tzinfo=UTC)  # earlier dates are already past
+MIN_GAP_PCT = 10.0  # leads by this much before the slip and trails by it after
 MIN_WINNER_PCT = 20.0  # a flip between two near-dead sites is not a story
 TOP_N = 3
 CLUSTER_KM = 40.0  # sites this close (chained) count as one place in the top flips
@@ -57,6 +58,8 @@ def window_pcts(
     on: NDArray[np.bool_], samples_per_day: int, window_samples: int, n_days: int
 ) -> NDArray[np.float64]:
     """% of each window that is on, for windows starting at day 0..n_days-1."""
+    if window_samples <= 0:
+        raise ValueError("window_samples must be positive")
     starts = np.arange(n_days) * samples_per_day
     if starts.size and starts[-1] + window_samples > on.size:
         raise ValueError("a window runs past the end of the data")
@@ -68,6 +71,8 @@ def site_losses(
     both: Scores, max_slip_days: int, first_day: int, last_base_day: int
 ) -> list[SiteLoss]:
     """Each site's worst baseline->slip drop, sorted largest first."""
+    if first_day < 0:
+        raise ValueError("first_day must be >= 0")
     out: list[SiteLoss] = []
     for site_id, pct in both.items():
         best: SiteLoss | None = None
@@ -94,8 +99,15 @@ def rank_flips(
     first_day: int,
     last_base_day: int,
     min_winner_pct: float = 0.0,
+    min_gap_pct: float = 0.0,
 ) -> list[RankFlip]:
-    """Best flip per site pair (largest swing in the score gap), largest first."""
+    """Best flip per site pair (largest swing in the score gap), largest first.
+
+    The winner must lead by at least `min_gap_pct` at the baseline and trail by at
+    least that much after the slip, so near-ties do not count as flips.
+    """
+    if first_day < 0:
+        raise ValueError("first_day must be >= 0")
     out: list[RankFlip] = []
     for a, b in combinations(sorted(both), 2):
         gap = both[a] - both[b]  # a - b
@@ -106,7 +118,8 @@ def rank_flips(
                 continue
             g0 = gap[first_day : last + 1]
             g1 = gap[first_day + slip : last + 1 + slip]
-            swing = np.where(g0 * g1 < 0, np.abs(g0 - g1), 0.0)
+            real = np.minimum(np.abs(g0), np.abs(g1)) >= max(min_gap_pct, 1e-12)
+            swing = np.where((g0 * g1 < 0) & real, np.abs(g0 - g1), 0.0)
             # The baseline winner must itself score at least min_winner_pct.
             win_pct = np.where(
                 g0 > 0,
@@ -175,6 +188,24 @@ def diversify(
     return chosen
 
 
+def diversify_losses(
+    losses: list[SiteLoss], n: int, cluster_of: dict[str, str] | None = None
+) -> list[SiteLoss]:
+    """Top n losses (best first) from distinct places; then fill with the next best."""
+    place = cluster_of or {}
+    chosen: list[SiteLoss] = []
+    used: set[str] = set()
+    for r in losses:
+        p = place.get(r.site_id, r.site_id)
+        if len(chosen) < n and p not in used:
+            chosen.append(r)
+            used.add(p)
+    for r in losses:
+        if len(chosen) < n and r not in chosen:
+            chosen.append(r)
+    return chosen
+
+
 def replace_section(doc: str, body: str) -> str:
     """Swap the generated block, leaving the rest of the doc untouched."""
     block = f"{START}\n{body}\n{END}"
@@ -224,6 +255,12 @@ def _refined(inputs: golden.Inputs, site_id: str, day: int) -> dict[str, Any]:
     }
 
 
+def _sunset(m: dict[str, Any]) -> str:
+    if m["sunlitPct"] == 0:
+        return "no sunlight"  # "never" would read as always lit
+    return _fmt(m["firstSunsetH"], " h")
+
+
 def _fmt(x: float | None, unit: str = "") -> str:
     return "never" if x is None else f"{x:.1f}{unit}"
 
@@ -235,7 +272,7 @@ def _row(
     return (
         f"| {label} | {names[site_id]} (`{site_id}`) | {str(m['landing'])[:10]} "
         f"| {_fmt(m['sunlitPct'], '%')} | {_fmt(m['earthPct'], '%')} "
-        f"| **{_fmt(m['bothPct'], '%')}** | {_fmt(m['firstSunsetH'], ' h')} |"
+        f"| **{_fmt(m['bothPct'], '%')}** | {_sunset(m)} |"
     )
 
 
@@ -243,6 +280,21 @@ HEADER = (
     "| | Site | Landing (UTC 00:00) | Sunlit | Earth link | Both | First sunset |\n"
     "|---|---|---|---|---|---|---|"
 )
+
+
+def _shared_note(inputs: golden.Inputs, flips: list[RankFlip]) -> str:
+    place = site_clusters(inputs.sites["sites"], CLUSTER_KM)
+    seen: set[str] = set()
+    repeats: list[int] = []
+    for n, f in enumerate(flips, 1):
+        here = {place[f.winner_id], place[f.loser_id]}
+        if here & seen:
+            repeats.append(n)
+        seen |= here
+    if not repeats:
+        return ""
+    nums = ", ".join(str(n) for n in repeats)
+    return f"; flip {nums} shares a place with an earlier flip because no further distinct flip met the margins"
 
 
 def render_section(
@@ -265,6 +317,13 @@ def render_section(
         ),
         "",
         "### Rank flips: the best site changes after a slip",
+        "",
+        (
+            f"A flip needs the winner to lead by at least {MIN_GAP_PCT:.0f} points "
+            f"before the slip and trail by at least that much after it. Flips come "
+            f"from distinct places (sites within {CLUSTER_KM:.0f} km count as one) "
+            f"where enough exist{_shared_note(inputs, flips)}."
+        ),
         "",
     ]
     for n, f in enumerate(flips, 1):
@@ -332,10 +391,10 @@ def find_scenarios(
         both[site["id"]] = window_pcts(on, 24, window, n_days)
     first = (FIRST_LANDING - datetime.fromtimestamp(eph.start_ms / 1000, tz=UTC)).days
     last = n_days - 1 - MAX_SLIP_DAYS
-    flips = rank_flips(both, MAX_SLIP_DAYS, first, last, MIN_WINNER_PCT)
+    flips = rank_flips(both, MAX_SLIP_DAYS, first, last, MIN_WINNER_PCT, MIN_GAP_PCT)
     losses = site_losses(both, MAX_SLIP_DAYS, first, last)
     clusters = site_clusters(inputs.sites["sites"], CLUSTER_KM)
-    return diversify(flips, TOP_N, clusters), losses[:TOP_N]
+    return diversify(flips, TOP_N, clusters), diversify_losses(losses, TOP_N, clusters)
 
 
 def main() -> None:
