@@ -16,7 +16,7 @@ export function TimelinePanel() {
   return (
     <section aria-label="Timeline">
       <h3>Timeline</h3>
-      {results.sites.length === 0 && results.unavailableSiteIds.length === 0 && (
+      {results.siteIds.length === 0 && (
         <p className="hint">Add a site to see its Sun and Earth visibility over the mission.</p>
       )}
       <div style={{ display: 'grid', gap: 'var(--space-3)' }}>
@@ -31,9 +31,11 @@ export function TimelinePanel() {
           />
         ))}
       </div>
-      {results.unavailableSiteIds.length > 0 && (
-        <p className="hint warn">No timeline yet for: {results.unavailableSiteIds.join(', ')}</p>
-      )}
+      {results.unavailable.map((x) => (
+        <p key={x.id} className="hint warn">
+          No timeline for {x.name}: {x.reason}
+        </p>
+      ))}
     </section>
   )
 }
