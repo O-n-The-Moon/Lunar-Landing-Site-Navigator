@@ -195,6 +195,7 @@ Coverage target: the engine has tests for every exported function. No overall % 
 - AI mission copilot (natural language → ranked options): garnish; only on top of a working engine.
 - PDF/decision-brief export: coordination nicety.
 - In-browser DEM horizon for arbitrary points: V1 snaps to the nearest 2 km grid cell instead.
+- Finer or peak-aware grid horizons (e.g. 1 km inside 88°S, or highest-point-in-cell sampling): the 2 km cell-center grid differs from site-level masks by 1–6° at rim/peak sites (median over 9 of 12 curated sites, #76). V1 labels grid-derived results "grid-approximate (2 km)" and always uses `sites.json` masks for curated sites. Any fix is a `grid.json` data-contract change.
 - DSN station visibility, link budgets, multipath models: V1 uses "geometric DTE + elevation margin".
 - Coverage beyond 84–90°S, far side, equatorial/Apollo sites.
 - Educator/public mode, accounts, saved scenarios server-side.
