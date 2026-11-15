@@ -12,3 +12,10 @@ Lunar Landing Site Navigator - NASA Hackathon
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Branch/PR workflow (never push to `main`, squash merge only) |
 | [`AGENTS.md`](AGENTS.md) / [`CLAUDE.md`](CLAUDE.md) | Short context + conventions for AI coding agents |
 | `docs/demo.md` | Demo script (written during the build) |
+
+## Deploy
+
+Static site on Vercel (no backend). Vercel project root is `web/` (Vite preset, Node 22); `main` deploys to production and every PR gets a preview URL.
+
+- **Production:** https://lunar-landing-site-navigator-sooty.vercel.app
+- Data files are served from `web/public/data/` (e.g. `/data/ephemeris.json`).
