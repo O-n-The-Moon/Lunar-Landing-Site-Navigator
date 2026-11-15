@@ -229,7 +229,10 @@ export interface SiteSamples {
   earthHorizonDeg: Float64Array
 }
 
-/** A continuous "on" interval. `clippedStart`/`clippedEnd`: the interval touches the sampled range edge, so that edge is not a real transition. */
+/**
+ * A continuous "on" interval. `clippedStart`/`clippedEnd`: that edge is the sampled range limit, not a real
+ * transition. A real transition can still fall exactly on the range end (then the flag is false).
+ */
 export interface Window {
   startMs: number
   endMs: number

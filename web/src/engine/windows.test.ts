@@ -3,7 +3,7 @@ import { fixtureOutputs, fixtureScenario } from './__fixtures__'
 import { angularRadiusDeg, azEl, bodyVectorKm, horizonElevAt, siteFrame, visibleDiskFraction } from './geometry'
 import { DEFAULT_VISIBILITY_OPTS } from './types'
 import type { DetectedWindows, SiteContext, Vec3, Window } from './types'
-import { detectWindows, nextEvents, sampleSite } from './windows'
+import { detectWindows, nextEvents, sampleSite, sunHysteresisLevels } from './windows'
 
 const MIN_MS = 60_000
 const H_MS = 3_600_000
@@ -243,6 +243,57 @@ describe('detectWindows', () => {
     expect(detectWindows(s, opts)).toEqual({ sun: [], earth: [], both: [] })
   })
 
+  it('keeps a both edge real when one input has a real transition there and the other is clipped', () => {
+    // End the range exactly at the refined sunset: the Sun window ends there for real, Earth is clipped there.
+    const ctx = syntheticCtx([2, 1, -1, -2], [5, 5, 5, 5])
+    const sunsetMs = detectWindows(sampleSite(ctx, ...span(ctx)), opts).sun[0].endMs
+    const w = detectWindows(sampleSite(ctx, T0, sunsetMs), opts)
+    expect(w.sun).toEqual([{ startMs: T0, endMs: sunsetMs, clippedStart: true, clippedEnd: false }])
+    expect(w.earth[0].clippedEnd).toBe(true)
+    expect(w.both).toEqual([{ startMs: T0, endMs: sunsetMs, clippedStart: true, clippedEnd: false }])
+  })
+
+  it('refines every event to at most 1 min after the true crossing', () => {
+    // 24 h of hourly up/down swings with varied amplitudes, so the crossings fall at varied offsets inside their
+    // 10-min brackets: 24 Sun and 24 Earth events, each on a monotonic hour, none in an hour's first 10 min.
+    const wobble = (k: number) => ((k * 37) % 11) / 10
+    const ctx = syntheticCtx(
+      Array.from({ length: 25 }, (_, k) => (k % 2 ? -(1.2 + wobble(k)) : 1.2 + 1.7 * wobble(k))),
+      Array.from({ length: 25 }, (_, k) => (k % 2 ? -(2 + wobble(k)) : 4 + 2 * wobble(k))),
+    )
+    const w = detectWindows(sampleSite(ctx, ...span(ctx)), opts)
+    const at = (t: number) => sampleSite(ctx, t, t)
+    const sunF = (t: number) => at(t).sunFraction[0]
+    const clearance = (t: number) => at(t).earthElevDeg[0] - at(t).earthHorizonDeg[0] - opts.earthMarginDeg
+    /** First ms in (eventMs − 10 min, eventMs] at which `reached` holds, by bisection to 1 ms. */
+    const trueCrossingMs = (eventMs: number, reached: (t: number) => boolean) => {
+      let lo = eventMs - 10 * MIN_MS
+      let hi = eventMs
+      while (hi - lo > 1) {
+        const mid = Math.floor((lo + hi) / 2)
+        if (reached(mid)) hi = mid
+        else lo = mid
+      }
+      return hi
+    }
+    const events: [number, (t: number) => boolean][] = [
+      ...w.sun.filter((x) => !x.clippedEnd).map((x): [number, (t: number) => boolean] => [x.endMs, (t) => sunF(t) <= sunOffAt]),
+      ...w.sun.filter((x) => !x.clippedStart).map((x): [number, (t: number) => boolean] => [x.startMs, (t) => sunF(t) >= sunOnAt]),
+      ...w.earth
+        .filter((x) => !x.clippedEnd)
+        .map((x): [number, (t: number) => boolean] => [x.endMs, (t) => clearance(t) <= -opts.earthHysteresisDeg]),
+      ...w.earth
+        .filter((x) => !x.clippedStart)
+        .map((x): [number, (t: number) => boolean] => [x.startMs, (t) => clearance(t) >= opts.earthHysteresisDeg]),
+    ]
+    expect(events).toHaveLength(48)
+    for (const [eventMs, reached] of events) {
+      const lagMs = eventMs - trueCrossingMs(eventMs, reached)
+      expect(lagMs).toBeGreaterThanOrEqual(0)
+      expect(lagMs).toBeLessThanOrEqual(MIN_MS)
+    }
+  })
+
   it('rejects a negative or NaN hysteresis', () => {
     const s = sampleSite(syntheticCtx([1, 1], [5, 5]), T0, T0 + H_MS)
     expect(() => detectWindows(s, { ...opts, hysteresis: -0.01 })).toThrow(RangeError)
@@ -312,5 +363,18 @@ describe('nextEvents', () => {
   it('rejects a NaN or infinite tUtcMs', () => {
     expect(() => nextEvents(windows, Number.NaN)).toThrow(RangeError)
     expect(() => nextEvents(windows, Number.POSITIVE_INFINITY)).toThrow(RangeError)
+  })
+})
+
+describe('sunHysteresisLevels', () => {
+  it('puts the on/off fractions at threshold ± hysteresis', () => {
+    const { onFraction, offFraction } = sunHysteresisLevels(DEFAULT_VISIBILITY_OPTS)
+    expect(onFraction).toBeCloseTo(0.55, 12)
+    expect(offFraction).toBeCloseTo(0.45, 12)
+  })
+
+  it('caps both levels to the 0–1 fraction range', () => {
+    expect(sunHysteresisLevels({ ...DEFAULT_VISIBILITY_OPTS, sunThreshold: 0.97 }).onFraction).toBe(1)
+    expect(sunHysteresisLevels({ ...DEFAULT_VISIBILITY_OPTS, sunThreshold: 0.02 }).offFraction).toBe(0)
   })
 })
