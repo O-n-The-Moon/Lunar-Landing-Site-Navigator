@@ -33,8 +33,9 @@ missionMetrics(ctx: SiteContext, landingMs: number, durationH: number, opts: Vis
 diffMetrics(a: MissionMetrics, b: MissionMetrics): MetricDelta          // slip vs baseline
 
 // grid
-scoreGrid(grid: Grid, eph: Ephemeris, startMs: number, endMs: number, opts: VisibilityOpts): GridScores // Float32Array per metric
-nearestGridCell(grid: Grid, latDeg: number, lonDeg: number): { ix; iy; snapDistKm } | null
+scoreGrid(grid: Grid, eph: Ephemeris, startMs: number, endMs: number, opts: VisibilityOpts, onProgress?: (fraction: number) => void): GridScores // Float32Array per metric, NaN on no-data cells; onProgress after each row
+nearestGridCell(grid: Grid, latDeg: number, lonDeg: number): { ix; iy; snapDistKm } | null  // null outside the grid extent or on a no-data cell
+gridSiteContext(eph: Ephemeris, grid: Grid, cell: { ix; iy }): SiteContext  // grid-snapped custom site: cell center + surface height, grid observer height (2 m), decoded cell horizon
 ```
 
 `VisibilityOpts` defaults: `{ sunThreshold: 0.5, hysteresis: 0.05, earthMarginDeg: 1.0, earthHysteresisDeg: 0.1 }`.
@@ -60,13 +61,15 @@ Events are found on the 10-min samples, then refined by bisection to **1 min**.
 
 Mission metrics take the Sun/Earth hysteresis state at landing from a **48 h lead-in**: sampling starts up to 48 h before landing (whole 10-min steps, clamped to the ephemeris start), so a landing inside the hysteresis band gets the state that history gives, not the midpoint seed. Only time from landing on counts toward the metrics. `golden.json` scenarios use the same lead-in.
 
+Grid scores (`scoreGrid`) use the same Sunlit / Earth link definitions and hysteresis, applied on **hourly** samples at `startMs`, `startMs + 1 h`, … with no refinement between them. Each sample stands for one hour (the last one for what is left of the range). The state at `startMs` comes from up to **48 h of hourly lead-in** (clamped to the ephemeris start), as in mission metrics, so a map value is close to that cell's metric cards.
+
 ## Performance
 - `sampleSite` + `detectWindows` + `missionMetrics` for 30 days: ≤ 5 ms per site (supports the SPEC.md 33 ms slip budget for 3 sites + rendering).
-- `scoreGrid` for 33k cells × 30 days at a 1 h step: ≤ 3 s in a Web Worker. Body vectors are computed once per hour and shared across cells; each cell only does local ENU dot products. No per-call allocation in the inner loop (preallocated typed arrays).
+- `scoreGrid` for 33k cells × 30 days at a 1 h step (plus ≤ 48 h of hourly lead-in): ≤ 3 s in a Web Worker. Body vectors are computed once per hour and shared across cells; each cell only does local ENU dot products. No per-call allocation in the inner loop (preallocated typed arrays).
 
 ## Testing (Vitest)
 - **Golden parity** with `shared/fixtures/golden.json`: az/el ≤ 1e-3°, fraction ≤ 1e-3, scenario totals ≤ 10 min.
-- **Unit:** `visibleDiskFraction` (d = −1, 0, 1, symmetry); `horizonElevAt` wrap at 359.75° → 0°; interpolation at hour boundaries; hysteresis suppresses flicker on a synthetic grazing series; `nextEvents` when no event exists; `nearestGridCell` outside coverage → null; site exactly at −90° handled (clamped to −89.999°).
+- **Unit:** `visibleDiskFraction` (d = −1, 0, 1, symmetry); `horizonElevAt` wrap at 359.75° → 0°; interpolation at hour boundaries; hysteresis suppresses flicker on a synthetic grazing series; `nextEvents` when no event exists; `nearestGridCell` outside coverage or on a no-data cell → null; site exactly at −90° handled (clamped to −89.999°).
 - Fixture-sized test data lives in `web/src/engine/__fixtures__/` (small slices, not the full files).
 
 ## Boundaries (additions)
