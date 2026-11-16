@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { App } from '../app'
@@ -35,7 +35,7 @@ describe('Details drawer', () => {
     expect(within(table).getByRole('rowheader', { name: /^sunlit/i })).toBeInTheDocument()
   })
 
-  it('has no second Play or time control: the deck keeps the only ones', async () => {
+  it('has no second Play: the deck keeps the only one (its timeline cursor is the same cursorMs as the deck\'s time control)', async () => {
     const user = await renderApp()
     await user.click(detailsButton())
     const drawer = screen.getByRole('dialog', { name: 'Details' })
@@ -59,11 +59,43 @@ describe('Details drawer', () => {
     expect(detailsButton()).toHaveFocus()
   })
 
-  it('the button toggles it, and the deck stays usable while it is open', async () => {
+  it('the button toggles it; the deck stays usable while it is open (slip moves, drawer stays) and Esc works from there', async () => {
     const user = await renderApp()
     await user.click(detailsButton())
-    expect(screen.getByRole('group', { name: /^slip/i })).toBeVisible()
+    const days = within(screen.getByRole('group', { name: /^slip/i })).getByRole('slider', { name: /days/i })
+    fireEvent.change(days, { target: { value: '5' } })
+    expect(days).toHaveValue('5')
+    expect(screen.getByRole('dialog', { name: 'Details' })).toBeInTheDocument()
+
+    days.focus()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Details' })).not.toBeInTheDocument()
+    expect(detailsButton()).toHaveFocus()
+
+    await user.click(detailsButton())
     await user.click(detailsButton())
     expect(screen.queryByRole('dialog', { name: 'Details' })).not.toBeInTheDocument()
+  })
+
+  it('makes the stage inert while it is open, so keyboard focus cannot reach the covered controls', async () => {
+    const user = await renderApp()
+    const stage = screen.getByRole('main')
+    expect(stage).not.toHaveAttribute('inert')
+    await user.click(detailsButton())
+    expect(stage).toHaveAttribute('inert')
+    await user.keyboard('{Escape}')
+    expect(stage).not.toHaveAttribute('inert')
+  })
+
+  it('closes when the view changes, and is unavailable on the Compare tab, which already shows the same content', async () => {
+    const user = await renderApp()
+    await user.click(detailsButton())
+    await user.click(screen.getByRole('tab', { name: 'Surface' }))
+    expect(screen.queryByRole('dialog', { name: 'Details' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: 'Compare' }))
+    expect(detailsButton()).toBeDisabled()
+    await user.click(screen.getByRole('tab', { name: '3D Terrain' }))
+    expect(detailsButton()).toBeEnabled()
   })
 })

@@ -218,7 +218,6 @@
   background: var(--surface);
 }
 
-
 /* The "2D map" view replaces the stage; `hidden` must win over the flex display above. */
 .terrain-view[hidden] {
   display: none;

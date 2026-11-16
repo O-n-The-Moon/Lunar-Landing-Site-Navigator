@@ -1,6 +1,6 @@
 // App shell (SPEC-app → Layout): top bar with the view tabs, collapsible scenario rail, stage, bottom deck.
 // Views: 3D Terrain / Surface / Compare / Opportunity Map / Validation (Compare and the map retire in S2-5).
-import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import './ui/tokens.css'
 import './app.css'
 import './ui/hud.css'
@@ -111,9 +111,19 @@ function Workspace() {
   const baseId = useId()
   const rail = useRail()
   const details = useDetails()
+  const stageRef = useRef<HTMLElement>(null)
+  // The open drawer covers part (all, when narrow) of the stage: keep keyboard focus and the a11y tree out of it.
+  // (React 18 has no `inert` prop.)
+  useEffect(() => {
+    const stage = stageRef.current
+    if (!stage) return
+    if (details.open) stage.setAttribute('inert', '')
+    else stage.removeAttribute('inert')
+  }, [details.open])
 
   const select = (id: TabId, focus = false) => {
     setTab(id)
+    details.dismiss() // it would cover another view's content, or repeat the Compare tab
     setOpened((prev) => (prev.has(id) ? prev : new Set([...prev, id])))
     if (focus) tabRefs.current[id]?.focus()
   }
@@ -168,7 +178,7 @@ function Workspace() {
               <DateControls />
               <Options />
             </LeftRail>
-            <main className="stage">
+            <main ref={stageRef} className="stage">
               <div {...panel('terrain')}>{opened.has('terrain') && <TerrainView active={tab === 'terrain'} />}</div>
               <div {...panel('surface')}>{opened.has('surface') && <SurfaceView active={tab === 'surface'} />}</div>
               <div {...panel('compare')}>
@@ -184,7 +194,7 @@ function Workspace() {
               <div {...panel('validation')}>{opened.has('validation') && <ValidationPanel />}</div>
             </main>
             <DetailsDrawer details={details} />
-            <MissionDeck details={details} />
+            <MissionDeck details={details} detailsDisabled={tab === 'compare'} />
           </div>
         </ViewTimeBar>
       </AppliedPresetProvider>

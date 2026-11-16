@@ -2,7 +2,7 @@
 // slip, site beacons coloured by what the timeline says, the Sun and Earth rays, and overlays from the 2D map.
 // Everything physical comes from the engine (ephemeris vectors, `illuminationAt`, the site windows); the 3D scene only
 // draws it. Loads in stages: 2 km heights first, then the 1024² display terrain, then the horizon grid for shadows.
-import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useDeferredValue, useEffect, useId, useMemo, useState } from 'react'
 import { bodyVectorKm, illuminationAt, MOON_RADIUS_KM, nearestGridCell, type Grid, type SiteContext, type Vec3 } from '../../engine'
 import { useCoreData, useDisplayTerrain, useGrid, usePgdaLayers, useTerrainHeights } from '../data'
 import { rampCss } from '../map/colormaps'
@@ -94,10 +94,7 @@ function compassAt(focused: SiteResult | null, tMs: number): { sun: CompassBody 
   }
 }
 
-const SHOW_2D_ID = 'terrain-show-2d'
-const BACK_TO_3D_ID = 'terrain-back-to-3d'
-
-/** Moves focus once the control that was used has been hidden (it would fall to <body> otherwise). */
+/** Moves focus once the control that was clicked is hidden (3D → 2D) or gone (2D → 3D); it would fall to <body> otherwise. */
 function focusSoon(id: string) {
   requestAnimationFrame(() => document.getElementById(id)?.focus())
 }
@@ -107,6 +104,8 @@ export function TerrainView({ active }: { active: boolean }) {
   // "2D": the opportunity map in place of the scene, for exact hover values. The scene stays mounted (frozen, like a
   // hidden tab), so coming back costs no rebuild.
   const [twoD, setTwoD] = useState(false)
+  const show2dId = useId()
+  const backTo3dId = useId()
   const fallback = (why: string) => (
     <div className="terrain-fallback">
       <p className="hint warn" role="status">
@@ -118,24 +117,24 @@ export function TerrainView({ active }: { active: boolean }) {
   if (!webgl) return fallback('3D view needs WebGL 2, which this browser does not offer.')
   const toggle = (next: boolean) => {
     setTwoD(next)
-    focusSoon(next ? BACK_TO_3D_ID : SHOW_2D_ID)
+    focusSoon(next ? backTo3dId : show2dId)
   }
   return (
     <SceneErrorBoundary fallback={fallback('The 3D view could not start on this device.')}>
-      <TerrainStage active={active && !twoD} hidden={twoD} onShow2D={() => toggle(true)} />
+      <TerrainStage active={active && !twoD} hidden={twoD} show2dId={show2dId} onShow2D={() => toggle(true)} />
       {twoD && (
-        <section className="terrain-2d" aria-label="2D opportunity map">
-          <button id={BACK_TO_3D_ID} type="button" onClick={() => toggle(false)}>
+        <div className="terrain-2d">
+          <button id={backTo3dId} type="button" onClick={() => toggle(false)}>
             Back to 3D
           </button>
           <MapView active={active} />
-        </section>
+        </div>
       )}
     </SceneErrorBoundary>
   )
 }
 
-function TerrainStage({ active, hidden, onShow2D }: { active: boolean; hidden: boolean; onShow2D: () => void }) {
+function TerrainStage({ active, hidden, show2dId, onShow2D }: { active: boolean; hidden: boolean; show2dId: string; onShow2D: () => void }) {
   const { ephemeris, sitesFile } = useCoreData()
   const scenario = useScenario()
   const dispatch = useScenarioDispatch()
@@ -381,7 +380,7 @@ function TerrainStage({ active, hidden, onShow2D }: { active: boolean; hidden: b
           <button type="button" onClick={() => setView((v) => ({ kind: 'overview', nonce: v.nonce + 1 }))}>
             Reset view
           </button>
-          <button id={SHOW_2D_ID} type="button" onClick={onShow2D} title="Opportunity map with exact hover values">
+          <button id={show2dId} type="button" onClick={onShow2D} title="Opportunity map with exact hover values">
             2D map
           </button>
         </div>
