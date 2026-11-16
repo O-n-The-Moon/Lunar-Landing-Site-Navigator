@@ -172,6 +172,10 @@ def az_err_deg(a_deg: float, b_deg: float) -> float:
     return abs((a_deg - b_deg + 180.0) % 360.0 - 180.0)
 
 
+# SPEC.md success criterion 1: max Sun and Earth az/el error vs Horizons.
+TARGET_MAX_ERR_DEG = 0.02
+
+
 def summarize(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
     az = np.array([r["azErrDeg"] for r in rows], dtype=float)
     elev = np.array([r["elevErrDeg"] for r in rows], dtype=float)
@@ -181,6 +185,7 @@ def summarize(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
         "maxElevErrDeg": float(elev.max()),
         "meanAzErrDeg": float(az.mean()),
         "meanElevErrDeg": float(elev.mean()),
+        "targetMaxErrDeg": TARGET_MAX_ERR_DEG,
     }
 
 

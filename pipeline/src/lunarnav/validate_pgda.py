@@ -14,9 +14,9 @@ Method agreed in #57 (pipeline/DATA_SOURCES.md, SPEC-data-pipeline.md section 5)
 - PGDA pixel: bilinear at the site, plus the range over +/-2 pixels (our
   near-field DEM is 80 m, the raster 120 m).
 
-The validation.json rows carry the 0 m result only (the contract has no fields
-for the rest yet, see #71). The sensitivity runs and pixel ranges are printed
-and quoted in each outlier's explanation. Any +/-5 pp result may only be stated
+The validation.json rows carry the 0 m result only. The sensitivity runs and
+pixel ranges are printed and quoted in each outlier's explanation; METHOD
+records the definitions, height assumption and claim label in the file (#71). Any +/-5 pp result may only be stated
 as CLAIM_LABEL, never as accuracy against truth or as "height-matched".
 """
 
@@ -53,6 +53,33 @@ SPAN_HOURS = round(18.6 * 365.25 * 24)
 SITES_YAML = Path(__file__).resolve().parents[2] / "sites.yaml"
 PGDA_SUN_LBL = io.RAW_DIR / "pgda/AVGVISIB_75S_120M_201608.LBL"
 PGDA_EARTH_LBL = io.RAW_DIR / "pgda/AVGVISIB_75S_120M_201608_EARTH.LBL"
+
+# validation.json -> pgda.method (#71): what the panel shows next to the numbers.
+METHOD: dict[str, Any] = {
+    "observerHeightM": PRIMARY_HEIGHT_M,
+    "sensitivityHeightsM": list(SENSITIVITY_HEIGHTS_M),
+    "sunDefinition": (
+        f"any part of the solar disc above the terrain horizon "
+        f"(Sun elevation + {SUN_RADIUS_DEG} deg)"
+    ),
+    "earthDefinition": (
+        "any part of Earth's disc above the terrain horizon (Earth elevation + "
+        "its actual angular radius, about 0.95 deg)"
+    ),
+    "pgdaDefinition": "any part of the disc visible (product 69 labels)",
+    "sampling": (
+        f"hourly, {SPAN_HOURS} h (18.6 years) from {SPAN_START_UTC}; "
+        "Sun/Earth vectors from the pinned SPICE kernels"
+    ),
+    "claimLabel": CLAIM_LABEL,
+    "notes": (
+        "Observer height is an assumption: PGDA product 69 does not document "
+        "its height, and surface level (0 m) is taken from Mazarico et al. "
+        "(2011) for the 2010 maps, not confirmed for the 2016 rasters. The "
+        "2 m and 10 m runs are sensitivity checks only. Not accuracy against "
+        "truth, and not height-matched. App metrics use other definitions."
+    ),
+}
 
 # Written by a person after inspecting a run: one entry per outlier site
 # (|diff| > THRESHOLD_PP for Sun or Earth at 0 m). run() refuses to write an
@@ -246,13 +273,15 @@ def summarize(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "sitesTotal": len(rows),
         "maxAbsSunDiffPp": max(abs(r["sunDiffPp"]) for r in rows),
         "maxAbsEarthDiffPp": max(abs(r["earthDiffPp"]) for r in rows),
+        "targetFractionWithin": CRITERION_2_FRACTION,
     }
 
 
 def criterion_2_passes(summary: Mapping[str, Any]) -> bool:
     """SPEC.md criterion 2, read under the #57 definition."""
     return (
-        summary["sitesWithinThreshold"] >= CRITERION_2_FRACTION * summary["sitesTotal"]
+        summary["sitesWithinThreshold"]
+        >= summary["targetFractionWithin"] * summary["sitesTotal"]
     )
 
 
@@ -381,7 +410,7 @@ def run(
         f"±{THRESHOLD_PP:g} pp at {PRIMARY_HEIGHT_M} m): {verdict} "
         f"({summary['sitesWithinThreshold']}/{summary['sitesTotal']})"
     )
-    return {"rows": rows, "summary": summary}
+    return {"rows": rows, "summary": summary, "method": METHOD}
 
 
 def main() -> None:
