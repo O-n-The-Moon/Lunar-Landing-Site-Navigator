@@ -1,26 +1,5 @@
-/* App shell styles: dense, dark, mission-ops. Views add their own styles next to their components. */
-:root {
-  color-scheme: dark;
-  --bg: #0b0e13;
-  --surface: #131820;
-  --surface-2: #1a212c;
-  --border: #283241;
-  --text: #d8dee8;
-  --text-muted: #8592a6;
-  --accent: #5fb3f9;
-  --warn: #f2b84b;
-  --danger: #f2706b;
-  --good: #5fd18a;
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --radius: 4px;
-  --font-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-num: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font: 14px/1.4 var(--font-ui);
-}
-
+/* Base element styles and shared helpers. Tokens: ui/tokens.css. Shell layout: shell/shell.css.
+   Views add their own styles next to their components. */
 * {
   box-sizing: border-box;
 }
@@ -41,9 +20,9 @@ h1 {
   font-size: 1rem;
 }
 h2 {
-  font-size: 0.875rem;
+  font-size: 0.6875rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   color: var(--text-muted);
 }
 h3 {
@@ -62,6 +41,13 @@ select {
 }
 button {
   cursor: pointer;
+  transition:
+    background 120ms,
+    border-color 120ms,
+    color 120ms;
+}
+button:hover:not(:disabled) {
+  border-color: var(--border-strong);
 }
 button:disabled,
 select:disabled {
@@ -70,7 +56,7 @@ select:disabled {
 }
 :focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
 .num {
@@ -91,22 +77,16 @@ select:disabled {
 .hint.warn {
   color: var(--warn);
 }
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 
-/* --- shell ------------------------------------------------------------------------- */
-.app {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-.app-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  padding: var(--space-2) var(--space-4);
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-}
+/* --- full-page messages (loading, load error) --------------------------------------- */
 .app-message {
   padding: var(--space-4);
 }
@@ -114,63 +94,11 @@ select:disabled {
   color: var(--danger);
   margin-bottom: var(--space-2);
 }
-.badge {
-  margin: 0;
-  padding: 0 var(--space-2);
-  border-radius: var(--radius);
-  font-size: 0.75rem;
-}
-.badge-warn {
-  color: var(--warn);
-  border: 1px solid var(--warn);
-}
 
-.layout {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 18rem minmax(0, 1fr);
-}
-@media (max-width: 768px) {
-  .layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border-right: 1px solid var(--border);
-  background: var(--surface);
-}
-.main {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-/* --- tabs (WAI-ARIA tabs pattern) ---------------------------------------------------- */
-.tabs {
-  display: flex;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-3) 0;
-  border-bottom: 1px solid var(--border);
-}
-.tabs [role='tab'] {
-  border: 1px solid transparent;
-  border-bottom: none;
-  border-radius: var(--radius) var(--radius) 0 0;
-  background: transparent;
-  color: var(--text-muted);
-}
-.tabs [role='tab'][aria-selected='true'] {
-  background: var(--bg);
-  border-color: var(--border);
-  color: var(--text);
-  margin-bottom: -1px;
-}
+/* --- tab panels (the tablist itself is styled in shell/shell.css) --------------------- */
 .tab-panel {
+  /* Grows to fill the stage (so the 3D views can), but never shrinks below its content (so tall tabs scroll). */
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -185,16 +113,23 @@ select:disabled {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  /* Fieldsets default to min-content width, so a long <select> option would overflow the sidebar. */
+  /* Fieldsets default to min-content width, so a long <select> option would overflow the rail. */
   min-inline-size: 0;
   margin: 0;
-  padding: var(--space-2) var(--space-3) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  padding: 0 0 var(--space-3);
+  border: 0;
+  border-bottom: 1px solid var(--border);
 }
 .control legend {
-  padding: 0 var(--space-1);
+  float: left; /* keeps the legend inside the fieldset's box, so it sits in the flex column like a heading */
+  width: 100%;
+  padding: 0;
+  margin-bottom: var(--space-1);
+  font-size: 0.6875rem;
   font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 .control label {
   font-size: 0.75rem;
@@ -244,22 +179,7 @@ select:disabled {
   line-height: 1.5;
 }
 
-/* --- placeholders (removed as views land) ------------------------------------------ */
-.placeholder {
-  padding: var(--space-3);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-  color: var(--text-muted);
-}
-.placeholder h3 {
-  color: var(--text);
-  margin-bottom: var(--space-1);
-}
-.placeholder p {
-  margin: 0;
-}
-
-/* --- opportunity map (v0) ------------------------------------------------------------- */
+/* --- opportunity map (2D) ------------------------------------------------------------- */
 .map-view {
   display: grid;
   gap: var(--space-2);

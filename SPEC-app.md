@@ -13,25 +13,29 @@ A single-page planner tool. Load → pick sites → set date → drag the slip �
 ## Layout
 
 ```
-┌───────────────┬─────────────────────────────────────────────────────┐
-│ Scenario      │  [3D Terrain] [Surface] [Compare] [Opportunity Map] [Validation]  (tabs) │
-│ - sites (≤3)  │  ┌ metric cards: Site A | Site B | Site C ────────┐ │
-│ - landing UTC │  │ sunlit% earth% both% gaps slope next-sunset Δ  │ │
-│ - duration    │  └────────────────────────────────────────────────┘ │
-│ - SLIP slider │  timeline strips (one per site, shared cursor)       │
-│ - obs height  │  horizon panorama (focused site)                     │
-│ - thresholds  │                                                     │
-└───────────────┴─────────────────────────────────────────────────────┘
+┌ top bar: brand · [ 3D Terrain | Surface | Verify ] · UTC / L+ clock · data-source chip ─┐
+│ left rail      │                                                                        │
+│ (collapsible)  │               stage: the active view, as large as possible              │
+│ - sites (≤3)   │   3D Terrain: live shadows · beacons · overlays · "2D map" toggle       │
+│ - presets      │   Surface: first-person skyline · "Engineering view (2D)" panorama      │
+│ - landing UTC  │   Verify: checked against JPL Horizons and PGDA                         │
+│ - duration     │                                          ┌ Details drawer (on demand) ┐ │
+│ - obs height   │                                          │ metric table + timeline    │ │
+│ - thresholds   │                                          └────────────────────────────┘ │
+├────────────────┴────────────────────────────────────────────────────────────────────────┤
+│ bottom deck: SLIP −30 ──●── +90 d · Try +N d · outlook │ ▶ Play · speed · cursor │ [Details] │
+│ one row per site: Sun % (Δ) · Earth % · Both % · next sunset · mini band                 │
+└──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**3D Terrain is the default tab.** The Compare content above shows when the Compare tab is open. Tabs mount on first open and then stay mounted (a hidden 3D tab freezes its render loop). A later slice may trim the tab set; see `tasks/ui-v2-integration-plan.md`.
+**3D Terrain is the default view.** Views mount on first open and then stay mounted (a hidden 3D view freezes its render loop). There is **one** slip control and **one** time control (Play, speed, cursor), both in the deck. The deck's **Details** button opens a drawer with the full metric table (P0-3) and the full timeline (P0-4); Esc closes it. The 2D panorama (P0-5) is Surface's "Engineering view (2D)" and the 2D opportunity map (P0-6) is 3D Terrain's "2D map" toggle, which is also the WebGL fallback. See `tasks/ui-v2-integration-plan.md`.
 
 ## Features & acceptance
 
 ### P0-1 Data loading
 - Load `ephemeris`, `sites.json`, `validation.json` on startup. The app is interactive as soon as these are in.
-- **Staged load** for the default 3D Terrain tab, each stage with a visible state: (1) the 2 km heights (`grid-heights.bin`) draw a coarse terrain; (2) `terrain-display.bin` replaces it with the 1024² display terrain; (3) the horizon grid (`grid.json` + `grid-horizons.bin`) streams in with progress, and the shadow layer and score overlays appear when it lands. PGDA rasters load only when a PGDA overlay is picked. The grid files also load when another tab needs them (Opportunity Map, custom sites).
-- **Accept:** SPEC.md criterion 7; a load error shows a clear message, not a blank screen; a failed terrain or grid fetch offers a retry and leaves the other tabs working.
+- **Staged load** for the default 3D Terrain tab, each stage with a visible state: (1) the 2 km heights (`grid-heights.bin`) draw a coarse terrain; (2) `terrain-display.bin` replaces it with the 1024² display terrain; (3) the horizon grid (`grid.json` + `grid-horizons.bin`) streams in with progress, and the shadow layer and score overlays appear when it lands. PGDA rasters load only when a PGDA overlay is picked. The grid files also load when something else needs them (custom sites, the 2D map).
+- **Accept:** SPEC.md criterion 7; a load error shows a clear message, not a blank screen; a failed terrain or grid fetch offers a retry and leaves the other views working.
 
 ### P0-2 Scenario controls
 - Site picker: curated list grouped by category, showing slope; add up to 3; remove; set a focused site.
@@ -39,29 +43,31 @@ A single-page planner tool. Load → pick sites → set date → drag the slip �
 - Landing date/time (UTC), mission duration (1–30 days, default 14), **slip slider** (−30…+90 days, 1-day steps, plus fine ±12 h), observer height (2 / 10 m; grid-snapped sites: 2 m only, labelled), Sun threshold (visible-disk fraction 0–1, default 0.5), Earth margin (0–10°, default 1°).
 - **Accept:** all controls drive the engine; the slip slider meets SPEC.md criterion 5.
 
-### P0-3 Metric cards (compare)
+### P0-3 Metric cards (Details drawer)
+- Opened from the deck's **Details** button. The deck rows show the headline numbers (Sun / Earth / Both %, Δ, next sunset); this table has all of them.
 - One column per site: sunlit %, Earth link %, both %, longest Sun gap, longest Earth gap, first sunset/Earthset after landing, mean Sun fraction, slope (red if > 10°).
 - Each metric shows a **Δ vs. unslipped baseline** when slip ≠ 0 (green better / red worse).
 - **Accept:** values equal `missionMetrics` output; Δ appears and disappears correctly at slip = 0.
 
-### P0-4 Timeline strips
+### P0-4 Timeline strips (Details drawer)
 - Per site: three bands (Sun / Earth / Both) across the mission window, with a faint **ghost of the baseline** (slip = 0) under each band so losses are visible.
 - Shared draggable cursor; at the cursor show Sun elevation, clearance, "sunset in Xh Ym", "Earthset in Xh Ym".
 - **Accept:** band edges match `detectWindows` within 1 px; cursor readouts match `nextEvents`.
 
-### P0-5 Horizon panorama (focused site)
+### P0-5 Horizon panorama (focused site; Surface's Engineering view)
 - Unrolled 360° view: x = azimuth (re-centerable on Sun or Earth), y = elevation −5°…+12° with **visible vertical-exaggeration label**.
 - Filled terrain silhouette (selected observer height); Sun track over the mission (colored lit/blocked, day ticks); Earth track (libration loop); Sun (0.53°) and Earth (~1.9°) disks drawn **to angular scale** at the cursor time.
 - Hover → az, elev, horizon elevation, time.
 - **Accept:** at a cursor time where the timeline says "blocked", the Sun disk is drawn below the silhouette.
 
-### P0-6 Opportunity map
-- Canvas, polar-stereographic grid extent, pole at center, lat rings (85°, 88°) and lon spokes. The same layers also drape on the 3D Terrain tab (P0-8); this 2D map stays as the WebGL fallback. A hidden map does not score.
+### P0-6 Opportunity map (2D; 3D Terrain's "2D map" toggle)
+- Canvas, polar-stereographic grid extent, pole at center, lat rings (85°, 88°) and lon spokes. The same layers drape on the 3D Terrain view (P0-8), so there is no separate map tab: this 2D map is a toggle inside 3D Terrain (exact hover values) and its WebGL fallback. A hidden map does not score.
 - Layers: **v0** PGDA average Sun / Earth (static); **v1** window score (Sun % / Earth % / Both %) for [landing, landing + duration], computed by `scoreGrid` in a **Web Worker**, recomputed when the window changes (debounced 300 ms).
 - Curated site markers; hover readout (lat, lon, value); click → add as custom site.
 - **Accept:** SPEC.md criterion 6; UI stays responsive during computation.
 
-### P0-7 Validation panel
+### P0-7 Verify view (validation panel)
+- The "Verify" tab: "checked against JPL Horizons and PGDA".
 - Summary badges (e.g. "Ephemeris vs JPL Horizons: max 0.0X°", "Terrain vs PGDA: N/M sites within 5 pp") read directly from `validation.json`; detail tables; a short methods list (frame, kernels, DEMs, definitions, assumptions such as "geometric DTE").
 - **Accept:** every number shown comes from `validation.json`.
 

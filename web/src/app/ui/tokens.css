@@ -1,0 +1,95 @@
+/* Design tokens (UI v2, demo plan §3). One quiet dark surface scale, three signal colours (Sun = amber,
+   Earth = blue, Both = green), red for blocked. Inter for text, JetBrains Mono for numbers; both self-hosted
+   (public/fonts, SIL OFL 1.1, latin subset; other glyphs such as → Δ ≤ fall back to the system font). */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/inter-latin-400-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/inter-latin-500-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/inter-latin-600-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin-500-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  color-scheme: dark;
+  /* surfaces */
+  --bg: #06080c;
+  --surface: #0d1118;
+  --surface-2: #131a24;
+  --surface-3: #1a2330;
+  --chrome: #0a1019; /* top bar, rail, deck */
+  --border: #1f2935;
+  --border-strong: #2c3a4b;
+  /* glass panels floating over the 3D stage */
+  --glass: rgba(13, 17, 24, 0.84);
+  --glass-blur: 6px;
+  /* text */
+  --text: #e7ecf3;
+  --text-muted: #8a97a9;
+  --text-faint: #5d6a7c;
+  /* signals */
+  --sun: #f6b73c;
+  --sun-soft: rgba(246, 183, 60, 0.14);
+  --earth: #4ea8ff;
+  --earth-soft: rgba(78, 168, 255, 0.14);
+  --both: #34d399;
+  --both-soft: rgba(52, 211, 153, 0.14);
+  --danger: #ff6b6b;
+  --danger-soft: rgba(255, 107, 107, 0.12);
+  /* role names used by existing view code */
+  --accent: var(--earth);
+  --warn: var(--sun);
+  --good: var(--both);
+  /* spacing / shape */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --radius-sm: 6px;
+  --radius: 6px;
+  --radius-lg: 8px;
+  /* shell */
+  --topbar-h: 40px;
+  --rail-w: 248px;
+  --rail-collapsed-w: 44px;
+  /* type */
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-num: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font: 14px/1.45 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}

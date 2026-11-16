@@ -6,10 +6,8 @@ import type { DetectedWindows } from '../../engine'
 import { HOUR_MS, useScenario, useScenarioDispatch } from '../state'
 import { useScenarioResults } from '../use-scenario-results'
 import { formatUtc } from '../controls/date-controls'
-import { PauseIcon, PlayIcon } from '../ui/icons'
 import { cursorReadout } from './cursor-readout'
 import { shiftWindows } from './ghost'
-import { usePlayCursor } from './playback'
 import { TimelineCursor } from './timeline-cursor'
 import { TimelineStrip, eventTexts } from './timeline-strip'
 import './timeline.css'
@@ -22,12 +20,11 @@ function formatElapsed(ms: number): string {
   return `T+${d > 0 ? `${d} d ` : ''}${h} h ${totalMin % 60} m`
 }
 
-/** `active`: the tab holding the timeline is showing (Play pauses while it is hidden). */
-export function TimelinePanel({ active = true }: { active?: boolean }) {
+/** The deck's time control owns Play; this panel's cursor is the same `cursorMs`. */
+export function TimelinePanel() {
   const { cursorMs } = useScenario()
   const dispatch = useScenarioDispatch()
   const results = useScenarioResults()
-  const play = usePlayCursor({ active, enabled: results.siteIds.length > 0 })
   const range = useMemo(
     () => ({ startMs: results.slippedLandingMs, endMs: results.slippedLandingMs + results.durationH * HOUR_MS }),
     [results.slippedLandingMs, results.durationH],
@@ -57,11 +54,6 @@ export function TimelinePanel({ active = true }: { active?: boolean }) {
   return (
     <section aria-label="Timeline">
       <h3>Timeline</h3>
-      {results.siteIds.length > 0 && (
-        <button type="button" className="play-button" onClick={play.toggle} aria-pressed={play.playing}>
-          {play.playing ? <PauseIcon size={12} /> : <PlayIcon size={12} />} {play.playing ? 'Pause' : 'Play'}
-        </button>
-      )}
       {results.siteIds.length === 0 && (
         <p className="hint">Add a site to see its Sun and Earth visibility over the mission.</p>
       )}

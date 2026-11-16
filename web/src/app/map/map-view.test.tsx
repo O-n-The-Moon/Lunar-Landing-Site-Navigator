@@ -1,7 +1,8 @@
-import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderAppOnCompare } from '../test-utils'
+import { App } from '../app'
+import { fixtureDataSource } from '../data'
 import type { GridWorkerRequest, GridWorkerResponse } from '../../workers/grid-score.worker'
 import { MOON_RADIUS_KM, latLonToKm } from './projection'
 
@@ -14,17 +15,16 @@ beforeEach(() => {
 })
 
 /**
- * The App on fixture data, Map tab open. The fixture PGDA raster is 8 × 8 cells of 2 km: x, y ∈ [−8, 8) km. The map is mocked
+ * The App on fixture data. Without WebGL (jsdom) the 3D Terrain view shows this same 2D map, which is also what its "2D map" toggle opens. The fixture PGDA raster is 8 × 8 cells of 2 km: x, y ∈ [−8, 8) km. The map is mocked
  * to 160 px wide, so 1 px = 0.1 km. The fixture grid is the same 8 × 8: (−89.97°, 30°E) is in cell (4, 4), and the
  * no-data cell is (7, 7).
  */
-/** Queries inside the Map tab: with no WebGL the 3D Terrain tab (hidden) shows a second, 2D map, so `screen` text queries would see both. */
-const ui = () => within(screen.getByRole('tabpanel', { name: 'Opportunity Map' }))
+/** Queries inside the 3D Terrain view, where the map lives. */
+const ui = () => within(screen.getByRole('tabpanel', { name: '3D Terrain' }))
 
 async function openMap() {
   const user = userEvent.setup()
-  await renderAppOnCompare()
-  await user.click(screen.getByRole('tab', { name: /opportunity map/i }))
+  render(<App dataSources={{ source: fixtureDataSource() }} />)
   const plot = await screen.findByRole('img', { name: /opportunity map/i })
   vi.spyOn(plot, 'getBoundingClientRect').mockReturnValue({
     left: 0, top: 0, width: 160, height: 160, right: 160, bottom: 160, x: 0, y: 0, toJSON: () => ({}),
@@ -84,11 +84,11 @@ describe('MapView', () => {
     expect(siteNames()).toHaveLength(3)
   })
 
-  it('keeps the chosen layer in the scenario, so it survives switching tabs', async () => {
+  it('keeps the chosen layer in the scenario, so it survives switching views', async () => {
     const { user } = await openMap()
     await user.click(within(screen.getByRole('radiogroup', { name: /layer/i })).getByRole('radio', { name: /PGDA Earth average/i }))
-    await user.click(screen.getByRole('tab', { name: /compare/i }))
-    await user.click(screen.getByRole('tab', { name: /opportunity map/i }))
+    await user.click(screen.getByRole('tab', { name: 'Surface' }))
+    await user.click(screen.getByRole('tab', { name: '3D Terrain' }))
     const group = await screen.findByRole('radiogroup', { name: /layer/i })
     expect(within(group).getByRole('radio', { name: /PGDA Earth average/i })).toBeChecked()
   })

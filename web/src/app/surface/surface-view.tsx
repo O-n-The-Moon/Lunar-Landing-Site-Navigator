@@ -3,7 +3,7 @@
 // visible fraction of the Sun's disk, since a half-visible disk can still count as "blocked" (threshold + hysteresis).
 import { lazy, Suspense, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { bodyVectorKm, visibleDiskFraction } from '../../engine'
-import { TimeBar, useTimeBarController, type TimeBarController } from '../controls/time-bar'
+import { useTimeBar } from '../controls/time-bar'
 import { bodyAt, surfaceTrack } from '../panorama/bodies'
 import { PanoramaPanel } from '../panorama/panorama-panel'
 import { missionTracks } from '../panorama/tracks'
@@ -27,15 +27,11 @@ const wrap360 = (deg: number) => ((deg % 360) + 360) % 360
 export function SurfaceView({ active }: { active: boolean }) {
   const [webgl] = useState(hasWebGL)
   const [engineering, setEngineering] = useState(false)
-  const results = useScenarioResults()
-  const canPlay = results.sites.length > 0
-  // One controller for the 3D stage and the 2D fallback, so the cursor is controllable in both.
-  const timeBar = useTimeBarController({ active, canPlay })
+  // The cursor is controlled from the deck, in the 3D stage and in the 2D fallback alike.
   const twoD = (notice: ReactNode) => (
     <section className="surface-view" aria-label="Surface view">
       {notice}
       <PanoramaPanel />
-      <TimeBar controller={timeBar} canPlay={canPlay} />
     </section>
   )
   if (!webgl) {
@@ -62,12 +58,13 @@ export function SurfaceView({ active }: { active: boolean }) {
         </p>,
       )}
     >
-      <SurfaceStage active={active} timeBar={timeBar} onEngineering={() => setEngineering(true)} />
+      <SurfaceStage active={active} onEngineering={() => setEngineering(true)} />
     </SceneErrorBoundary>
   )
 }
 
-function SurfaceStage({ active, timeBar, onEngineering }: { active: boolean; timeBar: TimeBarController; onEngineering: () => void }) {
+function SurfaceStage({ active, onEngineering }: { active: boolean; onEngineering: () => void }) {
+  const timeBar = useTimeBar()
   const scenario = useScenario()
   const results = useScenarioResults()
   const { focusedSiteId } = scenario
@@ -226,7 +223,6 @@ function SurfaceStage({ active, timeBar, onEngineering }: { active: boolean; tim
         Dotted paths are the Sun (amber) and Earth (blue) over the whole mission, bright where lit / in view, with day marks. Fainter ridges in front are depth
         cues and always sit below the real skyline.
       </p>
-      <TimeBar controller={timeBar} canPlay={results.sites.length > 0} />
     </section>
   )
 }

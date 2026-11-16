@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { renderAppOnCompare } from '../test-utils'
+import { renderAppWithDetails } from '../test-utils'
 import { fixtureDataSource, type DataSource } from '../data'
 import { customSiteLabel } from './custom-site'
 
@@ -14,7 +14,7 @@ afterEach(cleanup)
  */
 async function renderCustomSite(source: DataSource = fixtureDataSource()) {
   const user = userEvent.setup()
-  await renderAppOnCompare(source)
+  await renderAppWithDetails(source)
   const group = await screen.findByRole('group', { name: /custom site/i })
   fireEvent.change(screen.getByLabelText(/duration/i), { target: { value: '1' } })
   const lat = within(group).getByLabelText(/latitude/i)

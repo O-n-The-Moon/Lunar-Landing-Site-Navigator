@@ -2,19 +2,20 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fixtureSitesFile } from '../../engine/__fixtures__'
 import { HOUR_MS, ScenarioProvider, createInitialState, useScenario } from '../state'
-import { TimeBar, formatElapsed, useTimeBarController } from './time-bar'
+import { TimeBar, TimeBarProvider } from './time-bar'
 
 const T0 = Date.UTC(2026, 2, 1)
 const initial = { ...createInitialState({ sites: fixtureSitesFile.sites, landingMs: T0 }), durationH: 24 * 4, slipH: 30 }
 
+function Cursor() {
+  return <output data-testid="cursor">{useScenario().cursorMs}</output>
+}
 function Harness({ active = true, canPlay = true }: { active?: boolean; canPlay?: boolean }) {
-  const controller = useTimeBarController({ active, canPlay })
-  const { cursorMs } = useScenario()
   return (
-    <>
-      <TimeBar controller={controller} canPlay={canPlay} />
-      <output data-testid="cursor">{cursorMs}</output>
-    </>
+    <TimeBarProvider active={active} canPlay={canPlay}>
+      <TimeBar />
+      <Cursor />
+    </TimeBarProvider>
   )
 }
 const renderBar = (props: Parameters<typeof Harness>[0] = {}) =>
@@ -31,14 +32,6 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe('formatElapsed', () => {
-  it('writes mission elapsed time as L+days and zero-padded hours', () => {
-    expect(formatElapsed(0)).toBe('L+0d 00h')
-    expect(formatElapsed(28 * HOUR_MS)).toBe('L+1d 04h')
-    expect(formatElapsed(-HOUR_MS)).toBe('L+0d 00h')
-  })
-})
-
 describe('TimeBar', () => {
   it('scrubs the shared cursor between the slipped landing and the mission end, in whole hours', () => {
     renderBar()
@@ -51,9 +44,8 @@ describe('TimeBar', () => {
     expect(scrub).toHaveAttribute('aria-valuetext', expect.stringContaining('L+0d 05h'))
   })
 
-  it('shows the slip as a read-only readout, not a second slip control', () => {
+  it('has no second slip control: the deck’s slip slider is the only one', () => {
     renderBar()
-    expect(screen.getByText('Slip +1 d 6 h')).toBeInTheDocument()
     expect(screen.getAllByRole('slider')).toHaveLength(1)
   })
 
@@ -74,6 +66,11 @@ describe('TimeBar', () => {
 
   it('cannot play without something to see', () => {
     renderBar({ canPlay: false })
+    expect(screen.getByRole('button', { name: 'Play' })).toBeDisabled()
+  })
+
+  it('cannot play while no view that shows the cursor is open', () => {
+    renderBar({ active: false })
     expect(screen.getByRole('button', { name: 'Play' })).toBeDisabled()
   })
 })

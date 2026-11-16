@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { fixtureEphemeris, fixtureSitesFile } from '../../engine/__fixtures__'
-import { renderAppOnCompare } from '../test-utils'
+import { renderAppWithDetails } from '../test-utils'
 import { createInitialState, scenarioReducer, type ScenarioAction } from '../state'
 import { computeScenarioResults } from '../use-scenario-results'
 
@@ -18,10 +18,10 @@ function expected(slipH: number) {
   return plateau
 }
 
-/** The App on fixture data with a 1-day mission (the fixture ephemeris covers 48 h). */
+/** The App on fixture data with a 1-day mission (the fixture ephemeris covers 48 h), Details drawer open. */
 async function renderCompare() {
-  await renderAppOnCompare()
-  const compare = await screen.findByRole('region', { name: 'Compare' })
+  await renderAppWithDetails()
+  const compare = await screen.findByRole('region', { name: 'Metrics' })
   fireEvent.change(screen.getByLabelText(/duration/i), { target: { value: '1' } })
   const slip = screen.getByRole('group', { name: /^slip/i })
   return {

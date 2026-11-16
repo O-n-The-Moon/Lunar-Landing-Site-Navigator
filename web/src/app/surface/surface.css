@@ -1,4 +1,5 @@
 .surface-view {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -24,15 +25,15 @@
   gap: var(--space-2);
   padding: 4px 8px;
   border-radius: var(--radius-sm);
-  background: rgba(13, 17, 24, 0.72);
-  backdrop-filter: blur(8px);
+  background: var(--glass);
+  backdrop-filter: blur(var(--glass-blur));
   font-size: 0.8125rem;
 }
 .surface-line {
   padding: 3px 8px;
   border-radius: var(--radius-sm);
-  background: rgba(13, 17, 24, 0.72);
-  backdrop-filter: blur(8px);
+  background: var(--glass);
+  backdrop-filter: blur(var(--glass-blur));
   font-size: 0.6875rem;
   letter-spacing: 0.06em;
   border-left: 3px solid var(--text-faint);
@@ -56,22 +57,6 @@
   --text-faint: #5b6678;
   --radius-sm: 3px;
 }
-.surface-view .site-letter {
-  display: inline-grid;
-  place-items: center;
-  width: 1.2rem;
-  height: 1.2rem;
-  border-radius: 3px;
-  background: var(--text);
-  color: #05070a;
-  font: 700 0.6875rem/1 var(--font-num);
-}
-.surface-view .time-bar {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
 .surface-view .visually-hidden {
   position: absolute;
   width: 1px;
@@ -79,4 +64,22 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* Narrow stage: the two buttons share one row across the top and the site / Sun / Earth readout sits below them,
+   so the button column no longer covers the site name. */
+@media (max-width: 640px) {
+  .surface-stage .scene-hud-tr {
+    left: var(--space-3);
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .surface-stage .scene-hud-tr button {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+  }
+  .surface-stage .surface-hud {
+    top: 44px;
+  }
 }

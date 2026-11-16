@@ -1,12 +1,11 @@
-// Time bar for the 3D views: a scrubber for the shared cursor, Play with a speed choice, and a read-only slip readout.
-// All state is the scenario's (cursor, slip), so every view follows it. The sidebar's slip slider stays the one slip
-// control (Slice 1); the bar only shows the slip so a 3D view never needs the sidebar to say which date it is looking at.
-import { useState } from 'react'
+// Time control for the bottom deck: a scrubber for the shared cursor, Play with a speed choice. One controller for the
+// whole app (`TimeBarProvider`), so the deck's Play drives every view and a view can react to it (Surface follows the
+// Sun while it plays). All state is the scenario's (cursor, slip); the slip itself is the deck's slip slider.
+import { createContext, createElement, useContext, useId, useState, type ReactNode } from 'react'
 import { HOUR_MS, missionEndMs, slippedLandingMs, useScenario, useScenarioDispatch } from '../state'
 import { usePlayCursor, type PlayCursor } from '../timeline/playback'
 import { PauseIcon, PlayIcon } from '../ui/icons'
-import { formatClock, formatDayShort } from '../ui/names'
-import { formatSlipH } from './slip-slider'
+import { formatClock, formatDayShort, formatElapsed } from '../ui/names'
 import './time-bar.css'
 
 const SPEEDS = [
@@ -15,42 +14,65 @@ const SPEEDS = [
   { label: '1 d/s', hPerS: 24 },
 ] as const
 
-/** Mission elapsed time as `L+3d 04h`. */
-export function formatElapsed(ms: number): string {
-  const totalH = Math.max(0, Math.floor(ms / HOUR_MS))
-  return `L+${Math.floor(totalH / 24)}d ${String(totalH % 24).padStart(2, '0')}h`
-}
-
 export interface TimeBarController {
   play: PlayCursor
+  /** Play can start: the owning views are showing and there is at least one site to look at. */
+  canPlay: boolean
+  /** A view that shows the cursor is open. */
+  viewActive: boolean
   speedIndex: number
   setSpeedIndex: (i: number) => void
 }
 
+const TimeBarContext = createContext<TimeBarController | null>(null)
+
 /**
- * Play state and speed for a time bar; lives in the owning view so the view can react to Play (e.g. follow the Sun).
- * `active`: the view is showing (Play pauses while it is hidden). `canPlay`: there is something to see.
+ * Owns Play and its speed for the app. `active`: a view that shows the cursor is open (Play pauses while it is not,
+ * i.e. on Verify, and resumes when a view is shown again).
+ * `canPlay`: there is something to see (at least one site).
  */
-export function useTimeBarController({ active, canPlay = true }: { active: boolean; canPlay?: boolean }): TimeBarController {
+export function TimeBarProvider({ active, canPlay = true, children }: { active: boolean; canPlay?: boolean; children: ReactNode }) {
   const [speedIndex, setSpeedIndex] = useState(1)
   const play = usePlayCursor({ active, enabled: canPlay, speedHPerS: SPEEDS[speedIndex].hPerS })
-  return { play, speedIndex, setSpeedIndex }
+  // Not memoized: `play` is a new object each render (usePlayCursor reads the cursor), so a memo would never hit.
+  const value = { play, canPlay: canPlay && active, viewActive: active, speedIndex, setSpeedIndex }
+  return createElement(TimeBarContext.Provider, { value }, children)
 }
 
-export function TimeBar({ controller, canPlay = true }: { controller: TimeBarController; canPlay?: boolean }) {
+export function useTimeBar(): TimeBarController {
+  const c = useContext(TimeBarContext)
+  if (!c) throw new Error('useTimeBar must be used inside <TimeBarProvider>')
+  return c
+}
+
+export function TimeBar() {
   const scenario = useScenario()
-  const { slipH, cursorMs } = scenario
+  const { cursorMs } = scenario
   const dispatch = useScenarioDispatch()
-  const { play, speedIndex, setSpeedIndex } = controller
+  const { play, canPlay, viewActive, speedIndex, setSpeedIndex } = useTimeBar()
   const startMs = slippedLandingMs(scenario)
+  const playHintId = useId()
   const endMs = missionEndMs(scenario)
 
   return (
     <section className="time-bar" aria-label="Time">
-      <button type="button" className="play-button" onClick={play.toggle} disabled={!canPlay} aria-pressed={play.playing}>
+      <button
+        type="button"
+        className="play-button"
+        onClick={play.toggle}
+        disabled={!canPlay}
+        aria-pressed={play.playing}
+        aria-describedby={viewActive ? undefined : playHintId}
+        title={viewActive ? undefined : 'Play runs in the 3D Terrain and Surface views'}
+      >
         {play.playing ? <PauseIcon size={12} /> : <PlayIcon size={12} />}
         {play.playing ? 'Pause' : 'Play'}
       </button>
+      {!viewActive && (
+        <span id={playHintId} className="visually-hidden">
+          Play runs in the 3D Terrain and Surface views
+        </span>
+      )}
       <div className="time-bar-speeds" role="group" aria-label="Play speed">
         {SPEEDS.map((s, i) => (
           <button key={s.label} type="button" aria-pressed={i === speedIndex} onClick={() => setSpeedIndex(i)}>
@@ -72,9 +94,6 @@ export function TimeBar({ controller, canPlay = true }: { controller: TimeBarCon
       </label>
       <span className="num cursor-readout">
         {formatElapsed(cursorMs - startMs)} · {formatDayShort(cursorMs)} {formatClock(cursorMs)} UTC
-      </span>
-      <span className="num cursor-readout" title="Set with the Slip slider in the sidebar">
-        Slip {formatSlipH(slipH)}
       </span>
     </section>
   )

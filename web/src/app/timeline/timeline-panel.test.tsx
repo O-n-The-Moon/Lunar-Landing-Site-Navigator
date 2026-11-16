@@ -2,7 +2,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/re
 import { afterEach, describe, expect, it } from 'vitest'
 import userEvent from '@testing-library/user-event'
 import { fixtureEphemeris, fixtureSitesFile } from '../../engine/__fixtures__'
-import { renderAppOnCompare } from '../test-utils'
+import { renderAppWithDetails } from '../test-utils'
 import { createInitialState, scenarioReducer, type ScenarioAction } from '../state'
 import { computeScenarioResults } from '../use-scenario-results'
 import { cursorReadout } from './cursor-readout'
@@ -12,9 +12,9 @@ afterEach(cleanup)
 
 const H_MS = 3_600_000
 
-/** The App on fixture data with a 1-day mission (the fixture ephemeris covers 48 h). */
+/** The App on fixture data with a 1-day mission (the fixture ephemeris covers 48 h), Details drawer open. */
 async function renderPanel() {
-  await renderAppOnCompare()
+  await renderAppWithDetails()
   const panel = await screen.findByRole('region', { name: 'Timeline' })
   fireEvent.change(screen.getByLabelText(/duration/i), { target: { value: '1' } })
   const fine = within(screen.getByRole('group', { name: /^slip/i })).getByRole('slider', { name: /fine/i })
@@ -36,15 +36,17 @@ const rects = (root: Element, attr: string, band: string) =>
 const total = (rs: { w: number }[]) => rs.reduce((a, r) => a + r.w, 0)
 
 describe('TimelinePanel', () => {
-  it('Play moves the one cursor through the mission, Pause stops it, and leaving the Compare tab pauses it (#33)', async () => {
+  it('the deck’s Play moves the one cursor, Pause stops it, and the Verify view pauses it (#33)', async () => {
     const user = userEvent.setup()
     const { panel } = await renderPanel()
     const cursor = () => Number(within(panel).getByRole('slider').getAttribute('aria-valuenow'))
+    const time = () => within(screen.getByRole('region', { name: 'Time' }))
+    expect(within(panel).queryByRole('button', { name: /^play$/i })).toBeNull() // the deck has the one Play
     const start = cursor()
-    const play = within(panel).getByRole('button', { name: 'Play' })
+    const play = time().getByRole('button', { name: 'Play' })
     expect(play).toHaveAttribute('aria-pressed', 'false')
     await user.click(play)
-    const pause = within(panel).getByRole('button', { name: 'Pause' })
+    const pause = time().getByRole('button', { name: 'Pause' })
     expect(pause).toHaveAttribute('aria-pressed', 'true')
     await waitFor(() => expect(cursor()).toBeGreaterThan(start))
     await user.click(pause)
@@ -52,9 +54,9 @@ describe('TimelinePanel', () => {
     await new Promise((r) => setTimeout(r, 120))
     expect(cursor()).toBe(stopped)
 
-    await user.click(within(panel).getByRole('button', { name: 'Play' }))
-    await user.click(screen.getByRole('tab', { name: /validation/i }))
-    expect(within(panel).getByRole('button', { name: 'Play', hidden: true })).toHaveAttribute('aria-pressed', 'false')
+    await user.click(time().getByRole('button', { name: 'Play' }))
+    await user.click(screen.getByRole('tab', { name: 'Verify' }))
+    expect(time().getByRole('button', { name: 'Play' })).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('has one cursor slider for all strips, and moving it moves every strip’s readouts', async () => {

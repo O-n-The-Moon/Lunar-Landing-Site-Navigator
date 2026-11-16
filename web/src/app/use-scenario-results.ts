@@ -134,7 +134,8 @@ export function resolveSite(ref: ScenarioSite, curated: readonly Site[], observe
   }
 }
 
-type SiteSetup = { site: ResolvedSite; ctx: SiteContext } | UnavailableSite
+/** A site ready for the engine (`ctx`), or why it is not. */
+export type SiteSetup = { site: ResolvedSite; ctx: SiteContext } | UnavailableSite
 
 /** The terrain grid as far as custom sites are concerned: loaded, still coming, or failed. */
 export type GridAvailability = { status: 'ready'; grid: Grid } | { status: 'pending' } | { status: 'error'; message: string }
@@ -270,7 +271,7 @@ function useGridForSetups(refs: readonly ScenarioSite[]): GridAvailability {
  * `computeScenarioResults`, memoized per stage: moving the cursor recomputes nothing, and the slip slider
  * only recomputes the slipped runs.
  */
-function useComputeResults(): ScenarioResults {
+function useComputeResults(): SharedResults {
   const data = useCoreData()
   const { sites: refs, observerHeightM, landingMs, durationH, slipH, sunThreshold, earthMarginDeg } = useScenario()
   const grid = useGridForSetups(refs)
@@ -281,13 +282,18 @@ function useComputeResults(): ScenarioResults {
     () => (slipH === 0 ? baseline : runAll(setups, landingMs + slipH * HOUR_MS, durationH, opts)),
     [slipH, baseline, setups, landingMs, durationH, opts],
   )
-  return useMemo(
-    () => assembleResults({ landingMs, slipH, durationH }, opts, data.ephemeris, setups, baseline, slipped),
-    [landingMs, slipH, durationH, opts, data.ephemeris, setups, baseline, slipped],
-  )
+  return useMemo(() => {
+    const results = assembleResults({ landingMs, slipH, durationH }, opts, data.ephemeris, setups, baseline, slipped)
+    return { results, setups }
+  }, [landingMs, slipH, durationH, opts, data.ephemeris, setups, baseline, slipped])
 }
 
-const ResultsContext = createContext<ScenarioResults | null>(null)
+/** `setups` don't depend on the slip, so they stay the same object while the slider moves (the slip outlook keys on them). */
+interface SharedResults {
+  results: ScenarioResults
+  setups: readonly SiteSetup[]
+}
+const ResultsContext = createContext<SharedResults | null>(null)
 
 /**
  * Runs the engine once for the whole app (inside `ScenarioProvider`, after core data is loaded); every view reads
@@ -299,7 +305,12 @@ export function ScenarioResultsProvider({ children }: { children: ReactNode }) {
 
 /** The shared results from `ScenarioResultsProvider`. */
 export function useScenarioResults(): ScenarioResults {
-  const results = useContext(ResultsContext)
-  if (!results) throw new Error('useScenarioResults must be used inside <ScenarioResultsProvider>')
-  return results
+  return useSharedResults().results
+}
+
+/** The results plus the per-site engine setups they were built from. */
+export function useSharedResults(): SharedResults {
+  const shared = useContext(ResultsContext)
+  if (!shared) throw new Error('useScenarioResults must be used inside <ScenarioResultsProvider>')
+  return shared
 }

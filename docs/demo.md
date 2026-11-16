@@ -74,8 +74,8 @@ Run after any scenario above. The default tab is **3D Terrain**.
 2. **Press Play** (6 h/s). Shadows sweep and beacons flip as the timeline's windows open and close; the timeline and panorama follow the same cursor.
 3. **Slip the landing** with the Days slider. The shadows and beacons update without a visible stall.
 4. **Switch to Surface.** The first-person skyline shows the Sun disk dropping behind the ridge in the same frame the timeline says blocked (`SUN BLOCKED · ridge at az …`).
-5. **Overlays.** PGDA Sun/Earth (NASA long-term averages) and Window Sun/Earth/Both (scored for the mission window from the 2 km grid, labelled grid-approximate) are draped on the terrain. The Map tab shows the same layers in 2D.
+5. **Overlays.** PGDA Sun/Earth (NASA long-term averages) and Window Sun/Earth/Both (scored for the mission window from the 2 km grid, labelled grid-approximate) are draped on the terrain. The "2D map" toggle shows the same layers in 2D.
 
-Screenshots: [3D live shadows](img/ui-v2/terrain-1440-live-shadows.jpg), [3D PGDA Sun](img/ui-v2/terrain-1440-pgda-sun.jpg), [Surface](img/ui-v2/surface-1440.jpg), [Map, Window Sun](img/ui-v2/map-1440-window-sun.jpg).
+Screenshots: [3D live shadows](img/ui-v2/terrain-1440-live-shadows.jpg), [3D PGDA Sun](img/ui-v2/terrain-1440-pgda-sun.jpg), [Surface](img/ui-v2/surface-1440.jpg), [2D map, Window Sun](img/ui-v2/map-1440-window-sun.jpg).
 
-Measured in Chrome on the dev server (Apple Silicon, 2 sites × 14 d): Play 60 fps (worst frame 17.7 ms); slip step with 3D visible, synchronous commit median 8.3 ms, max 12.3 ms; window scoring 0.4 s compute (0.8 s including the 300 ms debounce). Compressed sizes (local `brotli -q 11`, a best case; Vercel's edge uses a lower level): `grid-horizons.bin` 11.9 MB → 3.3 MB, `terrain-display.bin` 2.1 MB → 1.3 MB. Real preview transfer sizes are not yet measured.
+Measured in Chrome on the dev server (Apple Silicon, 2 sites × 14 d): Play 60 fps (worst frame 17.7 ms); slip step with 3D visible, synchronous commit median 8.3 ms, max 12.3 ms; window scoring 0.4 s compute (0.8 s including the 300 ms debounce). Transfer sizes on the Vercel preview (brotli): `grid-horizons.bin` 11.9 MB → 4.75 MB, `terrain-display.bin` 2.1 MB → 1.78 MB, both streamed after first paint; first paint is about 1.5 MB (JS 86 kB, `ephemeris.bin` 1.40 MB).

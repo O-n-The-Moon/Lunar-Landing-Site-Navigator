@@ -2,9 +2,8 @@
 // slip, site beacons coloured by what the timeline says, the Sun and Earth rays, and overlays from the 2D map.
 // Everything physical comes from the engine (ephemeris vectors, `illuminationAt`, the site windows); the 3D scene only
 // draws it. Loads in stages: 2 km heights first, then the 1024² display terrain, then the horizon grid for shadows.
-import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useDeferredValue, useEffect, useId, useMemo, useState } from 'react'
 import { bodyVectorKm, illuminationAt, MOON_RADIUS_KM, nearestGridCell, type Grid, type SiteContext, type Vec3 } from '../../engine'
-import { TimeBar, useTimeBarController } from '../controls/time-bar'
 import { useCoreData, useDisplayTerrain, useGrid, usePgdaLayers, useTerrainHeights } from '../data'
 import { rampCss } from '../map/colormaps'
 import { MapView } from '../map/map-view'
@@ -95,8 +94,18 @@ function compassAt(focused: SiteResult | null, tMs: number): { sun: CompassBody 
   }
 }
 
+/** Moves focus once the control that was clicked is hidden (3D → 2D) or gone (2D → 3D); it would fall to <body> otherwise. */
+function focusSoon(id: string) {
+  requestAnimationFrame(() => document.getElementById(id)?.focus())
+}
+
 export function TerrainView({ active }: { active: boolean }) {
   const [webgl] = useState(hasWebGL)
+  // "2D": the opportunity map in place of the scene, for exact hover values. The scene stays mounted (frozen, like a
+  // hidden tab), so coming back costs no rebuild.
+  const [twoD, setTwoD] = useState(false)
+  const show2dId = useId()
+  const backTo3dId = useId()
   const fallback = (why: string) => (
     <div className="terrain-fallback">
       <p className="hint warn" role="status">
@@ -106,14 +115,26 @@ export function TerrainView({ active }: { active: boolean }) {
     </div>
   )
   if (!webgl) return fallback('3D view needs WebGL 2, which this browser does not offer.')
+  const toggle = (next: boolean) => {
+    setTwoD(next)
+    focusSoon(next ? backTo3dId : show2dId)
+  }
   return (
     <SceneErrorBoundary fallback={fallback('The 3D view could not start on this device.')}>
-      <TerrainStage active={active} />
+      <TerrainStage active={active && !twoD} hidden={twoD} show2dId={show2dId} onShow2D={() => toggle(true)} />
+      {twoD && (
+        <div className="terrain-2d">
+          <button id={backTo3dId} type="button" onClick={() => toggle(false)}>
+            Back to 3D
+          </button>
+          <MapView active={active} />
+        </div>
+      )}
     </SceneErrorBoundary>
   )
 }
 
-function TerrainStage({ active }: { active: boolean }) {
+function TerrainStage({ active, hidden, show2dId, onShow2D }: { active: boolean; hidden: boolean; show2dId: string; onShow2D: () => void }) {
   const { ephemeris, sitesFile } = useCoreData()
   const scenario = useScenario()
   const dispatch = useScenarioDispatch()
@@ -123,7 +144,6 @@ function TerrainStage({ active }: { active: boolean }) {
   // recompute, no ray/beacon churn, and the canvas stops rendering.
   const [shownMs, setShownMs] = useState(cursorMs)
   if (active && shownMs !== cursorMs) setShownMs(cursorMs)
-  const timeBar = useTimeBarController({ active, canPlay: results.sites.length > 0 })
 
   // --- staged loading: 2 km heights → display terrain → horizon grid -----------------------------------------------
   const { state: heights, retry: retryHeights } = useTerrainHeights()
@@ -285,7 +305,7 @@ function TerrainStage({ active }: { active: boolean }) {
   const shadowsOn = !overlay
 
   return (
-    <section className="terrain-view" aria-label="3D terrain">
+    <section className="terrain-view" aria-label="3D terrain" hidden={hidden}>
       <div className="scene-stage" role="group" aria-label="3D view of the lunar south pole">
         <p className="visually-hidden">{summary}</p>
         {terrain ? (
@@ -360,6 +380,9 @@ function TerrainStage({ active }: { active: boolean }) {
           <button type="button" onClick={() => setView((v) => ({ kind: 'overview', nonce: v.nonce + 1 }))}>
             Reset view
           </button>
+          <button id={show2dId} type="button" onClick={onShow2D} title="Opportunity map with exact hover values">
+            2D map
+          </button>
         </div>
 
         <div className="scene-hud scene-hud-bl">
@@ -383,7 +406,6 @@ function TerrainStage({ active }: { active: boolean }) {
         Drag to orbit, scroll to zoom, click a beacon to fly to a site, click the terrain to add a custom site (snapped to its 2 km cell). Map shading uses
         each 2 km cell&apos;s horizon; a site&apos;s status uses the site&apos;s own finer horizon, so the two can differ near a ridge.
       </p>
-      <TimeBar controller={timeBar} canPlay={results.sites.length > 0} />
     </section>
   )
 }
