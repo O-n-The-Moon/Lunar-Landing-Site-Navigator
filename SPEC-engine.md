@@ -50,7 +50,9 @@ Observer height is **per site**, not a visibility option: it lives only in `Site
 | **Both** | Sunlit ∧ Earth link |
 | `sunlitPct`, `earthPct`, `bothPct` | % of mission duration in each state |
 | `longestSunGapH`, `longestEarthGapH` | longest continuous off-period inside the mission window |
-| `firstSunsetH`, `firstEarthsetH` | hours from landing to the first on→off transition (null if never) |
+| `firstSunsetH`, `firstEarthsetH` | hours from landing to the first on→off transition. `null` means no transition, which is ambiguous on its own: read `sunNeverUp` / `earthNeverUp` (body never up, `sunlitPct` / `earthPct` = 0) to tell "never up" (worst) from "never sets" (best) |
+| `sunNeverUp`, `earthNeverUp` | `true` when the body is never sunlit / in view during the mission |
+| `EventDelta` (`diffMetrics` → `firstSunsetH`, `firstEarthsetH`) | `{ deltaH, change, from, to }`. `from` / `to` are `EventState` = `'never-up' \| 'sets' \| 'never-sets'` (rank worst → best) for baseline / slipped. `change`: `shifted` (both set, `deltaH = b − a`), `appeared` / `disappeared` (a set event gained / lost), `flipped` (neither sets but never-up ↔ never-sets), `none` (same state and time) |
 | `meanSunFraction` | mean visible fraction over the mission (power proxy) |
 | `sunElevDeg` at cursor | geometric elevation, plus `sunClearanceDeg` = elevation − terrain horizon |
 

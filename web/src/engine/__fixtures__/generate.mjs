@@ -262,22 +262,28 @@ function missionMetrics(samples, wins, landingMs, durationH) {
     longestEarthGapH: round(longestGapMs(wins.earth, landingMs, endMs) / H_MS, 4),
     firstSunsetH: firstSetH(wins.sun, landingMs, endMs),
     firstEarthsetH: firstSetH(wins.earth, landingMs, endMs),
+    sunNeverUp: onMs(wins.sun, landingMs, endMs) === 0,
+    earthNeverUp: onMs(wins.earth, landingMs, endMs) === 0,
     meanSunFraction: round(inMission.reduce((x, y) => x + y, 0) / inMission.length),
   }
 }
-function eventDelta(a, b) {
-  if (a === null || b === null) {
-    return { deltaH: null, change: a === b ? 'none' : a === null ? 'appeared' : 'disappeared' }
+const eventState = (neverUp, h) => (neverUp ? 'never-up' : h === null ? 'never-sets' : 'sets')
+function eventDelta(aNeverUp, aH, bNeverUp, bH) {
+  const from = eventState(aNeverUp, aH)
+  const to = eventState(bNeverUp, bH)
+  if (aH !== null && bH !== null) {
+    const deltaH = round(bH - aH, 4)
+    return { deltaH, change: deltaH === 0 ? 'none' : 'shifted', from, to }
   }
-  const deltaH = round(b - a, 4)
-  return { deltaH, change: deltaH === 0 ? 'none' : 'shifted' }
+  const change = aH === null && bH === null ? (from === to ? 'none' : 'flipped') : aH === null ? 'appeared' : 'disappeared'
+  return { deltaH: null, change, from, to }
 }
 function diffMetrics(a, b) {
   const d = (k) => round(b[k] - a[k], 4)
   return {
     ...Object.fromEntries(['sunlitPct', 'earthPct', 'bothPct', 'longestSunGapH', 'longestEarthGapH', 'meanSunFraction'].map((k) => [k, d(k)])),
-    firstSunsetH: eventDelta(a.firstSunsetH, b.firstSunsetH),
-    firstEarthsetH: eventDelta(a.firstEarthsetH, b.firstEarthsetH),
+    firstSunsetH: eventDelta(a.sunNeverUp, a.firstSunsetH, b.sunNeverUp, b.firstSunsetH),
+    firstEarthsetH: eventDelta(a.earthNeverUp, a.firstEarthsetH, b.earthNeverUp, b.firstEarthsetH),
   }
 }
 

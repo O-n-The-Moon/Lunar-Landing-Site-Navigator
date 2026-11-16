@@ -299,24 +299,36 @@ export interface MissionMetrics {
   bothPct: number
   longestSunGapH: number
   longestEarthGapH: number
-  /** null if the Sun never sets during the mission. */
+  /** null if there is no on→off transition: check `sunNeverUp` to tell "never sunlit" from "never sets". */
   firstSunsetH: number | null
-  /** null if Earth never sets during the mission. */
+  /** null if there is no on→off transition: check `earthNeverUp` to tell "never in view" from "never sets". */
   firstEarthsetH: number | null
+  /** True when the Sun is never sunlit during the mission (`sunlitPct` = 0), so `firstSunsetH` null means worst, not best. */
+  sunNeverUp: boolean
+  /** True when Earth is never in view during the mission (`earthPct` = 0). */
+  earthNeverUp: boolean
   meanSunFraction: number
 }
 
+/** What a mission does with a body: never up (worst), sets at some point, or never sets (best). */
+export type EventState = 'never-up' | 'sets' | 'never-sets'
+
 /**
  * How a "first event" metric changed from baseline (a) to slipped (b):
- * `appeared` = a never happens, b does; `disappeared` = a happens, b never does;
- * `shifted` = both happen at different times; `none` = equal, or neither happens.
+ * `appeared` = a has no set event, b does; `disappeared` = a has one, b has none; `shifted` = both set at different
+ * times; `flipped` = neither sets but one is never up and the other never sets; `none` = same state and time.
+ * `from` / `to` give the states, so a consumer can rank them (never-up < sets < never-sets).
  */
-export type EventChange = 'none' | 'appeared' | 'disappeared' | 'shifted'
+export type EventChange = 'none' | 'appeared' | 'disappeared' | 'shifted' | 'flipped'
 
 export interface EventDelta {
   /** `b − a` in hours; null unless both events happen. */
   deltaH: number | null
   change: EventChange
+  /** State in the baseline (a). */
+  from: EventState
+  /** State in the slipped mission (b). */
+  to: EventState
 }
 
 /** `b − a` per metric (a = baseline, b = slipped). */

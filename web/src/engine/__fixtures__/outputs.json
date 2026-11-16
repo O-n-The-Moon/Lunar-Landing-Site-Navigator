@@ -2419,6 +2419,8 @@
           "longestEarthGapH": 0,
           "firstSunsetH": 13.45,
           "firstEarthsetH": null,
+          "sunNeverUp": false,
+          "earthNeverUp": false,
           "meanSunFraction": 0.557889
         },
         "slipped": {
@@ -2431,6 +2433,8 @@
           "longestEarthGapH": 6.6833,
           "firstSunsetH": 1.45,
           "firstEarthsetH": 17.3167,
+          "sunNeverUp": false,
+          "earthNeverUp": false,
           "meanSunFraction": 0.522525
         }
       },
@@ -2443,11 +2447,15 @@
         "meanSunFraction": -0.0354,
         "firstSunsetH": {
           "deltaH": -12,
-          "change": "shifted"
+          "change": "shifted",
+          "from": "sets",
+          "to": "sets"
         },
         "firstEarthsetH": {
           "deltaH": null,
-          "change": "appeared"
+          "change": "appeared",
+          "from": "never-sets",
+          "to": "sets"
         }
       }
     },
@@ -4850,6 +4858,8 @@
           "longestEarthGapH": 24,
           "firstSunsetH": 17.4333,
           "firstEarthsetH": null,
+          "sunNeverUp": false,
+          "earthNeverUp": true,
           "meanSunFraction": 0.763202
         },
         "slipped": {
@@ -4862,6 +4872,8 @@
           "longestEarthGapH": 12.3167,
           "firstSunsetH": 5.4333,
           "firstEarthsetH": null,
+          "sunNeverUp": false,
+          "earthNeverUp": false,
           "meanSunFraction": 0.763202
         }
       },
@@ -4874,11 +4886,15 @@
         "meanSunFraction": 0,
         "firstSunsetH": {
           "deltaH": -12,
-          "change": "shifted"
+          "change": "shifted",
+          "from": "sets",
+          "to": "sets"
         },
         "firstEarthsetH": {
           "deltaH": null,
-          "change": "none"
+          "change": "flipped",
+          "from": "never-up",
+          "to": "never-sets"
         }
       }
     }

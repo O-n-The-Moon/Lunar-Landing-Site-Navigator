@@ -85,7 +85,7 @@ describe('MetricCards', () => {
   it('says "never" instead of "None" when the body is never up during the mission', () => {
     const results = fixtureResults({ slipped: false })
     const [plateau] = results.sites
-    const dark = { ...plateau.slipped.metrics, sunlitPct: 0, firstSunsetH: null, earthPct: 0, firstEarthsetH: null }
+    const dark = { ...plateau.slipped.metrics, sunlitPct: 0, firstSunsetH: null, sunNeverUp: true, earthPct: 0, firstEarthsetH: null, earthNeverUp: true }
     results.sites = [{ ...plateau, slipped: { ...plateau.slipped, metrics: dark } }]
     render(<MetricCards results={results} />)
     expect(cell(/first sunset/i, /plateau/i)).toHaveTextContent('Never sunlit')
@@ -133,7 +133,7 @@ describe('MetricCards', () => {
   it('tells "never up" apart from "never sets" in the event Δ', () => {
     // Baseline never sunlit; the slipped mission gets sunlight that later sets: a gain, not "now sets".
     const { unmount } = render(
-      <MetricCards results={withPlateau({ sunlitPct: 0, firstSunsetH: null }, { sunlitPct: 20, firstSunsetH: 30 })} />,
+      <MetricCards results={withPlateau({ sunlitPct: 0, firstSunsetH: null, sunNeverUp: true }, { sunlitPct: 20, firstSunsetH: 30, sunNeverUp: false })} />,
     )
     const gained = cell(/first sunset/i, /plateau/i)
     expect(gained).toHaveTextContent('30.0 h')
@@ -141,8 +141,8 @@ describe('MetricCards', () => {
     expect(gained.querySelector('.delta')).toHaveClass('better')
     unmount()
 
-    // Baseline always sunlit, slipped never sunlit: both null in the engine, but a total loss.
-    render(<MetricCards results={withPlateau({ sunlitPct: 100, firstSunsetH: null }, { sunlitPct: 0, firstSunsetH: null })} />)
+    // Baseline always sunlit, slipped never sunlit: both firstSunsetH null, but the engine's sunNeverUp flag marks a total loss.
+    render(<MetricCards results={withPlateau({ sunlitPct: 100, firstSunsetH: null, sunNeverUp: false }, { sunlitPct: 0, firstSunsetH: null, sunNeverUp: true })} />)
     const lost = cell(/first sunset/i, /plateau/i)
     expect(lost).toHaveTextContent('Never sunlit')
     expect(lost.querySelector('.delta')).toHaveClass('worse')

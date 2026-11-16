@@ -1,5 +1,5 @@
 // Mission metrics and slip deltas (SPEC-engine → Definitions).
-import type { DetectedWindows, EventDelta, MetricDelta, MissionMetrics, SiteContext, SiteSamples, VisibilityOpts, Window } from './types'
+import type { DetectedWindows, EventDelta, EventState, MetricDelta, MissionMetrics, SiteContext, SiteSamples, VisibilityOpts, Window } from './types'
 import { detectWindows, sampleSite } from './windows'
 
 const MIN_MS = 60_000
@@ -84,6 +84,8 @@ export function missionRun(ctx: SiteContext, landingMs: number, durationH: numbe
     longestEarthGapH: earth.longestGapMs / H_MS,
     firstSunsetH: inH(sun.firstOffMs),
     firstEarthsetH: inH(earth.firstOffMs),
+    sunNeverUp: sun.onMs === 0,
+    earthNeverUp: earth.onMs === 0,
     meanSunFraction: fractionMs / durationMs,
   }
   return { samples, windows, metrics }
@@ -98,12 +100,19 @@ export function missionMetrics(ctx: SiteContext, landingMs: number, durationH: n
   return missionRun(ctx, landingMs, durationH, opts).metrics
 }
 
-function eventDelta(a: number | null, b: number | null): EventDelta {
-  if (a === null || b === null) {
-    return { deltaH: null, change: a === b ? 'none' : a === null ? 'appeared' : 'disappeared' }
+function eventState(neverUp: boolean, firstOffH: number | null): EventState {
+  return neverUp ? 'never-up' : firstOffH === null ? 'never-sets' : 'sets'
+}
+
+function eventDelta(aNeverUp: boolean, aH: number | null, bNeverUp: boolean, bH: number | null): EventDelta {
+  const from = eventState(aNeverUp, aH)
+  const to = eventState(bNeverUp, bH)
+  if (aH !== null && bH !== null) {
+    const deltaH = bH - aH
+    return { deltaH, change: deltaH === 0 ? 'none' : 'shifted', from, to }
   }
-  const deltaH = b - a
-  return { deltaH, change: deltaH === 0 ? 'none' : 'shifted' }
+  const change = aH === null && bH === null ? (from === to ? 'none' : 'flipped') : aH === null ? 'appeared' : 'disappeared'
+  return { deltaH: null, change, from, to }
 }
 
 /** `b − a` per metric: a = unslipped baseline, b = slipped. */
@@ -114,8 +123,8 @@ export function diffMetrics(a: MissionMetrics, b: MissionMetrics): MetricDelta {
     bothPct: b.bothPct - a.bothPct,
     longestSunGapH: b.longestSunGapH - a.longestSunGapH,
     longestEarthGapH: b.longestEarthGapH - a.longestEarthGapH,
-    firstSunsetH: eventDelta(a.firstSunsetH, b.firstSunsetH),
-    firstEarthsetH: eventDelta(a.firstEarthsetH, b.firstEarthsetH),
+    firstSunsetH: eventDelta(a.sunNeverUp, a.firstSunsetH, b.sunNeverUp, b.firstSunsetH),
+    firstEarthsetH: eventDelta(a.earthNeverUp, a.firstEarthsetH, b.earthNeverUp, b.firstEarthsetH),
     meanSunFraction: b.meanSunFraction - a.meanSunFraction,
   }
 }
