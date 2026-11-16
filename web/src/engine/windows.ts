@@ -137,6 +137,18 @@ export function sunHysteresisLevels(opts: VisibilityOpts): { onFraction: number;
 }
 
 /**
+ * Throws RangeError unless `sunThreshold` ∈ [0, 1], `earthMarginDeg` is finite and both hystereses are ≥ 0
+ * (shared by detectWindows and scoreGrid).
+ */
+export function checkVisibilityOpts({ sunThreshold, hysteresis, earthMarginDeg, earthHysteresisDeg }: VisibilityOpts): void {
+  if (!(sunThreshold >= 0 && sunThreshold <= 1)) throw new RangeError(`sunThreshold must be in [0, 1], got ${sunThreshold}`)
+  if (!Number.isFinite(earthMarginDeg)) throw new RangeError(`earthMarginDeg must be finite, got ${earthMarginDeg}`)
+  if (!(hysteresis >= 0 && earthHysteresisDeg >= 0)) {
+    throw new RangeError(`hysteresis must be ≥ 0, got ${hysteresis} / ${earthHysteresisDeg}°`)
+  }
+}
+
+/**
  * Sunlit / Earth-link / both windows with hysteresis (SPEC-engine → Definitions), events bisected to 1 min
  * using `samples.ctx`. Sunlit: on at fraction ≥ threshold + hysteresis, off at ≤ threshold − hysteresis, both
  * levels capped to [0, 1] so they stay reachable. Earth link: clearance = elev − horizon − earthMarginDeg; on at
@@ -144,12 +156,8 @@ export function sunHysteresisLevels(opts: VisibilityOpts): { onFraction: number;
  * which the new state holds. The observer height is the one `samples.ctx` was built for (`ctx.observerHeightM`).
  */
 export function detectWindows(samples: SiteSamples, opts: VisibilityOpts): DetectedWindows {
-  const { sunThreshold, hysteresis, earthMarginDeg, earthHysteresisDeg } = opts
-  if (!(sunThreshold >= 0 && sunThreshold <= 1)) throw new RangeError(`sunThreshold must be in [0, 1], got ${sunThreshold}`)
-  if (!Number.isFinite(earthMarginDeg)) throw new RangeError(`earthMarginDeg must be finite, got ${earthMarginDeg}`)
-  if (!(hysteresis >= 0 && earthHysteresisDeg >= 0)) {
-    throw new RangeError(`hysteresis must be ≥ 0, got ${hysteresis} / ${earthHysteresisDeg}°`)
-  }
+  checkVisibilityOpts(opts)
+  const { earthMarginDeg, earthHysteresisDeg } = opts
   const { ctx, tUtcMs } = samples
   const earthClearanceDeg = samples.earthElevDeg.map((e, i) => e - samples.earthHorizonDeg[i] - earthMarginDeg)
   const { onFraction, offFraction } = sunHysteresisLevels(opts)

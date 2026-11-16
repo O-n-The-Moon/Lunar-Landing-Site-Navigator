@@ -1,7 +1,7 @@
 // Grid: cell lookup, per-cell site context, and window scoring over the whole grid (SPEC-engine → Performance).
 import { angularRadiusDeg, bodyVectorKm, siteFrame } from './geometry'
 import type { Ephemeris, Grid, GridCellRef, GridScores, SiteContext, VisibilityOpts } from './types'
-import { sunHysteresisLevels } from './windows'
+import { checkVisibilityOpts, sunHysteresisLevels } from './windows'
 
 const H_MS = 3_600_000
 const DEG = Math.PI / 180
@@ -86,15 +86,6 @@ export function gridSiteContext(eph: Ephemeris, grid: Grid, cell: Pick<GridCellR
   return { eph, frame, horizonMaskDeg, azStepDeg: 360 / azBins, observerHeightM: heightM }
 }
 
-/** Same option checks as detectWindows. */
-function checkOpts({ sunThreshold, hysteresis, earthMarginDeg, earthHysteresisDeg }: VisibilityOpts): void {
-  if (!(sunThreshold >= 0 && sunThreshold <= 1)) throw new RangeError(`sunThreshold must be in [0, 1], got ${sunThreshold}`)
-  if (!Number.isFinite(earthMarginDeg)) throw new RangeError(`earthMarginDeg must be finite, got ${earthMarginDeg}`)
-  if (!(hysteresis >= 0 && earthHysteresisDeg >= 0)) {
-    throw new RangeError(`hysteresis must be ≥ 0, got ${hysteresis} / ${earthHysteresisDeg}°`)
-  }
-}
-
 /**
  * Sun / Earth / both % per cell over [startMs, endMs). Hourly samples at startMs, startMs + 1 h, …, each standing
  * for one hour (the last one for what is left of the range). Sunlit and Earth link follow SPEC-engine → Definitions,
@@ -119,7 +110,7 @@ export function scoreGrid(
   if (startMs < eph.startUtcMs || endMs > eph.startUtcMs + (eph.count - 1) * eph.stepMs) {
     throw new RangeError(`range [${startMs}, ${endMs}) is outside the ephemeris coverage`)
   }
-  checkOpts(opts)
+  checkVisibilityOpts(opts)
 
   // --- per-sample data, shared by every cell ---
   const preH = Math.min(PRE_ROLL_H, Math.floor((startMs - eph.startUtcMs) / H_MS))
