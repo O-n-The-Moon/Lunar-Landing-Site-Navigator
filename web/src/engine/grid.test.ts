@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { fixtureEphemeris, fixtureGrid, fixtureGridScores } from './__fixtures__'
-import { MOON_RADIUS_KM, siteFrame } from './geometry'
-import { gridSiteContext, nearestGridCell, scoreGrid } from './grid'
+import { angularRadiusDeg, azEl, bodyVectorKm, horizonElevAt, MOON_RADIUS_KM, siteFrame, visibleDiskFraction } from './geometry'
+import { gridSiteContext, illuminationAt, nearestGridCell, scoreGrid } from './grid'
 import { DEFAULT_VISIBILITY_OPTS } from './types'
 import type { Grid, GridManifest, VisibilityOpts } from './types'
 import { sampleSite, sunHysteresisLevels } from './windows'
@@ -278,5 +278,73 @@ describe('scoreGrid', () => {
     expect(() => scoreGrid(fixtureGrid, fixtureEphemeris, T0, T_END, { ...o, sunThreshold: 1.5 })).toThrow(RangeError)
     expect(() => scoreGrid(fixtureGrid, fixtureEphemeris, T0, T_END, { ...o, hysteresis: -1 })).toThrow(RangeError)
     expect(() => scoreGrid(fixtureGrid, fixtureEphemeris, T0, T_END, { ...o, earthMarginDeg: NaN })).toThrow(RangeError)
+  })
+})
+
+describe('illuminationAt', () => {
+  const opts: VisibilityOpts = { ...DEFAULT_VISIBILITY_OPTS, hysteresis: 0 }
+  const times = [T0 + 6 * H_MS, T0 + 20 * H_MS, T0 + 33 * H_MS]
+
+  it('agrees with scoreGrid sunPct (threshold on the visible fraction, no hysteresis)', () => {
+    for (const t of times) {
+      const frac = illuminationAt(fixtureGrid, fixtureEphemeris, t)
+      const scores = scoreGrid(fixtureGrid, fixtureEphemeris, t, t + H_MS, opts)
+      expect(frac).toHaveLength(scores.sunPct.length)
+      let checked = 0
+      for (let c = 0; c < frac.length; c++) {
+        if (Number.isNaN(scores.sunPct[c])) {
+          expect(frac[c]).toBeNaN()
+          continue
+        }
+        // Cells within 0.02 of the threshold are skipped: scoreGrid weights its samples across the hour.
+        if (Math.abs(frac[c] - opts.sunThreshold) < 0.02) continue
+        expect(scores.sunPct[c]).toBe(frac[c] >= opts.sunThreshold ? 100 : 0)
+        checked++
+      }
+      expect(checked).toBeGreaterThan(0)
+    }
+  })
+
+  it('returns fractions in [0, 1] and reuses the output buffer', () => {
+    const out = new Float32Array(fixtureGrid.manifest.nx * fixtureGrid.manifest.ny)
+    const res = illuminationAt(fixtureGrid, fixtureEphemeris, times[0], out)
+    expect(res).toBe(out)
+    for (const v of res) if (!Number.isNaN(v)) expect(v >= 0 && v <= 1).toBe(true)
+  })
+
+  it('throws RangeError for a wrong-sized output buffer', () => {
+    expect(() => illuminationAt(fixtureGrid, fixtureEphemeris, times[0], new Float32Array(3))).toThrow(RangeError)
+  })
+
+  it('matches the per-cell az/el + horizon + visibleDiskFraction computation, including partly hidden disks', () => {
+    const { nx, ny } = fixtureGrid.manifest
+    let compared = 0
+    let partial = 0
+    for (const t of times) {
+      const frac = illuminationAt(fixtureGrid, fixtureEphemeris, t)
+      const sun = bodyVectorKm(fixtureEphemeris, 'sun', t)
+      const radiusDeg = angularRadiusDeg('sun', Math.hypot(sun[0], sun[1], sun[2]))
+      for (let c = 0; c < nx * ny; c++) {
+        if (Number.isNaN(frac[c])) continue
+        const ctx = gridSiteContext(fixtureEphemeris, fixtureGrid, { ix: c % nx, iy: Math.floor(c / nx) })
+        const { azDeg, elevDeg } = azEl(ctx.frame, sun)
+        const expected = visibleDiskFraction(elevDeg, horizonElevAt(ctx.horizonMaskDeg, ctx.azStepDeg, azDeg), radiusDeg)
+        expect(frac[c]).toBeCloseTo(expected, 3)
+        compared++
+        if (expected > 0.02 && expected < 0.98) partial++
+      }
+    }
+    expect(compared).toBeGreaterThan(20)
+    expect(partial).toBeGreaterThan(0) // the test would be vacuous if no cell had a partly hidden disk
+  })
+
+  it('throws RangeError for a time outside the ephemeris', () => {
+    expect(() => illuminationAt(fixtureGrid, fixtureEphemeris, T_END + 1000 * H_MS)).toThrow(RangeError)
+  })
+
+  it('is deterministic across calls (cached frames give identical output)', () => {
+    const t = times[1]
+    const frac = illuminationAt(fixtureGrid, fixtureEphemeris, t)
+    expect(Array.from(illuminationAt(fixtureGrid, fixtureEphemeris, t))).toEqual(Array.from(frac))
   })
 })
