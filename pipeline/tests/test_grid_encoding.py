@@ -56,7 +56,8 @@ def test_cell_centers_are_row_major_y_outer_from_lower_left():
 
 
 def test_manifest_matches_contract():
-    manifest = grid_manifest(2, 182, 182, (-182, -182))
+    dems = [{"file": "LDEM_80S_80M", "role": "near field", "resolutionM": 80}]
+    manifest = grid_manifest(2, 182, 182, (-182, -182), dems)
     assert manifest == {
         "schemaVersion": 1,
         "projection": "polar-stereographic-south",
@@ -70,6 +71,7 @@ def test_manifest_matches_contract():
         "dtype": "uint8",
         "encoding": "elevDeg = v * 0.1 - 5.0; 255 = no data",
         "cellSurfaceHeightM": "grid-heights.bin (int16-le, row-major)",
+        "dems": dems,
     }
 
 
@@ -120,6 +122,7 @@ def test_write_grid_writes_contract_files(tmp_path):
     write_grid(SyntheticTerrain(surface_m=-1234.4), (-2.0, -2.0), 2.0, 2, 2, paths)
     manifest = json.loads(paths["manifest"].read_text())
     assert manifest["nx"] == manifest["ny"] == 2 and manifest["originKm"] == [-2, -2]
+    assert [d["file"] for d in manifest["dems"]] == ["LDEM_80S_80M", "LDEM_75S_240M"]
     raw = np.frombuffer(paths["horizons"].read_bytes(), dtype=np.uint8)
     assert raw.size == 2 * 2 * GRID_AZ_BINS
     assert np.all(raw < GRID_NO_DATA)

@@ -148,9 +148,19 @@ describe('ValidationReport (fixture validation.json)', () => {
     expect(definition('Frame')).toHaveTextContent(/^MOON_ME \(mean Earth/)
     expect(definition('Ephemeris')).toHaveTextContent('NAIF SPICE kernels: synthetic-fixture. Aberration correction LT+S.')
     expect(definition('Terrain')).toHaveTextContent(/LDEM_80S_80M.*every 0\.5° of azimuth for observers 2 m, 10 m above the surface; 2 m by default/)
+    expect(definition('Terrain')).toHaveTextContent('LDEM_80S_80M (near field, 80 m), LDEM_75S_240M (far field, 240 m)')
     expect(definition('Sun visibility')).toHaveTextContent(/reaches 55% and stays sunlit until it drops to 45% \(threshold 50% ± 5% hysteresis\)/)
     expect(definition('Earth link')).toHaveTextContent(/^Geometric DTE: Earth center elevation ≥ terrain horizon \+ 1° margin, with ±0\.1° hysteresis/)
     expect(definition('Horizons check')).toHaveTextContent(/does not test terrain/)
+  })
+})
+
+describe('ValidationReport DEM names', () => {
+  it('come from sites.json, not from the panel', () => {
+    const sitesFile = { ...fixtureSitesFile, dems: [{ file: 'LDEM_TEST_5M', role: 'single field', resolutionM: 5 }] }
+    render(<ValidationReport validation={fixtureValidation} sitesFile={sitesFile} ephemerisManifest={fixtureEphemerisManifest} />)
+    expect(definition('Terrain')).toHaveTextContent('LDEM_TEST_5M (single field, 5 m)')
+    expect(definition('Terrain')).not.toHaveTextContent('LDEM_80S_80M')
   })
 })
 

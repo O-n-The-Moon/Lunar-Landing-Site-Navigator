@@ -82,6 +82,15 @@ def test_stack_near_first_far_fallback_and_nodata(tmp_path):
     np.testing.assert_allclose(result, [100, 200, 200, np.nan])
 
 
+def test_stack_records_the_dems_it_was_built_from(tmp_path):
+    write_raster(tmp_path, "LDEM_80S_80M", np.zeros((2, 2)))
+    write_raster(tmp_path, "LDEM_75S_240M", np.zeros((4, 4)), cell_m=240)
+    assert DemStack(tmp_path).dems() == [
+        {"file": "LDEM_80S_80M", "role": "near field", "resolutionM": 80},
+        {"file": "LDEM_75S_240M", "role": "far field", "resolutionM": 240},
+    ]
+
+
 def test_stack_near_priority_and_latitude_coverage(tmp_path):
     write_raster(tmp_path, "LDEM_80S_80M", np.full((4, 4), 200), cell_m=300000)
     write_raster(

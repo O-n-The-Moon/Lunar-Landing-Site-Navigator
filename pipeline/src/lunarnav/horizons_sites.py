@@ -110,6 +110,7 @@ def build_sites_file(
         "schemaVersion": SCHEMA_VERSION,
         "azStepDeg": SITE_AZ_STEP_DEG,
         "heightsM": list(SITE_HEIGHTS_M),
+        "dems": terrain.dems(),
         "sites": [build_site(terrain, pgda_sun, pgda_earth, s) for s in sites],
     }
 

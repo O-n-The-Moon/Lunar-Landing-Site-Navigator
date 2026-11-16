@@ -92,6 +92,7 @@ describe('loadGrid', () => {
     dtype: 'uint8',
     encoding: 'elevDeg = v * 0.1 - 5.0; 255 = no data',
     cellSurfaceHeightM: 'grid-heights.bin (int16-le, row-major)',
+    dems: [{ file: 'LDEM_80S_80M', role: 'near field', resolutionM: 80 }],
   }
   const horizons = new Uint8Array([0, 50, 255, 10, 20, 30]).buffer
   const heights = i16le([-1200, 3400])
@@ -101,6 +102,14 @@ describe('loadGrid', () => {
     expect(grid.manifest).toBe(manifest)
     expect(Array.from(grid.horizonsU8)).toEqual([0, 50, 255, 10, 20, 30])
     expect(Array.from(grid.surfaceHeightM)).toEqual([-1200, 3400])
+  })
+
+  it('rejects a missing or malformed dems list', () => {
+    const missing: Partial<GridManifest> = { ...manifest }
+    delete missing.dems
+    expect(() => loadGrid(missing as GridManifest, horizons, heights)).toThrow(/grid\.json: dems/)
+    expect(() => loadGrid({ ...manifest, dems: [] }, horizons, heights)).toThrow(/grid\.json: dems/)
+    expect(() => loadGrid({ ...manifest, dems: [{ file: 'X', role: '', resolutionM: 80 }] }, horizons, heights)).toThrow(/dems\[0\]\.role/)
   })
 
   it('copies the horizons so the caller may transfer or reuse its buffer', () => {
@@ -133,6 +142,10 @@ describe('parseSites', () => {
     schemaVersion: 1,
     azStepDeg: 0.5,
     heightsM: [2, 10],
+    dems: [
+      { file: 'LDEM_80S_80M', role: 'near field', resolutionM: 80 },
+      { file: 'LDEM_75S_240M', role: 'far field', resolutionM: 240 },
+    ],
     sites: [
       {
         id: 'a',
@@ -159,6 +172,17 @@ describe('parseSites', () => {
     expect(() => parseSites(null)).toThrow(/sites\.json/)
     expect(() => parseSites({ ...clone(), schemaVersion: 2 })).toThrow(/schemaVersion/)
     expect(() => parseSites({ ...clone(), sites: 'x' })).toThrow(/sites/)
+  })
+
+  it('rejects a missing or malformed dems list', () => {
+    const missing: Partial<SitesFile> = clone()
+    delete missing.dems
+    expect(() => parseSites(missing)).toThrow(/dems/)
+    expect(() => parseSites({ ...clone(), dems: [] })).toThrow(/dems/)
+    expect(() => parseSites({ ...clone(), dems: [{ file: 'X', role: 'near field' }] })).toThrow(/dems\[0\]\.resolutionM/)
+    expect(() => parseSites({ ...clone(), dems: [{ file: '', role: 'near field', resolutionM: 80 }] })).toThrow(/dems\[0\]\.file/)
+    expect(() => parseSites({ ...clone(), dems: [{ file: 'X', role: '', resolutionM: 80 }] })).toThrow(/dems\[0\]\.role/)
+    expect(() => parseSites({ ...clone(), dems: [{ file: 'X', role: 'near field', resolutionM: 0 }] })).toThrow(/dems\[0\]\.resolutionM/)
   })
 
   it('rejects a site with a missing or mistyped field', () => {

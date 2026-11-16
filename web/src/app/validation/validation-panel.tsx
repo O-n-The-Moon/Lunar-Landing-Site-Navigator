@@ -6,6 +6,7 @@ import {
   DEFAULT_VISIBILITY_OPTS,
   MOON_RADIUS_KM,
   sunHysteresisLevels,
+  type DemRecord,
   type EphemerisManifest,
   type HorizonsValidation,
   type PgdaMethod,
@@ -25,7 +26,7 @@ export function ValidationPanel() {
 export interface ValidationReportProps {
   validation: ValidationFile
   /** Used for site names and the horizon-mask parameters in the methods list. */
-  sitesFile: Pick<SitesFile, 'sites' | 'azStepDeg' | 'heightsM'>
+  sitesFile: Pick<SitesFile, 'sites' | 'azStepDeg' | 'heightsM' | 'dems'>
   /** Frame, aberration correction and kernel names for the methods list. */
   ephemerisManifest: Pick<EphemerisManifest, 'frame' | 'abcorr' | 'kernels'>
 }
@@ -63,7 +64,7 @@ export function ValidationReport({ validation, sitesFile, ephemerisManifest }: V
       </ul>
       <HorizonsSection horizons={horizons} siteName={siteName} />
       <PgdaSection pgda={pgda} siteName={siteName} />
-      <MethodsList azStepDeg={sitesFile.azStepDeg} heightsM={sitesFile.heightsM} ephemerisManifest={ephemerisManifest} />
+      <MethodsList azStepDeg={sitesFile.azStepDeg} heightsM={sitesFile.heightsM} dems={sitesFile.dems} ephemerisManifest={ephemerisManifest} />
     </section>
   )
 }
@@ -356,16 +357,16 @@ function ScrollTable({ caption, children }: { caption: string; children: ReactNo
   )
 }
 
-// DEM names mirror pipeline/src/lunarnav/dem.py: no data-contract file records them yet (#72).
-const DEMS = 'LDEM_80S_80M (near field), LDEM_75S_240M (far field)'
+const demLabel = ({ file, role, resolutionM }: DemRecord) => `${file} (${role}, ${resolutionM} m)`
 
 interface MethodsListProps {
   azStepDeg: number
   heightsM: readonly number[]
+  dems: readonly DemRecord[]
   ephemerisManifest: ValidationReportProps['ephemerisManifest']
 }
 
-function MethodsList({ azStepDeg, heightsM, ephemerisManifest }: MethodsListProps) {
+function MethodsList({ azStepDeg, heightsM, dems, ephemerisManifest }: MethodsListProps) {
   const { sunThreshold, hysteresis, earthMarginDeg, earthHysteresisDeg } = DEFAULT_VISIBILITY_OPTS
   const { onFraction: sunOn, offFraction: sunOff } = sunHysteresisLevels(DEFAULT_VISIBILITY_OPTS)
   return (
@@ -385,7 +386,7 @@ function MethodsList({ azStepDeg, heightsM, ephemerisManifest }: MethodsListProp
         </dd>
         <dt>Terrain</dt>
         <dd>
-          LOLA polar stereographic DEMs: <span className="num">{DEMS}</span>. Horizon masks every {azStepDeg}° of azimuth for observers{' '}
+          LOLA polar stereographic DEMs: <span className="num">{dems.map(demLabel).join(', ')}</span>. Horizon masks every {azStepDeg}° of azimuth for observers{' '}
           {heightsM.map((h) => `${h} m`).join(', ')} above the surface; {DEFAULT_OBSERVER_HEIGHT_M} m by default.
         </dd>
         <dt>Sun visibility</dt>

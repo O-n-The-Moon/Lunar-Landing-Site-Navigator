@@ -148,12 +148,17 @@ const SITE_DEFS = [
     peaks: [[236, 2, 3], [60, 1.2, 10], [345, 0.9, 6]],
   },
 ]
+// Same names as the real pipeline writes (pipeline/src/lunarnav/dem.py); the fixture terrain itself is synthetic.
+const DEMS = [
+  { file: 'LDEM_80S_80M', role: 'near field', resolutionM: 80 },
+  { file: 'LDEM_75S_240M', role: 'far field', resolutionM: 240 },
+]
 const sites = SITE_DEFS.map(({ base, peaks, ...s }) => ({
   ...s,
   coordSource: 'synthetic test fixture (not a real site)',
   horizonElevDeg: { 2: mask(0.5, base, peaks, 0), 10: mask(0.5, base, peaks, 0.08) },
 }))
-writeJson('sites.json', { schemaVersion: 1, azStepDeg: 0.5, heightsM: [2, 10], sites })
+writeJson('sites.json', { schemaVersion: 1, azStepDeg: 0.5, heightsM: [2, 10], dems: DEMS, sites })
 
 // ---------------------------------------------------------------------------
 // Output fixtures: samples → windows → metrics → deltas, per site at 2 m.
@@ -307,6 +312,7 @@ const gridManifest = {
   dtype: 'uint8',
   encoding: 'elevDeg = v * 0.1 - 5.0; 255 = no data',
   cellSurfaceHeightM: 'grid-heights.bin (int16-le, row-major)',
+  dems: DEMS,
 }
 writeJson('grid.json', gridManifest)
 const cells = GRID.nx * GRID.ny
