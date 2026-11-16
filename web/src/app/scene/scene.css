@@ -218,3 +218,14 @@
   background: var(--surface);
 }
 
+
+/* The "2D map" view replaces the stage; `hidden` must win over the flex display above. */
+.terrain-view[hidden] {
+  display: none;
+}
+.terrain-2d {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}

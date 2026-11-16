@@ -150,6 +150,22 @@ describe('3D Terrain tab', () => {
     expect(scene().beacons.length).toBe(count)
   })
 
+  it('"2D map" swaps the scene for the opportunity map and "Back to 3D" returns to the same scene', async () => {
+    const user = await renderTerrain()
+    const sceneEl = screen.getByTestId('ops-scene')
+    await user.click(terrainPanel().getByRole('button', { name: '2D map' }))
+    expect(terrainPanel().getByRole('radiogroup', { name: /layer/i })).toBeInTheDocument()
+    expect(scene().active).toBe(false) // frozen, not unmounted
+    const back = await terrainPanel().findByRole('button', { name: 'Back to 3D' })
+    await waitFor(() => expect(back).toHaveFocus())
+
+    await user.click(terrainPanel().getByRole('button', { name: 'Back to 3D' }))
+    expect(terrainPanel().queryByRole('radiogroup', { name: /layer/i })).not.toBeInTheDocument()
+    expect(screen.getByTestId('ops-scene')).toBe(sceneEl)
+    await waitFor(() => expect(scene().active).toBe(true))
+    await waitFor(() => expect(terrainPanel().getByRole('button', { name: '2D map' })).toHaveFocus())
+  })
+
   it('stops rendering while another tab is showing', async () => {
     const user = await renderTerrain()
     expect(scene().active).toBe(true)

@@ -94,8 +94,19 @@ function compassAt(focused: SiteResult | null, tMs: number): { sun: CompassBody 
   }
 }
 
+const SHOW_2D_ID = 'terrain-show-2d'
+const BACK_TO_3D_ID = 'terrain-back-to-3d'
+
+/** Moves focus once the control that was used has been hidden (it would fall to <body> otherwise). */
+function focusSoon(id: string) {
+  requestAnimationFrame(() => document.getElementById(id)?.focus())
+}
+
 export function TerrainView({ active }: { active: boolean }) {
   const [webgl] = useState(hasWebGL)
+  // "2D": the opportunity map in place of the scene, for exact hover values. The scene stays mounted (frozen, like a
+  // hidden tab), so coming back costs no rebuild.
+  const [twoD, setTwoD] = useState(false)
   const fallback = (why: string) => (
     <div className="terrain-fallback">
       <p className="hint warn" role="status">
@@ -105,14 +116,26 @@ export function TerrainView({ active }: { active: boolean }) {
     </div>
   )
   if (!webgl) return fallback('3D view needs WebGL 2, which this browser does not offer.')
+  const toggle = (next: boolean) => {
+    setTwoD(next)
+    focusSoon(next ? BACK_TO_3D_ID : SHOW_2D_ID)
+  }
   return (
     <SceneErrorBoundary fallback={fallback('The 3D view could not start on this device.')}>
-      <TerrainStage active={active} />
+      <TerrainStage active={active && !twoD} hidden={twoD} onShow2D={() => toggle(true)} />
+      {twoD && (
+        <section className="terrain-2d" aria-label="2D opportunity map">
+          <button id={BACK_TO_3D_ID} type="button" onClick={() => toggle(false)}>
+            Back to 3D
+          </button>
+          <MapView active={active} />
+        </section>
+      )}
     </SceneErrorBoundary>
   )
 }
 
-function TerrainStage({ active }: { active: boolean }) {
+function TerrainStage({ active, hidden, onShow2D }: { active: boolean; hidden: boolean; onShow2D: () => void }) {
   const { ephemeris, sitesFile } = useCoreData()
   const scenario = useScenario()
   const dispatch = useScenarioDispatch()
@@ -283,7 +306,7 @@ function TerrainStage({ active }: { active: boolean }) {
   const shadowsOn = !overlay
 
   return (
-    <section className="terrain-view" aria-label="3D terrain">
+    <section className="terrain-view" aria-label="3D terrain" hidden={hidden}>
       <div className="scene-stage" role="group" aria-label="3D view of the lunar south pole">
         <p className="visually-hidden">{summary}</p>
         {terrain ? (
@@ -357,6 +380,9 @@ function TerrainStage({ active }: { active: boolean }) {
           <Compass sun={compass.sun} earth={compass.earth} label={focused ? `Compass at ${focused.site.name}` : 'Compass'} />
           <button type="button" onClick={() => setView((v) => ({ kind: 'overview', nonce: v.nonce + 1 }))}>
             Reset view
+          </button>
+          <button id={SHOW_2D_ID} type="button" onClick={onShow2D} title="Opportunity map with exact hover values">
+            2D map
           </button>
         </div>
 
