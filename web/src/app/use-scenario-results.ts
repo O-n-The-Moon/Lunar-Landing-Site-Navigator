@@ -2,11 +2,9 @@
 import { useMemo } from 'react'
 import {
   DEFAULT_VISIBILITY_OPTS,
-  detectWindows,
   diffMetrics,
   gridSiteContext,
-  missionMetrics,
-  sampleSite,
+  missionRun,
   siteContext,
   type DetectedWindows,
   type Ephemeris,
@@ -52,7 +50,7 @@ export interface ResolvedSite {
 
 /**
  * One mission run (baseline or slipped) at one site. `samples` and `windows` start up to 48 h before
- * `landingMs` (the same pre-roll `missionMetrics` uses, so window edges agree with `metrics`) and end at
+ * `landingMs` (the same pre-roll `missionRun` uses, so window edges agree with `metrics`) and end at
  * `landingMs + durationH`; clip them to the mission when drawing.
  */
 export interface SiteRun {
@@ -180,11 +178,6 @@ export function siteSetups(
   })
 }
 
-const STEP_MIN = 10
-const STEP_MS = STEP_MIN * 60_000
-/** Must match `missionMetrics`' pre-roll so the run's windows match its metrics (a test checks this). */
-const PRE_ROLL_STEPS = (48 * 60) / STEP_MIN
-
 const ephemerisEndMs = (eph: Ephemeris) => eph.startUtcMs + (eph.count - 1) * eph.stepMs
 
 /** True when the half-open mission [landingMs, landingMs + durationH) lies inside the ephemeris. */
@@ -194,10 +187,7 @@ export function missionInCoverage(eph: Ephemeris, landingMs: number, durationH: 
 
 /** Samples, windows and metrics of one mission; the mission must be inside the ephemeris coverage. */
 export function runMission(ctx: SiteContext, landingMs: number, durationH: number, opts: VisibilityOpts): SiteRun {
-  const metrics = missionMetrics(ctx, landingMs, durationH, opts)
-  const preSteps = Math.min(PRE_ROLL_STEPS, Math.floor((landingMs - ctx.eph.startUtcMs) / STEP_MS))
-  const samples = sampleSite(ctx, landingMs - preSteps * STEP_MS, landingMs + durationH * HOUR_MS, STEP_MIN)
-  return { landingMs, samples, windows: detectWindows(samples, opts), metrics }
+  return { landingMs, ...missionRun(ctx, landingMs, durationH, opts) }
 }
 
 /** One run per setup, or null where the site is unavailable or the mission is outside the ephemeris. */

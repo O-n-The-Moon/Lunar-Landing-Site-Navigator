@@ -1,5 +1,5 @@
 // Mission metrics and slip deltas (SPEC-engine → Definitions).
-import type { EventDelta, MetricDelta, MissionMetrics, SiteContext, VisibilityOpts, Window } from './types'
+import type { DetectedWindows, EventDelta, MetricDelta, MissionMetrics, SiteContext, SiteSamples, VisibilityOpts, Window } from './types'
 import { detectWindows, sampleSite } from './windows'
 
 const MIN_MS = 60_000
@@ -33,13 +33,21 @@ function stateStats(wins: Window[], landingMs: number, endMs: number) {
   return { onMs, longestGapMs: Math.max(longestGapMs, endMs - prevEndMs), firstOffMs }
 }
 
+/** One mission's samples, windows and metrics from a single sampling pass. */
+export interface MissionRun {
+  /** From up to 48 h before landing (the hysteresis lead-in) to the mission end; clip to the mission when drawing. */
+  samples: SiteSamples
+  /** `detectWindows(samples)`: edges agree with `metrics`. */
+  windows: DetectedWindows
+  metrics: MissionMetrics
+}
+
 /**
- * Metrics over the half-open mission [landingMs, landingMs + durationH): % of the mission sunlit / Earth link /
- * both, longest off-periods (including ones cut by the mission ends), hours to the first sunset / Earthset, and
- * the time-weighted mean Sun visible fraction. Samples every 10 min from up to 48 h before landing.
- * Throws RangeError for a non-finite landingMs, durationH ≤ 0, or a mission outside the ephemeris coverage.
+ * Samples, windows and metrics over the half-open mission [landingMs, landingMs + durationH) in one pass (what
+ * `missionMetrics` computes, without discarding the intermediates). Samples every 10 min from up to 48 h before
+ * landing. Throws RangeError for a non-finite landingMs, durationH ≤ 0, or a mission outside the ephemeris coverage.
  */
-export function missionMetrics(ctx: SiteContext, landingMs: number, durationH: number, opts: VisibilityOpts): MissionMetrics {
+export function missionRun(ctx: SiteContext, landingMs: number, durationH: number, opts: VisibilityOpts): MissionRun {
   if (!Number.isFinite(landingMs)) throw new RangeError(`landingMs must be finite, got ${landingMs}`)
   const endMs = landingMs + durationH * H_MS
   // Checked on endMs: a tiny positive durationH can round back to landingMs.
@@ -66,7 +74,7 @@ export function missionMetrics(ctx: SiteContext, landingMs: number, durationH: n
     fractionMs += ((sunFraction[i - 1] + sunFraction[i]) / 2) * (tUtcMs[i] - tUtcMs[i - 1])
   }
 
-  return {
+  const metrics: MissionMetrics = {
     landingMs,
     durationH,
     sunlitPct: pct(sun.onMs),
@@ -78,6 +86,16 @@ export function missionMetrics(ctx: SiteContext, landingMs: number, durationH: n
     firstEarthsetH: inH(earth.firstOffMs),
     meanSunFraction: fractionMs / durationMs,
   }
+  return { samples, windows, metrics }
+}
+
+/**
+ * Metrics over the half-open mission [landingMs, landingMs + durationH): % of the mission sunlit / Earth link /
+ * both, longest off-periods (including ones cut by the mission ends), hours to the first sunset / Earthset, and
+ * the time-weighted mean Sun visible fraction. Throws RangeError as `missionRun` does.
+ */
+export function missionMetrics(ctx: SiteContext, landingMs: number, durationH: number, opts: VisibilityOpts): MissionMetrics {
+  return missionRun(ctx, landingMs, durationH, opts).metrics
 }
 
 function eventDelta(a: number | null, b: number | null): EventDelta {

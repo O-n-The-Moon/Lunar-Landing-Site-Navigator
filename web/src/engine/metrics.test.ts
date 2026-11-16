@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest'
 import golden from '../../../shared/fixtures/golden.json'
 import { realSiteContext } from './__fixtures__/real-data'
 import { angularRadiusDeg, siteFrame, visibleDiskFraction } from './geometry'
-import { diffMetrics, missionMetrics } from './metrics'
+import { diffMetrics, missionMetrics, missionRun } from './metrics'
 import { DEFAULT_VISIBILITY_OPTS } from './types'
+import { detectWindows } from './windows'
 import type { MissionMetrics, SiteContext, Vec3, VisibilityOpts } from './types'
 
 const MIN_MS = 60_000
@@ -178,6 +179,34 @@ describe('missionMetrics', () => {
 
   it.each([Number.NaN, Number.POSITIVE_INFINITY])('throws RangeError naming landingMs for landingMs = %s', (landingMs) => {
     expect(() => missionMetrics(ctx, landingMs, 2, opts)).toThrow(/landingMs/)
+  })
+})
+
+describe('missionRun', () => {
+  const ctx = syntheticCtx([5, 5, 5, 5, 5, -5, -5, 5, 5, 5, 5, 5, 5], [5, 5, 5, 5, 5, 5, 5, 5, 0, 0, 5, 5, 5])
+  const opts = DEFAULT_VISIBILITY_OPTS
+
+  it('returns the same metrics as missionMetrics', () => {
+    expect(missionRun(ctx, T0 + 2 * H_MS, 8, opts).metrics).toEqual(missionMetrics(ctx, T0 + 2 * H_MS, 8, opts))
+  })
+
+  it('returns the samples and windows missionMetrics derives its metrics from', () => {
+    const run = missionRun(ctx, T0 + 2 * H_MS, 8, opts)
+    expect(run.windows).toEqual(detectWindows(run.samples, opts))
+    expect(run.samples.tUtcMs[run.samples.tUtcMs.length - 1]).toBe(T0 + 10 * H_MS)
+  })
+
+  it('starts the samples before landing, by the pre-roll available in the coverage', () => {
+    // Only 2 h of coverage precede landing, so the lead-in is 2 h, not 48 h.
+    expect(missionRun(ctx, T0 + 2 * H_MS, 8, opts).samples.tUtcMs[0]).toBe(T0)
+    // A fully available pre-roll is 48 h.
+    const long = syntheticCtx(new Array<number>(60).fill(5), new Array<number>(60).fill(5))
+    expect(missionRun(long, T0 + 50 * H_MS, 4, opts).samples.tUtcMs[0]).toBe(T0 + 2 * H_MS)
+  })
+
+  it('throws RangeError for a mission outside the ephemeris coverage', () => {
+    expect(() => missionRun(ctx, T0 + 10 * H_MS, 3, opts)).toThrow(RangeError)
+    expect(() => missionRun(ctx, T0 + 2 * H_MS, 0, opts)).toThrow(RangeError)
   })
 })
 

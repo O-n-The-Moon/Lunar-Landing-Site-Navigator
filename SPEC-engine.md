@@ -28,7 +28,8 @@ detectWindows(samples: SiteSamples, opts: VisibilityOpts): { sun: Window[]; eart
 nextEvents(windows, tUtcMs): { sunsetInH; sunriseInH; earthsetInH; earthriseInH }  // null if none in range
 
 // metrics
-missionMetrics(ctx: SiteContext, landingMs: number, durationH: number, opts: VisibilityOpts): MissionMetrics
+missionRun(ctx: SiteContext, landingMs: number, durationH: number, opts: VisibilityOpts): { samples: SiteSamples; windows: DetectedWindows; metrics: MissionMetrics } // one pass; samples/windows start ≤ 48 h before landing
+missionMetrics(ctx: SiteContext, landingMs: number, durationH: number, opts: VisibilityOpts): MissionMetrics  // = missionRun(...).metrics
 diffMetrics(a: MissionMetrics, b: MissionMetrics): MetricDelta          // slip vs baseline
 
 // grid
