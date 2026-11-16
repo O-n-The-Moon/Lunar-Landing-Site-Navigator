@@ -286,8 +286,9 @@
   .deck .slip-slider .deck-label {
     display: none;
   }
-  /* The date and the elapsed time are in the top bar's clock; keep the deck short for the stage. */
-  .slip-summary .hint,
+  /* Keep the deck short for the stage: the slip total is in the slider's value, but the slipped landing date is
+     shown nowhere else (the top bar's clock is the cursor time), so it stays. */
+  .slip-prefix,
   .deck .cursor-readout {
     display: none;
   }

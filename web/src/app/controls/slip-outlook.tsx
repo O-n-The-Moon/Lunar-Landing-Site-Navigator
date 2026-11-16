@@ -125,6 +125,7 @@ export const SlipOutlook = memo(function SlipOutlook({
             preserveAspectRatio="none"
             role="img"
             aria-label={label}
+            // Pointer shortcut only: the keyboard path is the slip slider above, so the strip is not focusable.
             onClick={(e) => {
               const rect = e.currentTarget.getBoundingClientRect()
               const i = Math.min(N_DAYS - 1, Math.max(0, Math.floor(((e.clientX - rect.left) / rect.width) * N_DAYS)))

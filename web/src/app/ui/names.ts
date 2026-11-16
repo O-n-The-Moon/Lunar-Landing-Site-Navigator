@@ -1,4 +1,4 @@
-// Display helpers for site names and times in the 3D views and the time bar. Catalog names carry a parenthesised
+// Display helpers for site names and times in the 3D views and the deck. Catalog names carry a parenthesised
 // region, e.g. "Haworth (Artemis III region)": labels show the short name large and the region small.
 
 export interface SplitName {

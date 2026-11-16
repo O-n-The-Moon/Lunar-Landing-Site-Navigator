@@ -113,7 +113,7 @@ select:disabled {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  /* Fieldsets default to min-content width, so a long <select> option would overflow the sidebar. */
+  /* Fieldsets default to min-content width, so a long <select> option would overflow the rail. */
   min-inline-size: 0;
   margin: 0;
   padding: 0 0 var(--space-3);
@@ -179,22 +179,7 @@ select:disabled {
   line-height: 1.5;
 }
 
-/* --- placeholders (removed as views land) ------------------------------------------ */
-.placeholder {
-  padding: var(--space-3);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-  color: var(--text-muted);
-}
-.placeholder h3 {
-  color: var(--text);
-  margin-bottom: var(--space-1);
-}
-.placeholder p {
-  margin: 0;
-}
-
-/* --- opportunity map (v0) ------------------------------------------------------------- */
+/* --- opportunity map (2D) ------------------------------------------------------------- */
 .map-view {
   display: grid;
   gap: var(--space-2);

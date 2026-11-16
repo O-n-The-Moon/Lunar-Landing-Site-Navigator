@@ -130,14 +130,17 @@ export function SlipSlider({ tryDays }: { tryDays?: number }) {
         </div>
         <div className="slip-summary">
           <p className="hint">
-            {slipH === 0 ? (
-              <>No slip: baseline landing</>
-            ) : (
-              <>
-                Slip <span className="num slip-total">{formatSlipH(slipH)}</span>
-              </>
-            )}{' '}
-            → <span className="num slip-date">{formatUtc(slippedMs)}</span>
+            <span className="slip-prefix">
+              {slipH === 0 ? (
+                <>No slip: baseline landing</>
+              ) : (
+                <>
+                  Slip <span className="num slip-total">{formatSlipH(slipH)}</span>
+                </>
+              )}{' '}
+              →{' '}
+            </span>
+            <span className="num slip-date">{formatUtc(slippedMs)}</span>
           </p>
           <button type="button" onClick={() => setSlip(0)} disabled={slipH === 0}>
             Reset

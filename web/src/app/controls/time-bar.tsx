@@ -1,7 +1,7 @@
 // Time control for the bottom deck: a scrubber for the shared cursor, Play with a speed choice. One controller for the
 // whole app (`TimeBarProvider`), so the deck's Play drives every view and a view can react to it (Surface follows the
 // Sun while it plays). All state is the scenario's (cursor, slip); the slip itself is the deck's slip slider.
-import { createContext, createElement, useContext, useState, type ReactNode } from 'react'
+import { createContext, createElement, useContext, useId, useState, type ReactNode } from 'react'
 import { HOUR_MS, missionEndMs, slippedLandingMs, useScenario, useScenarioDispatch } from '../state'
 import { usePlayCursor, type PlayCursor } from '../timeline/playback'
 import { PauseIcon, PlayIcon } from '../ui/icons'
@@ -51,6 +51,7 @@ export function TimeBar() {
   const dispatch = useScenarioDispatch()
   const { play, canPlay, viewActive, speedIndex, setSpeedIndex } = useTimeBar()
   const startMs = slippedLandingMs(scenario)
+  const playHintId = useId()
   const endMs = missionEndMs(scenario)
 
   return (
@@ -61,11 +62,17 @@ export function TimeBar() {
         onClick={play.toggle}
         disabled={!canPlay}
         aria-pressed={play.playing}
+        aria-describedby={viewActive ? undefined : playHintId}
         title={viewActive ? undefined : 'Play runs in the 3D Terrain and Surface views'}
       >
         {play.playing ? <PauseIcon size={12} /> : <PlayIcon size={12} />}
         {play.playing ? 'Pause' : 'Play'}
       </button>
+      {!viewActive && (
+        <span id={playHintId} className="visually-hidden">
+          Play runs in the 3D Terrain and Surface views
+        </span>
+      )}
       <div className="time-bar-speeds" role="group" aria-label="Play speed">
         {SPEEDS.map((s, i) => (
           <button key={s.label} type="button" aria-pressed={i === speedIndex} onClick={() => setSpeedIndex(i)}>

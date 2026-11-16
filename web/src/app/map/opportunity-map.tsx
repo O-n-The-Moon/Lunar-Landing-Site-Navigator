@@ -61,7 +61,7 @@ export const LAYER_META: Record<MapLayer, LayerMeta> = {
 
 /** Shown under the map for the window-score layers (#76, option (a)). */
 export const SCORE_APPROX_NOTE =
-  'Approximate overview from the 2 km grid; near rims and peaks the horizon can be off by 1–6°. Curated sites are not scored from the grid: use the Compare tab for their numbers.'
+  'Approximate overview from the 2 km grid; near rims and peaks the horizon can be off by 1–6°. Curated sites are not scored from the grid: use the Details drawer for their numbers.'
 
 /** Unit direction of a meridian on the map (lon 0 = +y, east = +x). */
 const spokeDir = (lonDeg: number) => ({ dx: Math.sin((lonDeg * Math.PI) / 180), dy: Math.cos((lonDeg * Math.PI) / 180) })

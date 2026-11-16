@@ -22,7 +22,7 @@ export function TopBar({ start, children, end }: { start?: ReactNode; children?:
         </p>
       ) : (
         core.status === 'ready' && (
-          <p className="chip data-chip" title="Horizons from LOLA terrain; Sun and Earth positions from SPICE ephemeris">
+          <p className="chip data-chip" title="Terrain horizons from the LOLA DEM; Sun and Earth positions from the SPICE ephemeris">
             LOLA terrain · SPICE ephemeris
           </p>
         )

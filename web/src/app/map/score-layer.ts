@@ -172,7 +172,7 @@ export function scoresToRaster(values: ArrayLike<number>, nx: number, ny: number
 }
 
 // --- one scoring job per window change, however many views show the scores --------------------------------------------
-// The Map tab, the 3D overlay and the 2D fallback all show the same window scores. Each would otherwise start its own
+// The 2D map, the 3D overlay and the 2D fallback all show the same window scores. Each would otherwise start its own
 // worker and copy ~13 MB into it, so the provider owns the single `useGridScores` and runs it while any consumer wants it.
 
 interface WindowScores {

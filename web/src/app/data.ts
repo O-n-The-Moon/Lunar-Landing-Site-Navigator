@@ -1,6 +1,6 @@
 // Loads the data-contract files (SPEC.md → Data Contract; SPEC-app P0-1).
 // Core files load on startup; the grid, PGDA layers and the 3D terrain heights load lazily on first use (3D Terrain tab,
-// Map tab, custom sites).
+// 2D map, custom sites).
 import {
   createContext,
   createElement,

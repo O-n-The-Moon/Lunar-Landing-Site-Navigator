@@ -1,4 +1,4 @@
-// Opportunity map tab (SPEC-app P0-6). v0: static PGDA average Sun / Earth layers. v1 (#29): this mission window's
+// Opportunity map, 2D (SPEC-app P0-6; 3D Terrain's "2D map" toggle and its WebGL fallback). v0: static PGDA average Sun / Earth layers. v1 (#29): this mission window's
 // Sun / Earth / Both scores for the 2 km grid, from `scoreGrid` in a Web Worker (`score-layer.ts`, debounced 300 ms).
 // Curated and scenario site markers, hover readout, click → custom site.
 // Opening this tab starts the lazy loads of the PGDA layers and of the terrain grid (scoring and snapping a clicked point).
@@ -12,7 +12,7 @@ import { LAYER_META, OpportunityMap, type MapMarker } from './opportunity-map'
 import { scoresToRaster, useWindowScores, windowScoresToShow, type GridScoresState } from './score-layer'
 import { usePgdaValues } from './use-pgda-values'
 
-/** `active`: the Map tab is showing. A hidden map does not score (one worker, ~13 MB copied into it, is enough). */
+/** `active`: the 2D map is showing. A hidden map does not score (one worker, ~13 MB copied into it, is enough). */
 export function MapView({ active = true }: { active?: boolean }) {
   const { state: pgda, retry: retryPgda } = usePgdaLayers()
   const { state: grid, retry: retryGrid } = useGrid()

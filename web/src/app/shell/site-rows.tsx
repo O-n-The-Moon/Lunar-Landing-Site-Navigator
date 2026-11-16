@@ -1,6 +1,7 @@
 // One row per scenario site in the bottom deck (SPEC-app → Layout): Sun / Earth / Both % of the slipped mission (the
 // same `missionMetrics` the Details table shows), the Sun's change from the baseline, what the Sun does at the cursor,
 // and a mini band of the mission. No physics here: every value is the engine's.
+import { memo } from 'react'
 import type { Window } from '../../engine'
 import { eventTexts } from '../timeline/timeline-strip'
 import { splitSiteName, siteLetter } from '../ui/names'
@@ -31,7 +32,7 @@ export function bandSegments(windows: readonly Window[], startMs: number, endMs:
 
 const BAND_W = 1000
 
-function MiniBand({ result, startMs, endMs }: { result: SiteResult; startMs: number; endMs: number }) {
+const MiniBand = memo(function MiniBand({ result, startMs, endMs }: { result: SiteResult; startMs: number; endMs: number }) {
   const { windows } = result.slipped
   const rows = [
     { key: 'sun', color: 'var(--sun)', wins: windows.sun },
@@ -49,7 +50,7 @@ function MiniBand({ result, startMs, endMs }: { result: SiteResult; startMs: num
       ))}
     </svg>
   )
-}
+})
 
 function Metric({ label, tone, children, delta }: { label: string; tone?: 'sun' | 'earth' | 'both'; children: string; delta?: number }) {
   return (
