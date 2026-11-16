@@ -317,7 +317,8 @@ export type EventState = 'never-up' | 'sets' | 'never-sets'
  * How a "first event" metric changed from baseline (a) to slipped (b):
  * `appeared` = a has no set event, b does; `disappeared` = a has one, b has none; `shifted` = both set at different
  * times; `flipped` = neither sets but one is never up and the other never sets; `none` = same state and time.
- * `from` / `to` give the states, so a consumer can rank them (never-up < sets < never-sets).
+ * `from` / `to` give the states, so a consumer can rank them (never-up < sets < never-sets). `change` names what
+ * happened to the event, not whether that is good or bad (`appeared` can be a gain or a loss): rank `from` / `to`.
  */
 export type EventChange = 'none' | 'appeared' | 'disappeared' | 'shifted' | 'flipped'
 

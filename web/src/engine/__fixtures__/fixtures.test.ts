@@ -166,6 +166,8 @@ describe('output fixtures', () => {
       expect(m.longestEarthGapH).toBeCloseTo(longestGapMs(windows.earth, a, b) / H_MS, 3)
       expect(m.firstSunsetH).toBe(firstSetH(windows.sun, a, b))
       expect(m.firstEarthsetH).toBe(firstSetH(windows.earth, a, b))
+      expect(m.sunNeverUp).toBe(m.sunlitPct === 0)
+      expect(m.earthNeverUp).toBe(m.earthPct === 0)
       expect(m.sunNeverUp).toBe(onMs(windows.sun, a, b) === 0)
       expect(m.earthNeverUp).toBe(onMs(windows.earth, a, b) === 0)
     }
