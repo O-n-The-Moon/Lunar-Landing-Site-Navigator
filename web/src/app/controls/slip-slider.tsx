@@ -1,11 +1,11 @@
-// Slip slider (SPEC-app P0-2): −30…+90 days in 1-day steps, plus a fine ±12 h, around the baseline landing.
+// Slip slider (SPEC-app P0-2): −30…+90 days in 1-day steps, plus a fine ±12 h, around the baseline landing. It lives in
+// the bottom deck (S2-2); the deck's CSS (shell.css) lays its parts out.
 import { useId, useState } from 'react'
 import type { Ephemeris } from '../../engine'
 import { useCoreData } from '../data'
 import { HOUR_MS, SLIP_RANGE_H, slippedLandingMs, useScenario, useScenarioDispatch } from '../state'
 import { missionInCoverage } from '../use-scenario-results'
 import { formatUtc } from './date-controls'
-import './slip-slider.css'
 
 const MINUS = '−'
 const FINE_H = 12
@@ -72,52 +72,67 @@ export function SlipSlider() {
   return (
     <fieldset className="control slip-slider" aria-describedby={outside ? warningId : undefined}>
       <legend>Slip</legend>
-      <div className="slip-row">
-        <label htmlFor={daysId}>Days</label>
-        <input
-          id={daysId}
-          type="range"
-          min={DAY_MIN}
-          max={DAY_MAX}
-          step={1}
-          value={days}
-          aria-valuetext={`${signed(days)} days (${outcome})`}
-          onChange={(e) => {
-            const d = Number(e.target.value)
-            setSlip(d * 24 + hours, d)
-          }}
-        />
-        <span className="num slip-value">{signed(days)} d</span>
+      <span className="deck-label" aria-hidden="true">
+        Slip
+      </span>
+      <div className="slip-days">
+        <div className="slip-row">
+          <label htmlFor={daysId} className="visually-hidden">
+            Days
+          </label>
+          <span className="num slip-end" aria-hidden="true">
+            {MINUS}30
+          </span>
+          <input
+            id={daysId}
+            type="range"
+            min={DAY_MIN}
+            max={DAY_MAX}
+            step={1}
+            value={days}
+            aria-valuetext={`${signed(days)} days (${outcome})`}
+            onChange={(e) => {
+              const d = Number(e.target.value)
+              setSlip(d * 24 + hours, d)
+            }}
+          />
+          <span className="num slip-end" aria-hidden="true">
+            +90 d
+          </span>
+        </div>
       </div>
-      <div className="slip-row">
-        <label htmlFor={fineId}>Fine (hours)</label>
-        <input
-          id={fineId}
-          type="range"
-          // Narrowed at the ends so the slider never shows a slip the state would clamp away.
-          min={Math.max(-FINE_H, SLIP_RANGE_H.min - days * 24)}
-          max={Math.min(FINE_H, SLIP_RANGE_H.max - days * 24)}
-          step={1}
-          value={hours}
-          aria-valuetext={`${signed(hours)} hours (${outcome})`}
-          onChange={(e) => setSlip(days * 24 + Number(e.target.value), days)}
-        />
-        <span className="num slip-value">{signed(hours)} h</span>
-      </div>
-      <div className="slip-summary">
-        <p className="hint">
-          {slipH === 0 ? (
-            <>No slip: baseline landing</>
-          ) : (
-            <>
-              Slip <span className="num slip-total">{formatSlipH(slipH)}</span>
-            </>
-          )}{' '}
-          → <span className="num slip-date">{formatUtc(slippedMs)}</span>
-        </p>
-        <button type="button" onClick={() => setSlip(0)} disabled={slipH === 0}>
-          Reset
-        </button>
+      <span className="num slip-value">{signed(days)} d</span>
+      <div className="slip-meta">
+        <div className="slip-fine">
+          <label htmlFor={fineId}>Fine (hours)</label>
+          <input
+            id={fineId}
+            type="range"
+            // Narrowed at the ends so the slider never shows a slip the state would clamp away.
+            min={Math.max(-FINE_H, SLIP_RANGE_H.min - days * 24)}
+            max={Math.min(FINE_H, SLIP_RANGE_H.max - days * 24)}
+            step={1}
+            value={hours}
+            aria-valuetext={`${signed(hours)} hours (${outcome})`}
+            onChange={(e) => setSlip(days * 24 + Number(e.target.value), days)}
+          />
+          <span className="num slip-value-fine">{signed(hours)} h</span>
+        </div>
+        <div className="slip-summary">
+          <p className="hint">
+            {slipH === 0 ? (
+              <>No slip: baseline landing</>
+            ) : (
+              <>
+                Slip <span className="num slip-total">{formatSlipH(slipH)}</span>
+              </>
+            )}{' '}
+            → <span className="num slip-date">{formatUtc(slippedMs)}</span>
+          </p>
+          <button type="button" onClick={() => setSlip(0)} disabled={slipH === 0}>
+            Reset
+          </button>
+        </div>
       </div>
       {/* Always mounted: a live region inserted together with its text is often not announced. */}
       <p id={warningId} className="hint warn slip-warning" role="status">

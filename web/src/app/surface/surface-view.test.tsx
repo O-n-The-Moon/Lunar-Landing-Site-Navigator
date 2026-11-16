@@ -39,7 +39,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-/** The App on fixture data with a 1-day mission (the fixture ephemeris covers 48 h), Surface tab open. */
+/** The App on fixture data with a 1-day mission (the fixture ephemeris covers 48 h), Surface tab open. The time control is the deck's. */
 async function openSurface() {
   render(<App dataSources={{ source: fixtureDataSource() }} />)
   await screen.findByRole('heading', { name: 'Scenario' })
@@ -66,7 +66,7 @@ describe('Surface tab', () => {
 
   it('says lit / blocked exactly as the timeline does (the scene’s visible flag and the HUD agree) at nine times', async () => {
     const { region, sceneEl } = await openSurface()
-    const slider = within(region).getByLabelText('Time in mission') as HTMLInputElement
+    const slider = screen.getByLabelText('Time in mission') as HTMLInputElement
     const start = Number(slider.min)
     const end = Number(slider.max)
     const seen = new Set<string>()
@@ -85,7 +85,7 @@ describe('Surface tab', () => {
 
   it('draws the Sun below the real ridge whenever it names a ridge: "blocked · ridge" means elevation under the horizon', async () => {
     const { region } = await openSurface()
-    const slider = within(region).getByLabelText('Time in mission') as HTMLInputElement
+    const slider = screen.getByLabelText('Time in mission') as HTMLInputElement
     const start = Number(slider.min)
     const end = Number(slider.max)
     let ridge = 0
@@ -142,25 +142,25 @@ describe('Surface tab', () => {
     await waitFor(() => expect(screen.getByTestId('surface-scene')).toHaveAttribute('data-active', 'false'))
   })
 
-  it('offers the 2D engineering view with a time control, and a way back', async () => {
+  it('offers the 2D engineering view with the deck’s time control, and a way back', async () => {
     const user = userEvent.setup()
     const { region } = await openSurface()
     await user.click(within(region).getByRole('button', { name: /engineering view/i }))
     const twoD = screen.getByRole('region', { name: 'Surface view' }) // the section is re-created when the view changes
     expect(within(twoD).getByRole('region', { name: 'Horizon panorama' })).toBeInTheDocument()
-    expect(within(twoD).getByLabelText('Time in mission')).toBeInTheDocument()
+    expect(screen.getByLabelText('Time in mission')).toBeInTheDocument()
     await user.click(within(twoD).getByRole('button', { name: /back to 3d/i }))
     expect(await screen.findByTestId('surface-scene')).toBeInTheDocument()
   })
 
-  it('falls back to the 2D horizon view, still with a time control, when WebGL 2 is missing or the scene throws', async () => {
+  it('falls back to the 2D horizon view, still with the deck’s time control, when WebGL 2 is missing or the scene throws', async () => {
     mocks.webgl = false
     const { unmount } = render(<App dataSources={{ source: fixtureDataSource() }} />)
     await screen.findByRole('heading', { name: 'Scenario' })
     fireEvent.click(screen.getByRole('tab', { name: 'Surface' }))
     const region = await screen.findByRole('region', { name: 'Surface view' })
     expect(within(region).getByText(/needs WebGL 2/i)).toBeInTheDocument()
-    expect(within(region).getByLabelText('Time in mission')).toBeInTheDocument()
+    expect(screen.getByLabelText('Time in mission')).toBeInTheDocument()
     unmount()
 
     mocks.webgl = true
@@ -171,6 +171,6 @@ describe('Surface tab', () => {
     fireEvent.change(screen.getByLabelText(/duration/i), { target: { value: '1' } }) // the scene is only drawn with a view to draw
     fireEvent.click(screen.getByRole('tab', { name: 'Surface' }))
     expect(await screen.findByText(/could not start on this device/i)).toBeInTheDocument()
-    expect(within(screen.getByRole('region', { name: 'Surface view' })).getByLabelText('Time in mission')).toBeInTheDocument()
+    expect(screen.getByLabelText('Time in mission')).toBeInTheDocument()
   })
 })

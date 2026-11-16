@@ -1,6 +1,6 @@
 // App shell (SPEC-app → Layout): top bar with the view tabs, collapsible scenario rail, stage, bottom deck.
 // Views: 3D Terrain / Surface / Compare / Opportunity Map / Validation (Compare and the map retire in S2-5).
-import { useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import './ui/tokens.css'
 import './app.css'
 import './ui/hud.css'
@@ -10,19 +10,19 @@ import { CustomSite } from './controls/custom-site'
 import { DateControls } from './controls/date-controls'
 import { Options } from './controls/options'
 import { SitePicker } from './controls/site-picker'
-import { SlipSlider } from './controls/slip-slider'
 import { DataProvider, defaultDataSources, useCoreData, useCoreDataState, type DataSource } from './data'
 import { MapView } from './map/map-view'
 import { GridScoresProvider } from './map/score-layer'
 import { PanoramaPanel } from './panorama/panorama-panel'
 import { TerrainView } from './scene/terrain-view'
 import { SurfaceView } from './surface/surface-view'
-import { Deck } from './shell/deck'
+import { MissionDeck } from './shell/mission-deck'
 import { LeftRail, RailMenuButton, useRail } from './shell/left-rail'
 import { MissionClock, TopBar } from './shell/top-bar'
 import { ScenarioProvider, createInitialState } from './state'
+import { TimeBarProvider } from './controls/time-bar'
 import { TimelinePanel } from './timeline/timeline-panel'
-import { ScenarioResultsProvider } from './use-scenario-results'
+import { ScenarioResultsProvider, useScenarioResults } from './use-scenario-results'
 import { ValidationPanel } from './validation/validation-panel'
 
 export interface AppProps {
@@ -91,6 +91,16 @@ const TABS = [
 ] as const
 type TabId = (typeof TABS)[number]['id']
 
+/** Play for the whole workspace; reads the results here so Workspace itself doesn't re-render on every slip step. */
+function ViewTimeBar({ active, children }: { active: boolean; children: ReactNode }) {
+  const canPlay = useScenarioResults().sites.length > 0
+  return (
+    <TimeBarProvider active={active} canPlay={canPlay}>
+      {children}
+    </TimeBarProvider>
+  )
+}
+
 function Workspace() {
   const [tab, setTab] = useState<TabId>('terrain')
   // Panels mount on first open (so the grid loads lazily) and then stay mounted.
@@ -145,12 +155,12 @@ function Workspace() {
           ))}
         </div>
       </TopBar>
+      <ViewTimeBar active={tab === 'terrain' || tab === 'surface'}>
       <div className="console">
         <LeftRail rail={rail}>
           <SitePicker />
           <CustomSite />
           <DateControls />
-          <SlipSlider />
           <Options />
         </LeftRail>
         <main className="stage">
@@ -168,8 +178,9 @@ function Workspace() {
           <div {...panel('map')}>{opened.has('map') && <MapView active={tab === 'map'} />}</div>
           <div {...panel('validation')}>{opened.has('validation') && <ValidationPanel />}</div>
         </main>
-        <Deck />
+        <MissionDeck />
       </div>
+      </ViewTimeBar>
     </>
   )
 }

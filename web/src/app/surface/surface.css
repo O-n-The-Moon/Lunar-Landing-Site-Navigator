@@ -1,4 +1,5 @@
 .surface-view {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -55,22 +56,6 @@
   --earth: #4ea8ff;
   --text-faint: #5b6678;
   --radius-sm: 3px;
-}
-.surface-view .site-letter {
-  display: inline-grid;
-  place-items: center;
-  width: 1.2rem;
-  height: 1.2rem;
-  border-radius: 3px;
-  background: var(--text);
-  color: #05070a;
-  font: 700 0.6875rem/1 var(--font-num);
-}
-.surface-view .time-bar {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
 }
 .surface-view .visually-hidden {
   position: absolute;

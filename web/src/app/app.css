@@ -97,6 +97,8 @@ select:disabled {
 
 /* --- tab panels (the tablist itself is styled in shell/shell.css) --------------------- */
 .tab-panel {
+  /* Grows to fill the stage (so the 3D views can), but never shrinks below its content (so tall tabs scroll). */
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);

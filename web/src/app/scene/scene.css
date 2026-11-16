@@ -1,12 +1,14 @@
 .terrain-view {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 .scene-stage {
   position: relative;
-  /* Fill the console stage, leaving room for the note and the time bar below (they move to the deck in S2-2). */
-  height: max(320px, calc(100dvh - var(--topbar-h) - 10.5rem));
+  /* Fills what the console stage leaves (the deck sizes itself); never shorter than 320 px. */
+  flex: 1 1 0;
+  min-height: 320px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -215,9 +217,4 @@
 .terrain-view .panel {
   background: var(--surface);
 }
-.terrain-view .time-bar {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
+

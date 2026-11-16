@@ -1,0 +1,279 @@
+/* Bottom deck (locked S2-0 design): control strip (slip · Play · cursor), then one row per site. */
+.deck-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+.deck-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* --- slip ------------------------------------------------------------------------------- */
+.deck .slip-slider {
+  flex: 1 1 30rem;
+  max-width: 44rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 4.5rem;
+  grid-template-areas:
+    'label days value'
+    '.     meta meta'
+    '.     warn warn';
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  padding: 0;
+  border: 0;
+}
+.deck .slip-slider legend {
+  /* The visible "SLIP" label beside the track is decorative; the legend names the group for assistive tech. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.deck .slip-slider .deck-label {
+  grid-area: label;
+}
+.slip-days {
+  grid-area: days;
+  min-width: 0;
+}
+.slip-row {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr) 2.75rem;
+  align-items: center;
+  gap: var(--space-2);
+}
+.slip-end {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+.slip-end:last-child {
+  text-align: right;
+}
+.slip-value {
+  grid-area: value;
+  font-size: 1.125rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.slip-meta {
+  grid-area: meta;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+}
+.slip-fine {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.slip-fine input {
+  width: 7rem;
+}
+.slip-fine label {
+  font-size: 0.6875rem;
+  white-space: nowrap;
+}
+.slip-value-fine {
+  white-space: nowrap;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+.slip-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.slip-summary button {
+  padding: 0 var(--space-2);
+  font-size: 0.6875rem;
+}
+.slip-date,
+.slip-total {
+  white-space: nowrap;
+}
+.slip-total {
+  color: var(--text);
+}
+.slip-warning {
+  grid-area: warn;
+}
+/* The warning's live region stays mounted; when empty it must not take a row. */
+.slip-warning:empty {
+  display: none;
+}
+
+/* Range inputs in the deck: a thin track and the white thumb with the amber glow from the design. */
+.deck input[type='range'] {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  accent-color: var(--sun);
+}
+.slip-days input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 20px;
+}
+.slip-days input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+.slip-days input[type='range']::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+.slip-days input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow:
+    0 0 0 5px rgba(246, 183, 60, 0.25),
+    0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.slip-days input[type='range']::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow:
+    0 0 0 5px rgba(246, 183, 60, 0.25),
+    0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+/* --- time control ----------------------------------------------------------------------- */
+.deck .time-bar {
+  flex: 1 1 24rem;
+  min-width: 0;
+}
+
+/* --- site rows -------------------------------------------------------------------------- */
+.deck-sites {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.deck-empty {
+  padding: var(--space-2) 0;
+}
+.srow {
+  display: grid;
+  grid-template-columns: minmax(9rem, 15rem) 7rem 5rem 5rem minmax(9rem, 12rem) minmax(8rem, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 38px;
+}
+.srow + .srow {
+  border-top: 1px solid var(--border);
+}
+.srow-id {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.srow-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-weight: 500;
+  font-size: 0.8125rem;
+}
+.srow-short,
+.srow-name small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.srow-name small {
+  font-weight: 400;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+.metric {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: start;
+  align-items: baseline;
+  column-gap: var(--space-2);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+.metric small {
+  grid-column: 1 / -1;
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.metric-sun > .num:not(.metric-delta) {
+  color: var(--sun);
+}
+.metric-earth > .num:not(.metric-delta) {
+  color: var(--earth);
+}
+.metric-delta {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+.metric-delta.is-worse {
+  color: var(--danger);
+}
+.metric-delta.is-better {
+  color: var(--both);
+}
+.srow-event .num {
+  font-size: 0.75rem;
+}
+.srow-band {
+  width: 100%;
+  height: 22px;
+  border-radius: 2px;
+}
+.srow-reason {
+  grid-column: 2 / -1;
+}
+
+/* --- narrow: Both, the sun event and the band move to Details (S2-3); letter, name, Sun and Earth stay ---- */
+@media (max-width: 640px) {
+  .srow {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: var(--space-2);
+  }
+  .srow .metric:nth-of-type(3),
+  .srow-event,
+  .srow-band {
+    display: none;
+  }
+  .deck .slip-slider {
+    grid-template-columns: minmax(0, 1fr) 4rem;
+    grid-template-areas:
+      'days value'
+      'meta meta'
+      'warn warn';
+  }
+  .deck .slip-slider .deck-label {
+    display: none;
+  }
+  .slip-summary {
+    flex-wrap: wrap;
+  }
+}

@@ -23,3 +23,16 @@
   border-color: rgba(246, 183, 60, 0.45);
   background: var(--sun-soft);
 }
+
+/* Site letter badge (A, B, C…): the same one in the 3D HUD and the deck rows. */
+.site-letter {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 3px;
+  background: var(--text);
+  color: #05070a;
+  font: 700 0.6875rem/1 var(--font-num);
+}

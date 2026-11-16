@@ -4,7 +4,6 @@
 // draws it. Loads in stages: 2 km heights first, then the 1024² display terrain, then the horizon grid for shadows.
 import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { bodyVectorKm, illuminationAt, MOON_RADIUS_KM, nearestGridCell, type Grid, type SiteContext, type Vec3 } from '../../engine'
-import { TimeBar, useTimeBarController } from '../controls/time-bar'
 import { useCoreData, useDisplayTerrain, useGrid, usePgdaLayers, useTerrainHeights } from '../data'
 import { rampCss } from '../map/colormaps'
 import { MapView } from '../map/map-view'
@@ -123,7 +122,6 @@ function TerrainStage({ active }: { active: boolean }) {
   // recompute, no ray/beacon churn, and the canvas stops rendering.
   const [shownMs, setShownMs] = useState(cursorMs)
   if (active && shownMs !== cursorMs) setShownMs(cursorMs)
-  const timeBar = useTimeBarController({ active, canPlay: results.sites.length > 0 })
 
   // --- staged loading: 2 km heights → display terrain → horizon grid -----------------------------------------------
   const { state: heights, retry: retryHeights } = useTerrainHeights()
@@ -383,7 +381,6 @@ function TerrainStage({ active }: { active: boolean }) {
         Drag to orbit, scroll to zoom, click a beacon to fly to a site, click the terrain to add a custom site (snapped to its 2 km cell). Map shading uses
         each 2 km cell&apos;s horizon; a site&apos;s status uses the site&apos;s own finer horizon, so the two can differ near a ridge.
       </p>
-      <TimeBar controller={timeBar} canPlay={results.sites.length > 0} />
     </section>
   )
 }
