@@ -3,7 +3,7 @@ import { fixtureOutputs, fixtureScenario } from './__fixtures__'
 import { angularRadiusDeg, azEl, bodyVectorKm, horizonElevAt, siteFrame, visibleDiskFraction } from './geometry'
 import { DEFAULT_VISIBILITY_OPTS } from './types'
 import type { DetectedWindows, SiteContext, Vec3, Window } from './types'
-import { detectWindows, nextEvents, sampleSite, sunHysteresisLevels } from './windows'
+import { checkVisibilityOpts, detectWindows, nextEvents, sampleSite, sunHysteresisLevels } from './windows'
 
 const MIN_MS = 60_000
 const H_MS = 3_600_000
@@ -376,5 +376,30 @@ describe('sunHysteresisLevels', () => {
   it('caps both levels to the 0–1 fraction range', () => {
     expect(sunHysteresisLevels({ ...DEFAULT_VISIBILITY_OPTS, sunThreshold: 0.97 }).onFraction).toBe(1)
     expect(sunHysteresisLevels({ ...DEFAULT_VISIBILITY_OPTS, sunThreshold: 0.02 }).offFraction).toBe(0)
+  })
+})
+
+describe('checkVisibilityOpts', () => {
+  const opts = DEFAULT_VISIBILITY_OPTS
+
+  it('accepts the defaults and the edges of each range', () => {
+    expect(() => checkVisibilityOpts(opts)).not.toThrow()
+    expect(() => checkVisibilityOpts({ ...opts, sunThreshold: 0, hysteresis: 0, earthHysteresisDeg: 0 })).not.toThrow()
+    expect(() => checkVisibilityOpts({ ...opts, sunThreshold: 1, earthMarginDeg: -2 })).not.toThrow()
+  })
+
+  it('throws RangeError for a threshold outside [0, 1], a non-finite margin or a negative / NaN hysteresis', () => {
+    for (const bad of [
+      { sunThreshold: -0.1 },
+      { sunThreshold: 1.1 },
+      { sunThreshold: Number.NaN },
+      { earthMarginDeg: Number.POSITIVE_INFINITY },
+      { earthMarginDeg: Number.NaN },
+      { hysteresis: -0.01 },
+      { hysteresis: Number.NaN },
+      { earthHysteresisDeg: -0.1 },
+    ]) {
+      expect(() => checkVisibilityOpts({ ...opts, ...bad })).toThrow(RangeError)
+    }
   })
 })

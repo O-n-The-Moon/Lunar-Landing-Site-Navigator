@@ -1,7 +1,8 @@
 // Regenerates every fixture in this folder: `node src/engine/__fixtures__/generate.mjs` (from web/).
-// Synthetic, deterministic, dependency-free. The math below is a simplified stand-in for the engine
-// (no bisection refinement, threshold-only grid scoring); it is NOT a parity reference. golden.json is.
-import { writeFileSync } from 'node:fs'
+// Synthetic and deterministic. The math below is a simplified stand-in for the engine (no bisection refinement);
+// it is NOT a parity reference. golden.json is. Exception: grid-scores.json comes from the real `scoreGrid`.
+import { readFileSync, writeFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { deflateSync } from 'node:zlib'
 
 const OUT = new URL('./', import.meta.url)
@@ -338,43 +339,6 @@ for (let iy = 0; iy < GRID.ny; iy++) {
 write('grid-horizons.bin', horizonsU8)
 write('grid-heights.bin', heightsBuf)
 
-function cellLatLon(ix, iy) {
-  const x = GRID.originKm[0] + (ix + 0.5) * GRID.cellKm
-  const y = GRID.originKm[1] + (iy + 0.5) * GRID.cellKm
-  const c = 2 * Math.atan(Math.hypot(x, y) / (2 * R_MOON_KM))
-  return { latDeg: -90 + c / DEG, lonDeg: Math.atan2(x, y) / DEG }
-}
-const scores = { startMs: SCENARIO.startMs, endMs: SCENARIO.endMs, nx: GRID.nx, ny: GRID.ny, sunPct: [], earthPct: [], bothPct: [] }
-for (let iy = 0; iy < GRID.ny; iy++) {
-  for (let ix = 0; ix < GRID.nx; ix++) {
-    if (noData(ix, iy)) {
-      scores.sunPct.push(null)
-      scores.earthPct.push(null)
-      scores.bothPct.push(null)
-      continue
-    }
-    const c = iy * GRID.nx + ix
-    const { latDeg, lonDeg } = cellLatLon(ix, iy)
-    const frame = siteFrame(latDeg, lonDeg, heightsBuf.readInt16LE(c * 2), 2)
-    const m = Array.from(horizonsU8.subarray(c * GRID.azBins, (c + 1) * GRID.azBins), (v) => v * 0.1 - 5)
-    let sunN = 0, earthN = 0, bothN = 0
-    for (let h = 0; h < HOURS; h++) {
-      const t = START_MS + h * H_MS
-      const sun = azEl(frame, bodyVec('sun', t))
-      const earth = azEl(frame, bodyVec('earth', t))
-      const lit = diskFraction(sun.elevDeg, horizonAt(m, 1, sun.azDeg), angRadiusDeg('sun', sun.distKm)) >= OPTS.sunThreshold
-      const link = earth.elevDeg - horizonAt(m, 1, earth.azDeg) >= OPTS.earthMarginDeg
-      sunN += lit
-      earthN += link
-      bothN += lit && link
-    }
-    scores.sunPct.push(round((100 * sunN) / HOURS, 3))
-    scores.earthPct.push(round((100 * earthN) / HOURS, 3))
-    scores.bothPct.push(round((100 * bothN) / HOURS, 3))
-  }
-}
-writeJson('grid-scores.json', scores)
-
 // ---------------------------------------------------------------------------
 // PGDA layers: 8 × 8 8-bit grayscale PNGs (value = %), synthetic gradients on the grid extent.
 // ---------------------------------------------------------------------------
@@ -522,5 +486,34 @@ for (const [id, o] of Object.entries(outputs.sites)) {
   console.log('  baseline', o.metrics.baseline)
   console.log('  delta   ', o.metricDelta)
 }
+// ---------------------------------------------------------------------------
+// Grid scores: from the real engine (`scoreGrid`, with hysteresis) on the files written above, at OPTS over the
+// scenario range. vite (a devDependency) runs the TS modules; nothing else here depends on the engine.
+// Must run after every write(...) above: it reads those files back.
+// ---------------------------------------------------------------------------
+const { runnerImport } = await import('vite')
+const engine = async (name) => (await runnerImport(fileURLToPath(new URL(`../${name}.ts`, OUT)), { configFile: false })).module
+const { loadEphemeris, loadGrid } = await engine('loaders')
+const { scoreGrid } = await engine('grid')
+const readJson = (name) => JSON.parse(readFileSync(new URL(name, OUT), 'utf8'))
+const readBuf = (name) => {
+  const b = readFileSync(new URL(name, OUT))
+  return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)
+}
+const engineEph = loadEphemeris(readJson('ephemeris.json'), readBuf('ephemeris.bin'))
+const engineGrid = loadGrid(readJson('grid.json'), readBuf('grid-horizons.bin'), readBuf('grid-heights.bin'))
+const gridScores = scoreGrid(engineGrid, engineEph, SCENARIO.startMs, SCENARIO.endMs, OPTS)
+const toJson = (a) => Array.from(a, (x) => (Number.isNaN(x) ? null : round(x, 3)))
+const scores = {
+  startMs: gridScores.startMs,
+  endMs: gridScores.endMs,
+  nx: gridScores.nx,
+  ny: gridScores.ny,
+  sunPct: toJson(gridScores.sunPct),
+  earthPct: toJson(gridScores.earthPct),
+  bothPct: toJson(gridScores.bothPct),
+}
+writeJson('grid-scores.json', scores)
+
 console.log('grid sun%', scores.sunPct.join(' '))
 console.log('grid earth%', scores.earthPct.join(' '))
