@@ -1,5 +1,5 @@
 // Metric cards (SPEC-app P0-3): one column per site, slipped-mission values with a Δ vs. the unslipped baseline.
-import type { MetricDelta, MissionMetrics } from '../../engine'
+import type { EventDelta, MetricDelta, MissionMetrics } from '../../engine'
 import { formatUtc } from '../controls/date-controls'
 import { formatSlipH } from '../controls/slip-slider'
 import {
@@ -40,13 +40,6 @@ function numDelta(v: number, digits: number, unit: string, higherIsBetter: boole
   return { text: `${up ? '+' : MINUS}${abs}${unit}`, tone: up === higherIsBetter ? 'better' : 'worse' }
 }
 
-/**
- * A "first sunset / Earthset" outcome. The engine's null means "no on→off transition", which covers both a body
- * that never comes up and one that never sets, so the on-time percentage tells them apart.
- */
-type EventState = { kind: 'never-up' } | { kind: 'sets'; h: number } | { kind: 'never-sets' }
-const eventState = (onPct: number, firstOffH: number | null): EventState =>
-  onPct === 0 ? { kind: 'never-up' } : firstOffH === null ? { kind: 'never-sets' } : { kind: 'sets', h: firstOffH }
 /** Worst to best: never up, sets (later is better), never sets. */
 const EVENT_RANK = { 'never-up': 0, sets: 1, 'never-sets': 2 } as const
 
@@ -58,21 +51,24 @@ interface EventWords {
 const SUN_WORDS: EventWords = { neverUp: 'Never sunlit', nowUp: 'now sunlit', neverSets: 'No sunset' }
 const EARTH_WORDS: EventWords = { neverUp: 'Never in view', nowUp: 'now in view', neverSets: 'No Earthset' }
 
-function eventValue(s: EventState, w: EventWords): string {
-  return s.kind === 'sets' ? hours(s.h) : s.kind === 'never-up' ? w.neverUp : w.neverSets
+function eventValue(neverUp: boolean, firstOffH: number | null, w: EventWords): string {
+  return neverUp ? w.neverUp : firstOffH === null ? w.neverSets : hours(firstOffH)
 }
 
-function eventDelta(a: EventState, b: EventState, w: EventWords): DeltaView {
-  if (a.kind === 'sets' && b.kind === 'sets') return numDelta(b.h - a.h, 1, ' h', true)
-  if (a.kind === b.kind) return { text: 'no change', tone: 'neutral' }
-  const tone = EVENT_RANK[b.kind] > EVENT_RANK[a.kind] ? 'better' : 'worse'
+function eventDelta(e: EventDelta, w: EventWords): DeltaView {
+  if (e.deltaH !== null) return numDelta(e.deltaH, 1, ' h', true)
+  if (e.from === e.to) return { text: 'no change', tone: 'neutral' }
+  const tone = EVENT_RANK[e.to] > EVENT_RANK[e.from] ? 'better' : 'worse'
   const text =
-    b.kind === 'never-up' ? w.neverUp.toLowerCase() : b.kind === 'never-sets' ? 'no longer sets' : a.kind === 'never-up' ? w.nowUp : 'now sets'
+    e.to === 'never-up'
+      ? w.neverUp.toLowerCase()
+      : e.from === 'never-up'
+        ? w.nowUp
+        : e.to === 'never-sets'
+          ? 'no longer sets'
+          : 'now sets'
   return { text, tone }
 }
-
-const sunEvent = (m: MissionMetrics) => eventState(m.sunlitPct, m.firstSunsetH)
-const earthEvent = (m: MissionMetrics) => eventState(m.earthPct, m.firstEarthsetH)
 
 const ROWS: MetricRow[] = [
   { label: 'Sunlit', value: (m) => pct(m.sunlitPct), delta: (d) => numDelta(d.sunlitPct, 1, ' pp', true) },
@@ -86,13 +82,13 @@ const ROWS: MetricRow[] = [
   },
   {
     label: 'First sunset after landing',
-    value: (m) => eventValue(sunEvent(m), SUN_WORDS),
-    delta: (_d, a, b) => eventDelta(sunEvent(a), sunEvent(b), SUN_WORDS),
+    value: (m) => eventValue(m.sunNeverUp, m.firstSunsetH, SUN_WORDS),
+    delta: (d) => eventDelta(d.firstSunsetH, SUN_WORDS),
   },
   {
     label: 'First Earthset after landing',
-    value: (m) => eventValue(earthEvent(m), EARTH_WORDS),
-    delta: (_d, a, b) => eventDelta(earthEvent(a), earthEvent(b), EARTH_WORDS),
+    value: (m) => eventValue(m.earthNeverUp, m.firstEarthsetH, EARTH_WORDS),
+    delta: (d) => eventDelta(d.firstEarthsetH, EARTH_WORDS),
   },
   {
     label: 'Mean Sun fraction',

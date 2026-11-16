@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { EventDelta, Window } from '../types'
+import type { EventDelta, EventState, Window } from '../types'
 import {
   fixtureEphemeris,
   fixtureGrid,
@@ -30,12 +30,17 @@ function firstSetH(ws: Window[], a: number, b: number): number | null {
   return ends.length ? Math.round(((Math.min(...ends) - a) / H_MS) * 1e4) / 1e4 : null
 }
 
-function expectedEventDelta(a: number | null, b: number | null): EventDelta {
-  if (a === null && b === null) return { deltaH: null, change: 'none' }
-  if (a === null) return { deltaH: null, change: 'appeared' }
-  if (b === null) return { deltaH: null, change: 'disappeared' }
-  const deltaH = Math.round((b - a) * 1e4) / 1e4
-  return { deltaH, change: deltaH === 0 ? 'none' : 'shifted' }
+const stateOf = (neverUp: boolean, h: number | null): EventState => (neverUp ? 'never-up' : h === null ? 'never-sets' : 'sets')
+
+function expectedEventDelta(a: [boolean, number | null], b: [boolean, number | null]): EventDelta {
+  const from = stateOf(...a)
+  const to = stateOf(...b)
+  if (a[1] === null || b[1] === null) {
+    const change = a[1] === b[1] ? (from === to ? 'none' : 'flipped') : a[1] === null ? 'appeared' : 'disappeared'
+    return { deltaH: null, change, from, to }
+  }
+  const deltaH = Math.round((b[1] - a[1]) * 1e4) / 1e4
+  return { deltaH, change: deltaH === 0 ? 'none' : 'shifted', from, to }
 }
 
 describe('contract fixtures', () => {
@@ -142,9 +147,12 @@ describe('output fixtures', () => {
     }
     const numeric = ['sunlitPct', 'earthPct', 'bothPct', 'longestSunGapH', 'longestEarthGapH', 'meanSunFraction'] as const
     for (const k of numeric) expect(metricDelta[k]).toBeCloseTo(slipped[k] - baseline[k], 3)
-    for (const k of ['firstSunsetH', 'firstEarthsetH'] as const) {
-      expect(metricDelta[k]).toEqual(expectedEventDelta(baseline[k], slipped[k]))
-    }
+    expect(metricDelta.firstSunsetH).toEqual(
+      expectedEventDelta([baseline.sunNeverUp, baseline.firstSunsetH], [slipped.sunNeverUp, slipped.firstSunsetH]),
+    )
+    expect(metricDelta.firstEarthsetH).toEqual(
+      expectedEventDelta([baseline.earthNeverUp, baseline.firstEarthsetH], [slipped.earthNeverUp, slipped.firstEarthsetH]),
+    )
   })
 
   it.each(sites)('%s: metrics match a recomputation from the windows', (_, { windows, metrics }) => {
@@ -158,11 +166,19 @@ describe('output fixtures', () => {
       expect(m.longestEarthGapH).toBeCloseTo(longestGapMs(windows.earth, a, b) / H_MS, 3)
       expect(m.firstSunsetH).toBe(firstSetH(windows.sun, a, b))
       expect(m.firstEarthsetH).toBe(firstSetH(windows.earth, a, b))
+      expect(m.sunNeverUp).toBe(m.sunlitPct === 0)
+      expect(m.earthNeverUp).toBe(m.earthPct === 0)
+      expect(m.sunNeverUp).toBe(onMs(windows.sun, a, b) === 0)
+      expect(m.earthNeverUp).toBe(onMs(windows.earth, a, b) === 0)
     }
   })
 
   it('the plateau shows the slip story: Earth never sets at baseline, sets after the slip', () => {
-    expect(fixtureOutputs['fixture-plateau'].metricDelta.firstEarthsetH.change).toBe('appeared')
+    expect(fixtureOutputs['fixture-plateau'].metricDelta.firstEarthsetH).toMatchObject({
+      change: 'appeared',
+      from: 'never-sets',
+      to: 'sets',
+    })
   })
 
   it.each(sites)('%s: ctx carries the fixture ephemeris, a unit ENU frame and the 2 m mask', (id, { ctx, samples }) => {

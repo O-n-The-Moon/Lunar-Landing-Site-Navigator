@@ -103,12 +103,23 @@ describe('missionMetrics', () => {
     const m = missionMetrics(ctx, T0 + 2 * H_MS, 2, opts)
     expect(m.firstSunsetH).toBeNull()
     expect(m.firstEarthsetH).toBeNull()
+    expect(m.sunNeverUp).toBe(false)
+    expect(m.earthNeverUp).toBe(false)
     expect(m.longestSunGapH).toBe(0)
     expect(m.longestEarthGapH).toBe(0)
     expect(m.sunlitPct).toBe(100)
     expect(m.earthPct).toBe(100)
     expect(m.bothPct).toBe(100)
     expect(m.meanSunFraction).toBeCloseTo(1, 12)
+  })
+
+  it('flags a body that is never up for the whole mission, and only that body', () => {
+    // Earth is off from ~7.82 h to ~9.22 h; the Sun is up throughout hours 8–9.
+    const m = missionMetrics(ctx, T0 + 8 * H_MS, 1, opts)
+    expect(m.earthPct).toBe(0)
+    expect(m.earthNeverUp).toBe(true)
+    expect(m.firstEarthsetH).toBeNull()
+    expect(m.sunNeverUp).toBe(false)
   })
 
   it('takes the state at landing from before landing, not from the hysteresis seed', () => {
@@ -151,6 +162,7 @@ describe('missionMetrics', () => {
       const m = missionMetrics(sunset, T0 + 4 * H_MS, 2, opts)
       expect(m.firstSunsetH).toBeNull()
       expect(m.sunlitPct).toBe(0)
+      expect(m.sunNeverUp).toBe(true)
       expect(m.longestSunGapH).toBe(2)
     })
   })
@@ -221,6 +233,8 @@ function metrics(overrides: Partial<MissionMetrics> = {}): MissionMetrics {
     longestEarthGapH: 100,
     firstSunsetH: 200,
     firstEarthsetH: 150,
+    sunNeverUp: false,
+    earthNeverUp: false,
     meanSunFraction: 0.75,
     ...overrides,
   }
@@ -241,26 +255,52 @@ describe('diffMetrics', () => {
 
   it('marks a first event that moves as shifted, with deltaH = b − a', () => {
     const d = diffMetrics(metrics({ firstSunsetH: 200 }), metrics({ firstSunsetH: 176.5 }))
-    expect(d.firstSunsetH).toEqual({ deltaH: -23.5, change: 'shifted' })
+    expect(d.firstSunsetH).toEqual({ deltaH: -23.5, change: 'shifted', from: 'sets', to: 'sets' })
   })
 
   it('marks an equal first event as none with deltaH 0', () => {
-    expect(diffMetrics(metrics(), metrics()).firstEarthsetH).toEqual({ deltaH: 0, change: 'none' })
+    expect(diffMetrics(metrics(), metrics()).firstEarthsetH).toEqual({ deltaH: 0, change: 'none', from: 'sets', to: 'sets' })
   })
 
   it('marks an event that only the slipped mission has as appeared', () => {
     const d = diffMetrics(metrics({ firstSunsetH: null }), metrics({ firstSunsetH: 12 }))
-    expect(d.firstSunsetH).toEqual({ deltaH: null, change: 'appeared' })
+    expect(d.firstSunsetH).toEqual({ deltaH: null, change: 'appeared', from: 'never-sets', to: 'sets' })
+  })
+
+  it('tells a gain from a loss: never up → sets is appeared from never-up', () => {
+    const d = diffMetrics(metrics({ sunlitPct: 0, firstSunsetH: null, sunNeverUp: true }), metrics({ firstSunsetH: 12 }))
+    expect(d.firstSunsetH).toEqual({ deltaH: null, change: 'appeared', from: 'never-up', to: 'sets' })
+  })
+
+  it('marks always sunlit → never sunlit as flipped, not none', () => {
+    const d = diffMetrics(metrics({ firstSunsetH: null }), metrics({ firstSunsetH: null, sunNeverUp: true }))
+    expect(d.firstSunsetH).toEqual({ deltaH: null, change: 'flipped', from: 'never-sets', to: 'never-up' })
+  })
+
+  it('marks never up → always up as flipped', () => {
+    const d = diffMetrics(metrics({ firstEarthsetH: null, earthNeverUp: true }), metrics({ firstEarthsetH: null }))
+    expect(d.firstEarthsetH).toEqual({ deltaH: null, change: 'flipped', from: 'never-up', to: 'never-sets' })
   })
 
   it('marks an event that only the baseline has as disappeared', () => {
     const d = diffMetrics(metrics({ firstEarthsetH: 12 }), metrics({ firstEarthsetH: null }))
-    expect(d.firstEarthsetH).toEqual({ deltaH: null, change: 'disappeared' })
+    expect(d.firstEarthsetH).toEqual({ deltaH: null, change: 'disappeared', from: 'sets', to: 'never-sets' })
   })
 
   it('marks an event that neither mission has as none', () => {
     const d = diffMetrics(metrics({ firstSunsetH: null }), metrics({ firstSunsetH: null }))
-    expect(d.firstSunsetH).toEqual({ deltaH: null, change: 'none' })
+    expect(d.firstSunsetH).toEqual({ deltaH: null, change: 'none', from: 'never-sets', to: 'never-sets' })
+  })
+
+  it('marks sunlit-then-sets → never sunlit as disappeared, ending never-up', () => {
+    const d = diffMetrics(metrics({ firstSunsetH: 12 }), metrics({ firstSunsetH: null, sunNeverUp: true }))
+    expect(d.firstSunsetH).toEqual({ deltaH: null, change: 'disappeared', from: 'sets', to: 'never-up' })
+  })
+
+  it('marks never up in both missions as none', () => {
+    const dark = { firstSunsetH: null, sunNeverUp: true }
+    const d = diffMetrics(metrics(dark), metrics(dark))
+    expect(d.firstSunsetH).toEqual({ deltaH: null, change: 'none', from: 'never-up', to: 'never-up' })
   })
 })
 
