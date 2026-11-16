@@ -1,0 +1,6 @@
+moon-color-2k.jpg
+  Source: NASA Scientific Visualization Studio, "CGI Moon Kit" (https://svs.gsfc.nasa.gov/4720),
+          file lroc_color_2k.jpg, 2048x1024, unmodified. Visualizer: Ernie Wright (STC); scientist: Noah Petro (NASA/GSFC).
+          Built from Lunar Reconnaissance Orbiter camera (LROC) data.
+  Licence: NASA SVS visualizations are public domain unless otherwise noted (https://svs.gsfc.nasa.gov/help/).
+  Use: the decorative globe in the intro fly-in only. Never read by the engine or used for any number in the app.
