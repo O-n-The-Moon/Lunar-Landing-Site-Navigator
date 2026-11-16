@@ -148,6 +148,18 @@ describe('MetricCards', () => {
     expect(lost.querySelector('.delta')).toHaveClass('worse')
   })
 
+  it('reads never up → never sets as a gain ("now in view"), not "no longer sets"', () => {
+    render(
+      <MetricCards
+        results={withPlateau({ earthPct: 0, firstEarthsetH: null, earthNeverUp: true }, { earthPct: 100, firstEarthsetH: null, earthNeverUp: false })}
+      />,
+    )
+    const gained = cell(/first earthset/i, /plateau/i)
+    expect(gained).toHaveTextContent('No Earthset')
+    expect(gained).toHaveTextContent(/now in view/i)
+    expect(gained.querySelector('.delta')).toHaveClass('better')
+  })
+
   it('shows a Δ that rounds to zero as neutral', () => {
     const results = fixtureResults({ slipped: true })
     const [plateau] = results.sites

@@ -113,6 +113,15 @@ describe('missionMetrics', () => {
     expect(m.meanSunFraction).toBeCloseTo(1, 12)
   })
 
+  it('flags a body that is never up for the whole mission, and only that body', () => {
+    // Earth is off from ~7.82 h to ~9.22 h; the Sun is up throughout hours 8–9.
+    const m = missionMetrics(ctx, T0 + 8 * H_MS, 1, opts)
+    expect(m.earthPct).toBe(0)
+    expect(m.earthNeverUp).toBe(true)
+    expect(m.firstEarthsetH).toBeNull()
+    expect(m.sunNeverUp).toBe(false)
+  })
+
   it('takes the state at landing from before landing, not from the hysteresis seed', () => {
     // Sun high until 2 h, then held just below center: inside the hysteresis band and below its midpoint.
     // Landing 40 h after the Sun enters the band, so the lead-in must be > 40 h (real polar data has in-band runs of
@@ -281,6 +290,11 @@ describe('diffMetrics', () => {
   it('marks an event that neither mission has as none', () => {
     const d = diffMetrics(metrics({ firstSunsetH: null }), metrics({ firstSunsetH: null }))
     expect(d.firstSunsetH).toEqual({ deltaH: null, change: 'none', from: 'never-sets', to: 'never-sets' })
+  })
+
+  it('marks sunlit-then-sets → never sunlit as disappeared, ending never-up', () => {
+    const d = diffMetrics(metrics({ firstSunsetH: 12 }), metrics({ firstSunsetH: null, sunNeverUp: true }))
+    expect(d.firstSunsetH).toEqual({ deltaH: null, change: 'disappeared', from: 'sets', to: 'never-up' })
   })
 
   it('marks never up in both missions as none', () => {

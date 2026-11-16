@@ -60,7 +60,13 @@ function eventDelta(e: EventDelta, w: EventWords): DeltaView {
   if (e.from === e.to) return { text: 'no change', tone: 'neutral' }
   const tone = EVENT_RANK[e.to] > EVENT_RANK[e.from] ? 'better' : 'worse'
   const text =
-    e.to === 'never-up' ? w.neverUp.toLowerCase() : e.to === 'never-sets' ? 'no longer sets' : e.from === 'never-up' ? w.nowUp : 'now sets'
+    e.to === 'never-up'
+      ? w.neverUp.toLowerCase()
+      : e.from === 'never-up'
+        ? w.nowUp
+        : e.to === 'never-sets'
+          ? 'no longer sets'
+          : 'now sets'
   return { text, tone }
 }
 
