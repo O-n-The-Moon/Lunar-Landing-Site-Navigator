@@ -184,8 +184,10 @@ describe('scoreGrid', () => {
     }
   })
 
-  it('matches a per-cell reference with hysteresis, a 12 h lead-in and an off-step end', () => {
-    const opts: VisibilityOpts = { sunThreshold: 0.5, hysteresis: 0.2, earthMarginDeg: 1, earthHysteresisDeg: 0.5 }
+  it.each<[string, VisibilityOpts]>([
+    ['with hysteresis', { sunThreshold: 0.5, hysteresis: 0.2, earthMarginDeg: 1, earthHysteresisDeg: 0.5 }],
+    ['without hysteresis (plain thresholds)', { sunThreshold: 0.5, hysteresis: 0, earthMarginDeg: 1, earthHysteresisDeg: 0 }],
+  ])('matches a per-cell reference %s, a 12 h lead-in and an off-step end', (_label, opts) => {
     const startMs = T0 + 12 * H_MS
     const endMs = T0 + 36.5 * H_MS
     const scores = scoreGrid(fixtureGrid, fixtureEphemeris, startMs, endMs, opts)

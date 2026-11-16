@@ -35,7 +35,7 @@ diffMetrics(a: MissionMetrics, b: MissionMetrics): MetricDelta          // slip 
 // grid
 scoreGrid(grid: Grid, eph: Ephemeris, startMs: number, endMs: number, opts: VisibilityOpts, onProgress?: (fraction: number) => void): GridScores // Float32Array per metric, NaN on no-data cells; onProgress after each row
 nearestGridCell(grid: Grid, latDeg: number, lonDeg: number): { ix; iy; snapDistKm } | null  // null outside the grid extent or on a no-data cell
-gridSiteContext(eph: Ephemeris, grid: Grid, cell: { ix; iy }): SiteContext  // grid-snapped custom site: cell center + surface height, grid observer height (2 m), decoded cell horizon
+gridSiteContext(eph: Ephemeris, grid: Grid, cell: { ix; iy }): SiteContext  // grid-snapped custom site: cell center + surface height, grid observer height (`manifest.heightM`, 2 m), decoded cell horizon; RangeError outside the grid or on a no-data cell
 ```
 
 `VisibilityOpts` defaults: `{ sunThreshold: 0.5, hysteresis: 0.05, earthMarginDeg: 1.0, earthHysteresisDeg: 0.1 }`.

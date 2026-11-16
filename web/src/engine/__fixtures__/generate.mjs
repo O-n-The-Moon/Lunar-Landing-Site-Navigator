@@ -489,6 +489,7 @@ for (const [id, o] of Object.entries(outputs.sites)) {
 // ---------------------------------------------------------------------------
 // Grid scores: from the real engine (`scoreGrid`, with hysteresis) on the files written above, at OPTS over the
 // scenario range. vite (a devDependency) runs the TS modules; nothing else here depends on the engine.
+// Must run after every write(...) above: it reads those files back.
 // ---------------------------------------------------------------------------
 const { runnerImport } = await import('vite')
 const engine = async (name) => (await runnerImport(fileURLToPath(new URL(`../${name}.ts`, OUT)), { configFile: false })).module
