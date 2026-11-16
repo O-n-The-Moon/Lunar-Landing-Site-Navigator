@@ -12,6 +12,7 @@ import { MapView } from './map/map-view'
 import { PanoramaPanel } from './panorama/panorama-panel'
 import { ScenarioProvider, createInitialState } from './state'
 import { TimelinePanel } from './timeline/timeline-panel'
+import { ScenarioResultsProvider } from './use-scenario-results'
 import { ValidationPanel } from './validation/validation-panel'
 
 export interface AppProps {
@@ -66,7 +67,9 @@ function ScenarioRoot() {
   const [initialState] = useState(() => createInitialState({ sites: sitesFile.sites }))
   return (
     <ScenarioProvider initialState={initialState}>
-      <Workspace />
+      <ScenarioResultsProvider>
+        <Workspace />
+      </ScenarioResultsProvider>
     </ScenarioProvider>
   )
 }
