@@ -89,7 +89,7 @@ def binary_sha256(path: Path) -> str:
 
 
 def text_sha256(path: Path) -> str:
-    """sha256 of a text file with CRLF read as LF.
+    """sha256 of a UTF-8 text file with CRLF normalized to LF (a lone CR is kept).
 
     A Windows checkout with core.autocrlf has CRLF JSON while git and CI have LF,
     so raw bytes would give a different digest per machine for the same content.

@@ -29,7 +29,8 @@ async function sha256Hex(bytes: BufferSource): Promise<string> {
 /** Text files are hashed with CRLF read as LF, like golden.py text_sha256 (Windows checkouts have CRLF). */
 const lfBytes = (text: string) => new TextEncoder().encode(text.replace(/\r\n/g, '\n'))
 
-async function actualFingerprint(): Promise<InputFingerprint> {
+// Keyed by golden.json's own fields, so tsc flags a key renamed in golden.py but not here.
+async function actualFingerprint(): Promise<Record<keyof typeof golden.inputs, string>> {
   return {
     ephemerisBinSha256: await sha256Hex(dataUrlToArrayBuffer(ephemerisBinUrl)),
     ephemerisJsonSha256: await sha256Hex(lfBytes(ephemerisJsonText)),
@@ -50,7 +51,11 @@ function staleGoldenMessage(recorded: InputFingerprint | undefined, actual: Inpu
 }
 
 // Started once at import; the parity suites below wait for it in beforeAll.
-const staleness = actualFingerprint().then((actual) => staleGoldenMessage(golden.inputs, actual))
+// The catch keeps a hashing failure from surfacing as an unhandled rejection before anything awaits it.
+const staleness = actualFingerprint().then(
+  (actual) => staleGoldenMessage(golden.inputs, actual),
+  (e: unknown) => `could not fingerprint the golden.json inputs: ${e instanceof Error ? e.message : String(e)}`,
+)
 
 describe('golden.json freshness (inputs fingerprint)', () => {
   const fp = { ephemerisBinSha256: 'a', ephemerisJsonSha256: 'b', sitesJsonSha256: 'c' }
