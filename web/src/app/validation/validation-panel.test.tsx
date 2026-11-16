@@ -53,9 +53,57 @@ describe('ValidationReport (fixture validation.json)', () => {
   it('shows summary badges read from the file', () => {
     renderReport()
     const [eph, pgda] = badges()
-    expect(badgeParts(eph)).toEqual(['Ephemeris vs JPL Horizons', 'max 0.0100° az · 0.0060° el (n = 8)'])
-    expect(badgeParts(pgda)).toEqual(['Terrain vs PGDA', '1/2 sites within ±5 pp'])
+    expect(badgeParts(eph).slice(0, 2)).toEqual(['Ephemeris vs JPL Horizons', 'max 0.0100° az · 0.0060° el (n = 8)'])
+    expect(badgeParts(pgda).slice(0, 2)).toEqual(['Terrain vs PGDA', '1/2 sites within ±5 pp'])
+  })
+
+  it('shows a pass/fail verdict per badge against the targets in the file, with the target stated', () => {
+    renderReport()
+    const [eph, pgda] = badges()
+    expect(badgeParts(eph)[2]).toBe('Pass: target ≤ 0.02°')
+    expect(eph).toHaveClass('good')
+    expect(badgeParts(pgda)[2]).toBe('Not met: target ≥ 80% of sites')
     expect(pgda).toHaveClass('warn')
+  })
+
+  it('states the claim label next to the PGDA numbers, in the badge and in the section', () => {
+    renderReport()
+    const label = fixturePgda.method!.claimLabel
+    expect(badgeParts(badges()[1])).toContain(label)
+    expect(within(screen.getByRole('region', { name: /pgda method/i })).getByText(label)).toBeInTheDocument()
+  })
+
+  it('shows the PGDA method from the file: height as an assumption, sensitivity heights and definitions', () => {
+    renderReport()
+    const method = screen.getByRole('region', { name: /pgda method/i })
+    const def = (term: string) => within(method).getByText(term, { selector: 'dt' }).nextElementSibling
+    expect(def('Observer height')).toHaveTextContent('0 m (assumption, see limits)')
+    expect(def('Sensitivity runs')).toHaveTextContent('2 m, 10 m')
+    expect(def('Sun')).toHaveTextContent(fixturePgda.method!.sunDefinition)
+    expect(def('Earth')).toHaveTextContent(fixturePgda.method!.earthDefinition)
+    expect(def('PGDA product 69')).toHaveTextContent(fixturePgda.method!.pgdaDefinition)
+    expect(def('Sampling')).toHaveTextContent(fixturePgda.method!.sampling)
+    expect(def('Limits')).toHaveTextContent(fixturePgda.method!.notes)
+  })
+
+  it('fails the Horizons verdict when either max error exceeds the target, and passes exactly at it', () => {
+    const horizons = fixtureValidation.horizons!
+    const withMax = (maxAzErrDeg: number, maxElevErrDeg: number): ValidationFile => ({
+      ...fixtureValidation,
+      horizons: { ...horizons, summary: { ...horizons.summary, maxAzErrDeg, maxElevErrDeg } },
+    })
+    renderReport(withMax(0.02, 0.02))
+    expect(badges()[0]).toHaveClass('good')
+    cleanup()
+    renderReport(withMax(0.0100, 0.0201))
+    expect(badgeParts(badges()[0])[2]).toBe('Not met: target ≤ 0.02°')
+    expect(badges()[0]).toHaveClass('warn')
+  })
+
+  it('passes the PGDA verdict when the share of sites reaches the target', () => {
+    renderReport(withPgda(fixturePgda.rows, { sitesWithinThreshold: 4, sitesTotal: 5, targetFractionWithin: 0.8 }))
+    expect(badgeParts(badges()[1])[2]).toBe('Pass: target ≥ 80% of sites')
+    expect(badges()[1]).toHaveClass('good')
   })
 
   it('renders one Horizons row per comparison with site names, epochs and errors', () => {
@@ -114,9 +162,44 @@ describe('ValidationReport edge cases', () => {
     expect(cellTexts(tableRows(/pgda comparison/i)[0])).toContain('+5.0 pp')
   })
 
-  it('keeps the badge neutral for an empty PGDA comparison', () => {
+  it('keeps the badge neutral and gives no verdict for an empty PGDA comparison', () => {
     renderReport(withPgda([]))
     expect(badges()[1]).toHaveAttribute('class', 'validation-badge')
+    expect(badgeParts(badges()[1])).not.toContainEqual(expect.stringMatching(/^(Pass|Not met)/))
+  })
+
+  describe('older validation.json without targets or method', () => {
+    const hzSummary = { ...fixtureValidation.horizons!.summary }
+    delete hzSummary.targetMaxErrDeg
+    const pgdaSummary = { ...fixturePgda.summary }
+    delete pgdaSummary.targetFractionWithin
+    const older: ValidationFile = {
+      schemaVersion: 1,
+      horizons: { ...fixtureValidation.horizons!, summary: hzSummary },
+      pgda: { rows: fixturePgda.rows, summary: pgdaSummary },
+    }
+
+    it('renders the numbers without a verdict, a target or a method section', () => {
+      renderReport(older)
+      expect(badges().map(badgeParts)).toEqual([
+        ['Ephemeris vs JPL Horizons', 'max 0.0100° az · 0.0060° el (n = 8)'],
+        ['Terrain vs PGDA', '1/2 sites within ±5 pp'],
+      ])
+      expect(screen.queryByRole('region', { name: /pgda method/i })).not.toBeInTheDocument()
+      expect(screen.getByText(/method is not recorded in validation\.json/i)).toBeInTheDocument()
+    })
+
+    it('also tolerates an explicit null method', () => {
+      renderReport({ ...older, pgda: { ...older.pgda!, method: null } })
+      expect(screen.queryByRole('region', { name: /pgda method/i })).not.toBeInTheDocument()
+    })
+
+    it('shows an unknown observer height as unknown, not as 0 m', () => {
+      const method = { ...fixturePgda.method!, observerHeightM: null }
+      renderReport({ ...fixtureValidation, pgda: { ...fixturePgda, method } })
+      const region = screen.getByRole('region', { name: /pgda method/i })
+      expect(within(region).getByText('Observer height', { selector: 'dt' }).nextElementSibling).toHaveTextContent('unknown')
+    })
   })
 
   it('warns when the file summary disagrees with its rows', () => {

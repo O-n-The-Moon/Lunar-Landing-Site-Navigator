@@ -189,10 +189,8 @@ Mazarico et al. (2011) for the 2010 maps, and it is not confirmed for the 2016 r
    explanation for each outlier.
 
 **Spec status.** The PGDA bullet in `SPEC-data-pipeline.md` §5 is aligned to this
-disposition in the #57 PR. `SPEC.md` is **not** changed here: Success Criterion 2
-(mean disc fraction / Earth centre) and Open Question 2 (which says the height decides
-"which of our heights (2 m / 10 m) to compare against") still carry the old wording and
-need an update by the spec owner.
+disposition, and `SPEC.md` Success Criterion 2 and Open Question 2 were aligned in #71,
+which also adds the definitions and claim label to `validation.json` (`pgda.method`).
 
 **Q2 status:** dispositioned, **not confirmed**. Revisit it, and consider asking the
 producers, if the 0 / 2 / 10 m comparison in #20 is inconclusive.

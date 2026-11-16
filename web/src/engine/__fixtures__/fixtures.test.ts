@@ -86,6 +86,16 @@ describe('contract fixtures', () => {
     for (const r of outliers) expect(r.explanation).toBeTruthy()
     expect(pgda?.summary.sitesWithinThreshold).toBe((pgda?.rows.length ?? 0) - outliers.length)
   })
+
+  it('validation carries pass/fail targets and the PGDA method, with one passing and one failing summary', () => {
+    const { horizons, pgda } = fixtureValidation
+    expect(horizons?.summary.targetMaxErrDeg).toBe(0.02)
+    expect(pgda?.summary.targetFractionWithin).toBe(0.8)
+    expect(pgda?.method?.observerHeightM).toBe(0)
+    expect(pgda?.method?.claimLabel).toMatch(/any-disc definition, surface level assumed/)
+    expect(Math.max(horizons!.summary.maxAzErrDeg, horizons!.summary.maxElevErrDeg)).toBeLessThanOrEqual(0.02)
+    expect(pgda!.summary.sitesWithinThreshold / pgda!.summary.sitesTotal).toBeLessThan(0.8)
+  })
 })
 
 describe('output fixtures', () => {
