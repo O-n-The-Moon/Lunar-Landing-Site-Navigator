@@ -38,14 +38,17 @@ LEAD_IN_H = 48
 LEAD_IN_STEP_MIN = 10
 BODY_SUN, BODY_EARTH = 0, 1
 
-# Engine defaults (SPEC-engine.md -> VisibilityOpts).
+# Engine defaults (SPEC-engine.md -> VisibilityOpts). The observer height is not a
+# visibility option (it lives in the site context), so it is recorded per case and
+# per scenario instead.
 OPTS = {
     "sunThreshold": 0.5,
     "hysteresis": 0.05,
     "earthMarginDeg": 1.0,
     "earthHysteresisDeg": 0.1,
-    "observerHeightM": 2,
 }
+# Observer height for the mission scenarios (the app default).
+SCENARIO_HEIGHT_M = 2
 
 # (id, siteId, landing UTC). Chosen so Sun and Earth each have transitions, with
 # different mixes: both setting, Sun-only setting (Earth stays up), long common windows.
@@ -283,7 +286,7 @@ def _scenario(
     # then keep samples from landing on (the lead-in is a whole number of minutes).
     pre = (landing_ms - lead_in_start_ms(inputs.ephemeris, landing_ms)) // MIN_MS
     t = landing_ms + np.arange(-pre, n + 1, dtype=np.float64) * MIN_MS
-    walk = _site_state(inputs, site, OPTS["observerHeightM"], t)
+    walk = _site_state(inputs, site, SCENARIO_HEIGHT_M, t)
 
     thr, hys = OPTS["sunThreshold"], OPTS["hysteresis"]
     sun_on = hysteresis_states(
@@ -303,7 +306,7 @@ def _scenario(
     return {
         "id": sc_id,
         "siteId": site_id,
-        "observerHeightM": OPTS["observerHeightM"],
+        "observerHeightM": SCENARIO_HEIGHT_M,
         "landingUtcMs": landing_ms,
         "durationH": DURATION_H,
         "stepMin": 1,
