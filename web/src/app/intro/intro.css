@@ -1,0 +1,83 @@
+/* Intro overlay: covers the whole window above the console (which loads underneath), then fades out. */
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 1000; /* above the 3D labels (drei Html uses huge z-indexes inside the stage, which is its own stacking context) */
+  background: #05070a;
+  opacity: 1;
+  transition: opacity 500ms ease-out;
+}
+.intro-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+.intro-canvas {
+  position: absolute;
+  inset: 0;
+}
+.intro-canvas canvas {
+  display: block;
+}
+.intro-title {
+  position: absolute;
+  top: var(--space-6);
+  left: var(--space-6);
+  right: 8rem;
+  max-width: 34rem;
+  text-shadow: 0 1px 8px #05070a;
+}
+.intro-kicker {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.intro-lede {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.15rem;
+  line-height: 1.4;
+}
+.intro-log {
+  position: absolute;
+  left: var(--space-6);
+  bottom: var(--space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-shadow: 0 1px 6px #05070a;
+}
+.intro-log li::before {
+  content: '▸ ';
+  color: var(--both);
+}
+.intro-skip {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+}
+@media (max-width: 640px) {
+  .intro-title {
+    top: var(--space-5);
+    left: var(--space-4);
+    right: 6rem;
+  }
+  .intro-lede {
+    font-size: 0.95rem;
+  }
+  .intro-log {
+    left: var(--space-4);
+    bottom: var(--space-4);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .intro {
+    transition: none;
+  }
+}

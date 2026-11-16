@@ -1,7 +1,7 @@
 // App shell (SPEC-app → Layout): top bar with the view tabs, collapsible scenario rail, stage, bottom deck.
 // Views: 3D Terrain / Surface / Verify. The full metric table and timeline are the deck's Details drawer; the 2D map is
 // 3D Terrain's "2D map" toggle (and its WebGL fallback); the 2D panorama is Surface's "Engineering view".
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import './ui/tokens.css'
 import './app.css'
 import './ui/hud.css'
@@ -12,7 +12,10 @@ import { Options } from './controls/options'
 import { AppliedPresetProvider, ScenarioPresets } from './controls/scenario-presets'
 import { SitePicker } from './controls/site-picker'
 import { DataProvider, defaultDataSources, useCoreData, useCoreDataState, type DataSource } from './data'
+import { Intro } from './intro/intro'
+import { shouldPlayIntro } from './intro/intro-rules'
 import { GridScoresProvider } from './map/score-layer'
+import { hasWebGL } from './scene/webgl'
 import { TerrainView } from './scene/terrain-view'
 import { SurfaceView } from './surface/surface-view'
 import { DetailsDrawer, useDetails } from './shell/details-drawer'
@@ -70,6 +73,21 @@ function Shell() {
 /** Creates the initial scenario once, from the loaded site catalog. */
 function ScenarioRoot() {
   const { sitesFile } = useCoreData()
+  const { kind } = useCoreDataState()
+  // The fly-in plays once per page load (skip rules in intro-rules.ts); the console loads underneath it.
+  const [intro, setIntro] = useState(() =>
+    shouldPlayIntro({
+      search: window.location.search,
+      reducedMotion: typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches,
+      webgl: hasWebGL(),
+      fixtures: kind === 'fixtures',
+    }),
+  )
+  const endIntro = useCallback(() => {
+    setIntro(false)
+    // The Skip button had focus and is gone: hand it to the current view's tab instead of <body>.
+    requestAnimationFrame(() => document.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus())
+  }, [])
   // Opens on the first demo scenario the catalog supports (none on fixture data: the default scenario then).
   const [start] = useState(() => {
     const base = createInitialState({ sites: sitesFile.sites })
@@ -81,6 +99,7 @@ function ScenarioRoot() {
       <ScenarioResultsProvider>
         <GridScoresProvider>
           <Workspace presetId={start.presetId} />
+          {intro && <Intro onDone={endIntro} />}
         </GridScoresProvider>
       </ScenarioResultsProvider>
     </ScenarioProvider>

@@ -98,6 +98,8 @@ Long-term average visibility rasters from PGDA product 69, reprojected to the sa
 ### Display assets (additive; drawing only, not part of the shared contract above)
 `terrain-display.bin` + `terrain-display.json`: a 1024×1024 height map of the grid's square (extent and origin taken from `grid.json`, so cell = `nx · cellKm / 1024` ≈ 355.5 m), averaged from 4×4 samples of `LDEM_80S_80M` per cell (far-field fallback as in the grid). `int16-le` metres above the reference sphere, row-major `iy · nx + ix`, `iy = 0` = lowest y, same projection and origin as `grid.json`. The manifest lists the source `dems` like `grid.json`. Written by `lunarnav display-terrain` (not part of `build-all`). The 3D views use it for the *look* of the terrain only: the engine never reads it, and every visibility number still comes from `grid-horizons.bin` and the site masks. Checked against `grid-heights.bin` at the 2 km cell centres: median |Δ| ≤ 50 m, p95 ≤ 250 m. The UI labels it "display terrain, not used for visibility".
 
+`web/public/textures/moon-color-2k.jpg` (447 kB, NASA SVS "CGI Moon Kit" colour map, public domain; credit in `textures/CREDITS.txt`): the globe of the intro fly-in. Decorative only, fetched after first paint by the lazy intro chunk; no engine or UI number depends on it.
+
 ### `validation.json`
 Ephemeris comparison with Horizons (per site/epoch/body, with error) and comparison of our long-term averages with PGDA (per site), plus summary statistics. The app renders this file and never computes accuracy claims itself.
 
