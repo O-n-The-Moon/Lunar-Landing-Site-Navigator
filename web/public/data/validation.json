@@ -3707,5 +3707,135 @@
       "meanElevErrDeg": 8.188601190476191e-06
     }
   },
-  "pgda": null
+  "pgda": {
+    "rows": [
+      {
+        "siteId": "peak-near-cabeus-b",
+        "oursSunPct": 34.24,
+        "pgdaSunPct": 36.0,
+        "sunDiffPp": -1.76,
+        "oursEarthPct": 0.0,
+        "pgdaEarthPct": 25.68,
+        "earthDiffPp": -25.68,
+        "explanation": "Site on a 12.4\u00b0 slope (80 m baseline). At surface level, terrain a few DEM cells upslope sets the Earth-facing horizon (mean 9.9\u00b0 at 0 m, 8.5\u00b0 at 2 m over Earth's azimuths), so the result depends on sub-pixel position and on how an 80 m vs. 120 m grid resolves that slope. PGDA's own value varies across the full range nearby, so this is likely pixel-scale variability, not a horizon error we can identify. Earth: PGDA within \u00b12 px 0.0\u201357.6 %; ours at 2 m: 15.6 %, 10 m: 38.8 %."
+      },
+      {
+        "siteId": "haworth",
+        "oursSunPct": 10.29,
+        "pgdaSunPct": 11.08,
+        "sunDiffPp": -0.79,
+        "oursEarthPct": 43.86,
+        "pgdaEarthPct": 43.96,
+        "earthDiffPp": -0.1,
+        "explanation": null
+      },
+      {
+        "siteId": "malapert-massif",
+        "oursSunPct": 19.91,
+        "pgdaSunPct": 27.38,
+        "sunDiffPp": -7.47,
+        "oursEarthPct": 48.65,
+        "pgdaEarthPct": 49.77,
+        "earthDiffPp": -1.12,
+        "explanation": "Massif summit on a 5.9\u00b0 slope (80 m baseline). The Sun result is very sensitive to nearby terrain: it changes by 14 pp between 0 m and 2 m, which only near-field terrain can cause. PGDA's own value varies widely within \u00b12 px, so this is likely pixel-scale variability, not a horizon error we can identify. Sun: PGDA within \u00b12 px 10.9\u201355.6 %; ours at 2 m: 34.1 %, 10 m: 56.4 %."
+      },
+      {
+        "siteId": "mons-mouton",
+        "oursSunPct": 43.27,
+        "pgdaSunPct": 39.08,
+        "sunDiffPp": 4.19,
+        "oursEarthPct": 51.75,
+        "pgdaEarthPct": 47.17,
+        "earthDiffPp": 4.58,
+        "explanation": null
+      },
+      {
+        "siteId": "mons-mouton-plateau",
+        "oursSunPct": 25.99,
+        "pgdaSunPct": 26.38,
+        "sunDiffPp": -0.39,
+        "oursEarthPct": 69.46,
+        "pgdaEarthPct": 68.8,
+        "earthDiffPp": 0.66,
+        "explanation": null
+      },
+      {
+        "siteId": "nobile-rim-1",
+        "oursSunPct": 28.12,
+        "pgdaSunPct": 27.92,
+        "sunDiffPp": 0.2,
+        "oursEarthPct": 32.83,
+        "pgdaEarthPct": 32.27,
+        "earthDiffPp": 0.56,
+        "explanation": null
+      },
+      {
+        "siteId": "nobile-rim-2",
+        "oursSunPct": 36.69,
+        "pgdaSunPct": 39.55,
+        "sunDiffPp": -2.86,
+        "oursEarthPct": 68.46,
+        "pgdaEarthPct": 68.57,
+        "earthDiffPp": -0.11,
+        "explanation": null
+      },
+      {
+        "siteId": "de-gerlache-rim-2",
+        "oursSunPct": 37.64,
+        "pgdaSunPct": 38.03,
+        "sunDiffPp": -0.39,
+        "oursEarthPct": 54.71,
+        "pgdaEarthPct": 54.87,
+        "earthDiffPp": -0.16,
+        "explanation": null
+      },
+      {
+        "siteId": "slater-plain",
+        "oursSunPct": 2.73,
+        "pgdaSunPct": 2.9,
+        "sunDiffPp": -0.17,
+        "oursEarthPct": 40.89,
+        "pgdaEarthPct": 40.99,
+        "earthDiffPp": -0.1,
+        "explanation": null
+      },
+      {
+        "siteId": "mons-mouton-im2",
+        "oursSunPct": 46.24,
+        "pgdaSunPct": 46.48,
+        "sunDiffPp": -0.24,
+        "oursEarthPct": 92.48,
+        "pgdaEarthPct": 91.78,
+        "earthDiffPp": 0.7,
+        "explanation": null
+      },
+      {
+        "siteId": "connecting-ridge",
+        "oursSunPct": 50.18,
+        "pgdaSunPct": 52.33,
+        "sunDiffPp": -2.15,
+        "oursEarthPct": 51.79,
+        "pgdaEarthPct": 52.14,
+        "earthDiffPp": -0.35,
+        "explanation": null
+      },
+      {
+        "siteId": "shackleton-floor",
+        "oursSunPct": 0.0,
+        "pgdaSunPct": 0.0,
+        "sunDiffPp": 0.0,
+        "oursEarthPct": 0.0,
+        "pgdaEarthPct": 0.0,
+        "earthDiffPp": 0.0,
+        "explanation": null
+      }
+    ],
+    "summary": {
+      "thresholdPp": 5.0,
+      "sitesWithinThreshold": 10,
+      "sitesTotal": 12,
+      "maxAbsSunDiffPp": 7.47,
+      "maxAbsEarthDiffPp": 25.68
+    }
+  }
 }

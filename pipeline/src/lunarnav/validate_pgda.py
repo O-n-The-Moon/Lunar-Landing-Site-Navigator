@@ -57,7 +57,23 @@ PGDA_EARTH_LBL = io.RAW_DIR / "pgda/AVGVISIB_75S_120M_201608_EARTH.LBL"
 # Written by a person after inspecting a run: one entry per outlier site
 # (|diff| > THRESHOLD_PP for Sun or Earth at 0 m). run() refuses to write an
 # outlier without one. Evidence (pixel range, 2/10 m results) is appended.
-EXPLANATIONS: dict[str, str] = {}
+EXPLANATIONS: dict[str, str] = {
+    "peak-near-cabeus-b": (
+        "Site on a 12.4° slope (80 m baseline). At surface level, terrain a few "
+        "DEM cells upslope sets the Earth-facing horizon (mean 9.9° at 0 m, 8.5° "
+        "at 2 m over Earth's azimuths), so the result depends on sub-pixel "
+        "position and on how an 80 m vs. 120 m grid resolves that slope. PGDA's "
+        "own value varies across the full range nearby, so this is likely "
+        "pixel-scale variability, not a horizon error we can identify."
+    ),
+    "malapert-massif": (
+        "Massif summit on a 5.9° slope (80 m baseline). The Sun result is very "
+        "sensitive to nearby terrain: it changes by 14 pp between 0 m and 2 m, "
+        "which only near-field terrain can cause. PGDA's own value varies "
+        "widely within ±2 px, so this is likely pixel-scale variability, not a "
+        "horizon error we can identify."
+    ),
+}
 
 _PCT_DIGITS = 2
 
