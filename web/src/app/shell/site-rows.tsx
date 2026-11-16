@@ -51,7 +51,7 @@ function MiniBand({ result, startMs, endMs }: { result: SiteResult; startMs: num
   )
 }
 
-function Metric({ label, tone, children, delta }: { label: string; tone?: 'sun' | 'earth'; children: string; delta?: number }) {
+function Metric({ label, tone, children, delta }: { label: string; tone?: 'sun' | 'earth' | 'both'; children: string; delta?: number }) {
   return (
     <span className={`metric${tone ? ` metric-${tone}` : ''}`}>
       <small>{label}</small>
@@ -108,7 +108,7 @@ export function SiteRows() {
             <Metric label="Earth" tone="earth">
               {formatPct(m.earthPct)}
             </Metric>
-            <Metric label="Both">{formatPct(m.bothPct)}</Metric>
+            <Metric label="Both" tone="both">{formatPct(m.bothPct)}</Metric>
             <span className="metric srow-event">
               <small>Sun at cursor</small>
               <span className="num">{eventTexts(r.slipped.windows, cursorMs).sunText}</span>
