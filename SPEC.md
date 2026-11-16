@@ -63,6 +63,8 @@ All files live in `web/public/data/`. Version field `schemaVersion: 1` in every 
 ### `sites.json`
 ```json
 { "schemaVersion": 1, "azStepDeg": 0.5, "heightsM": [2, 10],
+  "dems": [{ "file": "LDEM_80S_80M", "role": "near field", "resolutionM": 80 },
+           { "file": "LDEM_75S_240M", "role": "far field", "resolutionM": 240 }],
   "sites": [{
     "id": "mons-mouton-im2", "name": "IM-2 Athena (Mons Mouton)",
     "category": "clps",            // artemis3-region | clps | international | reference
@@ -75,13 +77,16 @@ All files live in `web/public/data/`. Version field `schemaVersion: 1` in every 
 ```
 `horizonElevDeg[h][i]` is the terrain horizon elevation at azimuth `i × 0.5°` for an observer `h` metres above the surface.
 
+`dems` lists the LOLA DEMs the horizon masks were built from, near field first (`file` is the product name without extension). The pipeline writes it from the rasters it actually read, and the validation panel's methods list shows it instead of hardcoding names. `grid.json` carries the same list.
+
 ### `grid.json` + `grid-horizons.bin` (lazy-loaded)
 ```json
 { "schemaVersion": 1, "projection": "polar-stereographic-south", "sphereRadiusKm": 1737.4,
   "originKm": [-182, -182], "cellKm": 2, "nx": 182, "ny": 182,
   "azBins": 360, "heightM": 2, "dtype": "uint8",
   "encoding": "elevDeg = v * 0.1 - 5.0; 255 = no data",
-  "cellSurfaceHeightM": "grid-heights.bin (int16-le, row-major)" }
+  "cellSurfaceHeightM": "grid-heights.bin (int16-le, row-major)",
+  "dems": [{ "file": "LDEM_80S_80M", "role": "near field", "resolutionM": 80 }, "..."] }
 ```
 `.bin`: `ny × nx × 360` uint8, row-major (y outer, x inner), cell centers. ~12 MB.
 

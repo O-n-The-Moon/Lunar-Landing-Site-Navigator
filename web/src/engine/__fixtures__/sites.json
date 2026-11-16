@@ -5,6 +5,18 @@
     2,
     10
   ],
+  "dems": [
+    {
+      "file": "LDEM_80S_80M",
+      "role": "near field",
+      "resolutionM": 80
+    },
+    {
+      "file": "LDEM_75S_240M",
+      "role": "far field",
+      "resolutionM": 240
+    }
+  ],
   "sites": [
     {
       "id": "fixture-plateau",

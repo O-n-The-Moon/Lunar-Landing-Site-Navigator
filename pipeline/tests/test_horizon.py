@@ -22,7 +22,8 @@ class SyntheticTerrain(DemStack):
     """Continuous analytic DEM with the same sampling boundary as DemStack."""
 
     def __init__(self, surface_m=0.0, cone_xy_km=None):
-        self.near = SimpleNamespace(cell_km=0.08)
+        self.near = SimpleNamespace(file="LDEM_80S_80M", cell_km=0.08)
+        self.far = SimpleNamespace(file="LDEM_75S_240M", cell_km=0.24)
         self.surface_m = surface_m
         self.cone_xy_km = cone_xy_km
 

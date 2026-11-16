@@ -66,7 +66,11 @@ def cell_centers_km(
 
 
 def grid_manifest(
-    cell_km: float, nx: int, ny: int, origin_km: tuple[float, float]
+    cell_km: float,
+    nx: int,
+    ny: int,
+    origin_km: tuple[float, float],
+    dems: list[dict[str, str | int]],
 ) -> dict[str, object]:
     return {
         "schemaVersion": SCHEMA_VERSION,
@@ -81,6 +85,7 @@ def grid_manifest(
         "dtype": "uint8",
         "encoding": "elevDeg = v * 0.1 - 5.0; 255 = no data",
         "cellSurfaceHeightM": "grid-heights.bin (int16-le, row-major)",
+        "dems": dems,
     }
 
 
@@ -143,7 +148,9 @@ def write_grid(
     horizons_u8, heights_m = build_grid(terrain, origin_km, cell_km, nx, ny, progress)
     write_u8(paths["horizons"], horizons_u8)
     write_i16(paths["heights"], heights_m)
-    write_json(paths["manifest"], grid_manifest(cell_km, nx, ny, origin_km))
+    write_json(
+        paths["manifest"], grid_manifest(cell_km, nx, ny, origin_km, terrain.dems())
+    )
 
 
 def main() -> None:

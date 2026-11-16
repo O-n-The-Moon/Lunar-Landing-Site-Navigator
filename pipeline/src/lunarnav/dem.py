@@ -81,6 +81,7 @@ class PdsRaster:
         self.sample_offset = float(value("SAMPLE_PROJECTION_OFFSET"))
         self.scale = float(value("SCALING_FACTOR"))
         self.max_lat_deg = float(value("MAXIMUM_LATITUDE"))
+        self.file = label_path.stem
         self.name = value("NAME")
         if self.name not in ("HEIGHT", "AVERAGE_VISIBILITY"):
             raise ValueError(f"Unsupported raster quantity: {self.name}")
@@ -131,6 +132,17 @@ class DemStack:
     def __init__(self, raw_dir: Path = RAW_DIR) -> None:
         self.near = PdsRaster(raw_dir / "dem/LDEM_80S_80M.LBL")
         self.far = PdsRaster(raw_dir / "dem/LDEM_75S_240M.LBL")
+
+    def dems(self) -> list[dict[str, str | int]]:
+        """The DEMs behind every horizon mask, for sites.json and grid.json."""
+        return [
+            {
+                "file": raster.file,
+                "role": role,
+                "resolutionM": round(raster.cell_km * 1000),
+            }
+            for raster, role in ((self.near, "near field"), (self.far, "far field"))
+        ]
 
     def height_m(self, x_km: ArrayLike, y_km: ArrayLike) -> float | NDArray:
         """Height above reference sphere in meters, with far-field fallback."""

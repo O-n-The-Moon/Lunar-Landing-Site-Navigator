@@ -44,11 +44,22 @@ export interface Site {
   horizonElevDeg: Record<string, number[]>
 }
 
+/** A LOLA DEM the horizon masks were built from. Listed near field first, in `sites.json` and `grid.json`. */
+export interface DemRecord {
+  /** Product name without extension, e.g. `LDEM_80S_80M`. */
+  file: string
+  /** How the horizon scan uses it, e.g. `near field`, `far field`. */
+  role: string
+  resolutionM: number
+}
+
 /** `sites.json` */
 export interface SitesFile {
   schemaVersion: 1
   azStepDeg: number
   heightsM: number[]
+  /** DEMs behind `horizonElevDeg`; same list as `grid.json`. */
+  dems: DemRecord[]
   sites: Site[]
 }
 
@@ -67,6 +78,8 @@ export interface GridManifest {
   dtype: 'uint8'
   encoding: string
   cellSurfaceHeightM: string
+  /** DEMs behind the cell horizons; same list as `sites.json`. */
+  dems: DemRecord[]
 }
 
 /** `pgda-layers.json`. The contract only names its contents (extent, source, resolution, observer height). */

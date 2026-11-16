@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import yaml
 
-from lunarnav import cli, horizons_sites
+from lunarnav import cli, horizons_grid, horizons_sites
 from lunarnav.constants import MOON_RADIUS_KM, SITE_AZ_BINS
 from lunarnav.dem import DemStack, lat_lon_to_xy_km, xy_km_to_lat_lon
 from lunarnav.fetch import RAW_DIR
@@ -146,6 +146,10 @@ def test_sites_file_header_and_order(tmp_path):
     assert doc["schemaVersion"] == 1
     assert doc["azStepDeg"] == 0.5
     assert doc["heightsM"] == [2, 10]
+    assert doc["dems"] == [
+        {"file": "LDEM_80S_80M", "role": "near field", "resolutionM": 80},
+        {"file": "LDEM_75S_240M", "role": "far field", "resolutionM": 240},
+    ]
     assert [s["id"] for s in doc["sites"]] == ["test-site", "second"]
 
 
@@ -199,3 +203,14 @@ def test_committed_sites_json_matches_the_catalog():
     for built, source in zip(doc["sites"], catalog["sites"], strict=True):
         for key in ("name", "category", "latDeg", "lonDeg", "coordSource"):
             assert built[key] == source[key], (source["id"], key)
+
+
+@pytest.mark.skipif(
+    not horizons_sites.SITES_JSON.exists() or not horizons_grid.GRID_JSON.exists(),
+    reason="sites.json / grid.json not generated",
+)
+def test_committed_sites_and_grid_record_the_same_dems():
+    sites = json.loads(horizons_sites.SITES_JSON.read_text(encoding="utf-8"))
+    grid = json.loads(horizons_grid.GRID_JSON.read_text(encoding="utf-8"))
+    assert sites["dems"] == grid["dems"]
+    assert [d["role"] for d in sites["dems"]] == ["near field", "far field"]
