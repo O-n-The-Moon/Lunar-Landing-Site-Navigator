@@ -5,9 +5,12 @@
 // The worker can't interrupt a job, so requests are coalesced: at most one job is in flight, and while it runs only
 // the newest parameters are kept and sent when it finishes. Nothing is scored while the map is hidden (`active`).
 // Only the newest request's progress/result is shown; anything older is ignored.
-import { useEffect, useRef, useState } from 'react'
+import { createContext, createElement, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Ephemeris, Grid, GridScores, VisibilityOpts } from '../../engine'
 import type { GridWorkerRequest, GridWorkerResponse } from '../../workers/grid-score.worker'
+import { useCoreData, useGrid } from '../data'
+import { missionEndMs, slippedLandingMs, useScenario } from '../state'
+import { missionInCoverage, visibilityOpts } from '../use-scenario-results'
 import { NO_DATA } from './pgda-raster'
 
 export type GridScoresState =
@@ -131,4 +134,50 @@ export function scoresToRaster(values: ArrayLike<number>, nx: number, ny: number
     }
   }
   return out
+}
+
+// --- one scoring job per window change, however many views show the scores --------------------------------------------
+// The Map tab, the 3D overlay and the 2D fallback all show the same window scores. Each would otherwise start its own
+// worker and copy ~13 MB into it, so the provider owns the single `useGridScores` and runs it while any consumer wants it.
+
+interface WindowScores {
+  state: GridScoresState
+  /** Registers one consumer's demand; returns the function that withdraws it. */
+  want: () => () => void
+}
+const WindowScoresContext = createContext<WindowScores | null>(null)
+
+/** Scores the slipped mission window with the scenario's visibility options while some `useWindowScores(true)` is mounted. */
+export function GridScoresProvider({ children, createWorker }: { children: ReactNode; createWorker?: WorkerFactory }) {
+  const { ephemeris } = useCoreData()
+  const scenario = useScenario()
+  const { state: gridState } = useGrid(false) // observing only: the views decide when the grid loads
+  const [wanted, setWanted] = useState(0)
+  const { sunThreshold, earthMarginDeg, durationH } = scenario
+  const startMs = slippedLandingMs(scenario)
+  const endMs = missionEndMs(scenario)
+  // `opts` is an effect dependency of the debounce, so it must be stable.
+  const opts = useMemo(() => visibilityOpts({ sunThreshold, earthMarginDeg }), [sunThreshold, earthMarginDeg])
+  const grid = gridState.status === 'ready' ? gridState.data : null
+  const state = useGridScores(grid, ephemeris, startMs, endMs, opts, wanted > 0 && missionInCoverage(ephemeris, startMs, durationH), createWorker)
+  const value = useMemo<WindowScores>(
+    () => ({
+      state,
+      want: () => {
+        setWanted((n) => n + 1)
+        return () => setWanted((n) => n - 1)
+      },
+    }),
+    [state],
+  )
+  return createElement(WindowScoresContext.Provider, { value }, children)
+}
+
+/** The shared window scores. `wanted`: this view is showing a window-score layer (nothing is scored when no view is). */
+export function useWindowScores(wanted: boolean): GridScoresState {
+  const ctx = useContext(WindowScoresContext)
+  if (!ctx) throw new Error('useWindowScores must be used inside <GridScoresProvider>')
+  const { want } = ctx
+  useEffect(() => (wanted ? want() : undefined), [wanted, want])
+  return ctx.state
 }

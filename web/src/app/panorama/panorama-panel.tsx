@@ -2,11 +2,12 @@
 // Positions come from the engine; lit / in-view state comes from the same windows the timeline draws,
 // so the panorama and the timeline always agree.
 import { useId, useMemo, useState } from 'react'
-import { angularRadiusDeg, azEl, bodyVectorKm, horizonElevAt, type Body, type SiteContext, type Window } from '../../engine'
+import type { Body } from '../../engine'
 import { HOUR_MS, useScenario } from '../state'
 import { useScenarioResults } from '../use-scenario-results'
+import { bodyAt } from './bodies'
 import { HorizonPanorama, type PanoramaBody } from './horizon-panorama'
-import { isIn, missionTracks } from './tracks'
+import { missionTracks } from './tracks'
 
 /** What the middle of the panorama follows: fixed (S in the middle, N at the edges) or a body at the cursor time. */
 type CenterOn = 'fixed' | Body
@@ -16,17 +17,6 @@ const CENTER_OPTIONS: { value: CenterOn; label: string }[] = [
   { value: 'earth', label: 'Earth' },
 ]
 const FIXED_CENTER_AZ_DEG = 180
-
-function bodyAt(ctx: SiteContext, body: Body, tUtcMs: number, windows: Window[]): PanoramaBody {
-  const { azDeg, elevDeg, distKm } = azEl(ctx.frame, bodyVectorKm(ctx.eph, body, tUtcMs))
-  return {
-    azDeg,
-    elevDeg,
-    horizonDeg: horizonElevAt(ctx.horizonMaskDeg, ctx.azStepDeg, azDeg),
-    radiusDeg: angularRadiusDeg(body, distKm),
-    visible: isIn(windows, tUtcMs),
-  }
-}
 
 function CenterControl({ value, onChange }: { value: CenterOn; onChange: (v: CenterOn) => void }) {
   const labelId = useId()

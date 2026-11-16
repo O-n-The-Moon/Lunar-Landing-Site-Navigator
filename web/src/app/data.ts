@@ -403,10 +403,12 @@ export function useGrid(enabled = true): LazyResource<Grid> {
   return { state: grid, retry: requestGrid }
 }
 
-/** PGDA v0 map layers; start loading on first use. */
-export function usePgdaLayers(): LazyResource<PgdaData> {
+/** PGDA v0 map layers; start loading on first use, or once `enabled` turns true (the 3D view only needs them for a PGDA overlay). */
+export function usePgdaLayers(enabled = true): LazyResource<PgdaData> {
   const { pgda, requestPgda } = useLazyContext()
-  useEffect(requestPgda, [requestPgda])
+  useEffect(() => {
+    if (enabled) requestPgda()
+  }, [enabled, requestPgda])
   return { state: pgda, retry: requestPgda }
 }
 

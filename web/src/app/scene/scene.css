@@ -1,0 +1,238 @@
+.terrain-view {
+  --sun: #f6b73c;
+  --earth: #4ea8ff;
+  --border-strong: #3a475a;
+  --radius-sm: 3px;
+  --radius-lg: 8px;
+}
+.terrain-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.scene-stage {
+  position: relative;
+  /* leave room for the time bar below, so stage + Play fit one screen on a laptop */
+  height: clamp(320px, calc(100vh - 440px), 760px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: #05070a;
+}
+.scene-stage canvas {
+  display: block;
+}
+.scene-note-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+}
+.scene-hud {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  pointer-events: none;
+  max-width: calc(100% - 2 * var(--space-3));
+}
+.scene-hud > * {
+  pointer-events: auto;
+}
+.scene-hud-tl {
+  top: var(--space-3);
+  left: var(--space-3);
+  align-items: flex-start;
+}
+.scene-hud-tr {
+  top: var(--space-3);
+  right: var(--space-3);
+  align-items: flex-end;
+}
+.scene-hud-bl {
+  bottom: var(--space-3);
+  left: var(--space-3);
+  align-items: flex-start;
+}
+.scene-hud .segmented {
+  background: rgba(13, 17, 24, 0.72);
+  backdrop-filter: blur(8px);
+  flex-wrap: wrap;
+}
+.scene-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(13, 17, 24, 0.72);
+  backdrop-filter: blur(8px);
+  max-width: 22rem;
+}
+.scene-legend .legend-ramp {
+  display: block;
+  height: 8px;
+  border-radius: 2px;
+}
+.scene-legend .legend-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+.scene-honesty {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(13, 17, 24, 0.72);
+  backdrop-filter: blur(8px);
+}
+.scene-hud-bl > p[role='status'] {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(13, 17, 24, 0.72);
+}
+.scene-hud-tr button {
+  background: rgba(13, 17, 24, 0.72);
+  backdrop-filter: blur(8px);
+}
+.compass {
+  width: 96px;
+  height: 96px;
+}
+.compass-n {
+  font: 600 9px var(--font-num);
+  fill: var(--text-muted);
+}
+.scene-note {
+  max-width: 72ch;
+}
+.scene-tag {
+  font: 600 0.625rem/1 var(--font-num);
+  letter-spacing: 0.06em;
+  color: rgba(190, 205, 222, 0.7);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+.beacon-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 3px;
+  border-radius: 4px;
+  border: 1px solid var(--border-strong);
+  background: rgba(6, 8, 12, 0.82);
+  backdrop-filter: blur(6px);
+  color: var(--text);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.beacon-label.is-focused {
+  border-color: var(--text);
+}
+.beacon-label:hover {
+  background: rgba(26, 35, 48, 0.92);
+}
+.beacon-letter {
+  display: inline-grid;
+  place-items: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 3px;
+  color: #05070a;
+  font: 700 0.6875rem/1 var(--font-num);
+}
+.beacon-name {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.beacon-state {
+  font: 600 0.625rem/1 var(--font-num);
+  letter-spacing: 0.08em;
+}
+.beacon-label.beacon-state {
+  animation: beacon-flash 0.6s ease-out 1;
+}
+@keyframes beacon-flash {
+  from {
+    opacity: 0.2;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .beacon-state {
+    animation: none;
+  }
+}
+.terrain-fallback {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Controls the demo's design system provided; here they are plain. */
+.scene-hud .segmented {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.scene-hud .segmented button {
+  border-color: transparent;
+  background: transparent;
+  font-size: 0.75rem;
+}
+.scene-hud .segmented button[aria-pressed='true'] {
+  background: var(--surface-2);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.loader {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: scene-spin 0.9s linear infinite;
+}
+@keyframes scene-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loader {
+    animation: none;
+  }
+}
+.terrain-view .text-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+}
+.terrain-view .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.terrain-view .panel {
+  background: var(--surface);
+}
+.terrain-view .time-bar {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}

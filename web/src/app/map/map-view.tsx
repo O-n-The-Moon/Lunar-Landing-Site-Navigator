@@ -6,10 +6,10 @@ import { useMemo, useState } from 'react'
 import { nearestGridCell } from '../../engine'
 import { useCoreData, useGrid, usePgdaLayers } from '../data'
 import { customSiteLabel } from '../controls/custom-site'
-import { MAX_SITES, customSiteId, missionEndMs, slippedLandingMs, useScenario, useScenarioDispatch, type MapLayer } from '../state'
-import { customSiteName, missionInCoverage, visibilityOpts } from '../use-scenario-results'
+import { MAX_SITES, customSiteId, slippedLandingMs, useScenario, useScenarioDispatch, type MapLayer } from '../state'
+import { customSiteName, missionInCoverage } from '../use-scenario-results'
 import { LAYER_META, OpportunityMap, type MapMarker } from './opportunity-map'
-import { scoresToRaster, useGridScores } from './score-layer'
+import { scoresToRaster, useWindowScores, type GridScoresState } from './score-layer'
 import { usePgdaValues } from './use-pgda-values'
 
 /** `active`: the Map tab is showing. A hidden map does not score (one worker, ~13 MB copied into it, is enough). */
@@ -18,7 +18,7 @@ export function MapView({ active = true }: { active?: boolean }) {
   const { state: grid, retry: retryGrid } = useGrid()
   const { sitesFile, ephemeris } = useCoreData()
   const scenario = useScenario()
-  const { sites, mapLayer: layer, sunThreshold, earthMarginDeg } = scenario
+  const { sites, mapLayer: layer } = scenario
   const dispatch = useScenarioDispatch()
   const setLayer = (l: MapLayer) => {
     setMessage(null) // an old "Added …" / "already in the scenario" no longer describes what is on screen
@@ -30,14 +30,11 @@ export function MapView({ active = true }: { active?: boolean }) {
     pgda.status === 'ready' && meta.source === 'pgda' ? pgda.data.urls[meta.ramp === 'earth' ? 'earth' : 'sun'] : undefined,
   )
 
-  // Window scores: the slipped mission window, scored while this tab is showing. `opts` must be stable (it is an effect
-  // dependency of the debounce), so it is memoized on the two settings it is made of.
+  // Window scores: the slipped mission window, from the one shared scoring job (see `GridScoresProvider`), wanted only
+  // while this tab shows a window layer.
   const gridData = grid.status === 'ready' ? grid.data : null
-  const startMs = slippedLandingMs(scenario)
-  const endMs = missionEndMs(scenario)
-  const inCoverage = missionInCoverage(ephemeris, startMs, scenario.durationH)
-  const opts = useMemo(() => visibilityOpts({ sunThreshold, earthMarginDeg }), [sunThreshold, earthMarginDeg])
-  const scores = useGridScores(gridData, ephemeris, startMs, endMs, opts, active && inCoverage)
+  const inCoverage = missionInCoverage(ephemeris, slippedLandingMs(scenario), scenario.durationH)
+  const scores = useWindowScores(active && meta.source === 'window' && inCoverage)
   const shownScores =
     scores.status === 'ready' ? scores.scores : scores.status === 'computing' || scores.status === 'error' ? scores.previous : null
   const scoreRaster = useMemo(() => {
@@ -120,7 +117,7 @@ export function MapView({ active = true }: { active?: boolean }) {
 }
 
 /** One line on the state of the window-score job (the grid itself has its own status line below the map). */
-function scoreStatus(scores: ReturnType<typeof useGridScores>, gridReady: boolean, inCoverage: boolean): string {
+function scoreStatus(scores: GridScoresState, gridReady: boolean, inCoverage: boolean): string {
   if (!inCoverage) return 'The mission window is outside the ephemeris, so there is nothing to score.'
   if (scores.status === 'unsupported') return 'Window scores need Web Workers, which this browser lacks.'
   if (!gridReady) return 'Window scores wait for the terrain grid.'

@@ -2,8 +2,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { fixtureSitesFile } from '../../engine/__fixtures__'
-import { App } from '../app'
-import { fixtureDataSource } from '../data'
+import { renderAppOnCompare } from '../test-utils'
 import { ScenarioProvider, createInitialState, scenarioReducer, useScenario } from '../state'
 import { Options } from './options'
 
@@ -77,7 +76,7 @@ describe('Options', () => {
   })
 
   it('drives the engine: the metric cards follow the options', async () => {
-    render(<App dataSources={{ source: fixtureDataSource() }} />)
+    await renderAppOnCompare()
     const group = await screen.findByRole('group', { name: /^options/i })
     fireEvent.change(screen.getByLabelText(/duration/i), { target: { value: '1' } })
     fireEvent.change(within(group).getByRole('slider', { name: /earth margin/i }), { target: { value: '3' } })

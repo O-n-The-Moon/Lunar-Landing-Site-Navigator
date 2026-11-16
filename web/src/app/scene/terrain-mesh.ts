@@ -98,11 +98,18 @@ export function buildTerrainMesh(positionGrid: Float32Array, frame: MapFrame, st
 /**
  * World-space normals of the displaced surface, one RGBA8 texel per height sample (`n · 0.5 + 0.5`, alpha 255),
  * from central differences of the position grid (one-sided at the edges). Same texel order as the heights.
+ * `out`, `iyFrom`, `iyTo` fill only rows `[iyFrom, iyTo)` of an existing buffer, so a caller can build it in bands.
  */
-export function buildNormalMap(positionGrid: Float32Array, nx: number, ny: number): Uint8Array {
-  const out = new Uint8Array(nx * ny * 4)
+export function buildNormalMap(
+  positionGrid: Float32Array,
+  nx: number,
+  ny: number,
+  out: Uint8Array = new Uint8Array(nx * ny * 4),
+  iyFrom = 0,
+  iyTo = ny,
+): Uint8Array {
   const at = (ix: number, iy: number, k: number) => positionGrid[(iy * nx + ix) * 3 + k]
-  for (let iy = 0; iy < ny; iy++) {
+  for (let iy = iyFrom; iy < iyTo; iy++) {
     const y0 = Math.max(0, iy - 1)
     const y1 = Math.min(ny - 1, iy + 1)
     for (let ix = 0; ix < nx; ix++) {

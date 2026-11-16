@@ -1,8 +1,7 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { fixtureEphemeris, fixtureSitesFile } from '../../engine/__fixtures__'
-import { App } from '../app'
-import { fixtureDataSource } from '../data'
+import { renderAppOnCompare } from '../test-utils'
 import { createInitialState, scenarioReducer, type ScenarioAction } from '../state'
 import { computeScenarioResults } from '../use-scenario-results'
 
@@ -21,7 +20,7 @@ function expected(slipH: number) {
 
 /** The App on fixture data with a 1-day mission (the fixture ephemeris covers 48 h). */
 async function renderCompare() {
-  render(<App dataSources={{ source: fixtureDataSource() }} />)
+  await renderAppOnCompare()
   const compare = await screen.findByRole('region', { name: 'Compare' })
   fireEvent.change(screen.getByLabelText(/duration/i), { target: { value: '1' } })
   const slip = screen.getByRole('group', { name: /^slip/i })
