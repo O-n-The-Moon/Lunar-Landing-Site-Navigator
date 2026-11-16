@@ -4,10 +4,12 @@ Synthetic tests place the Sun/Earth at exact topocentric az/el around a flat or
 stepped horizon mask, so expected percentages follow from counting samples.
 """
 
+import json
+
 import numpy as np
 import pytest
 
-from lunarnav import fetch, validate_pgda
+from lunarnav import fetch, io, validate_pgda
 from lunarnav.geometry import enu_basis, site_vector_km
 
 LAT_DEG, LON_DEG = -85.0, 30.0
@@ -198,6 +200,7 @@ def test_summary_counts_sites_with_both_bodies_within_threshold():
         "sitesTotal": 3,
         "maxAbsSunDiffPp": 6.5,
         "maxAbsEarthDiffPp": 5.5,
+        "targetFractionWithin": 0.8,
     }
 
 
@@ -245,6 +248,28 @@ def test_missing_terrain_at_site_raises():
         )
 
 
+def test_method_states_the_agreed_any_disc_comparison_at_surface_level():
+    method = validate_pgda.METHOD
+    assert set(method) == {
+        "observerHeightM",
+        "sensitivityHeightsM",
+        "sunDefinition",
+        "earthDefinition",
+        "pgdaDefinition",
+        "sampling",
+        "claimLabel",
+        "notes",
+    }
+    assert method["observerHeightM"] == validate_pgda.PRIMARY_HEIGHT_M == 0
+    assert method["sensitivityHeightsM"] == [2, 10]
+    assert method["claimLabel"] == validate_pgda.CLAIM_LABEL
+    assert "any part" in method["sunDefinition"]
+    assert "any part" in method["earthDefinition"]
+    # Height is a working assumption (#57): the file must say so, not imply a match.
+    assert "assum" in method["notes"] and "not confirmed" in method["notes"]
+    assert str(validate_pgda.SPAN_HOURS) in method["sampling"]
+
+
 # --- run() with injected inputs ------------------------------------------------
 
 
@@ -290,6 +315,7 @@ def test_run_compares_surface_level_and_reports_sensitivity(capsys, monkeypatch)
         }
     ]
     assert result["summary"]["sitesWithinThreshold"] == 1
+    assert result["method"] == validate_pgda.METHOD
     out = capsys.readouterr().out
     assert validate_pgda.CLAIM_LABEL in out
     assert "10 m" in out
@@ -307,3 +333,10 @@ def test_spice_vectors_for_a_short_span_have_plausible_distances():
     dist_km = np.linalg.norm(vecs, axis=-1)
     assert np.all((dist_km[:, 0] > 1.46e8) & (dist_km[:, 0] < 1.53e8))
     assert np.all((dist_km[:, 1] > 3.5e5) & (dist_km[:, 1] < 4.1e5))
+
+
+def test_shipped_validation_carries_the_pgda_target_and_method():
+    shipped = json.loads(io.VALIDATION_JSON.read_text(encoding="utf-8"))["pgda"]
+    assert shipped["summary"] == validate_pgda.summarize(shipped["rows"])
+    assert shipped["summary"]["targetFractionWithin"] == 0.8
+    assert shipped["method"] == validate_pgda.METHOD

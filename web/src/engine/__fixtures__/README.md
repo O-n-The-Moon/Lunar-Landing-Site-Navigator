@@ -10,7 +10,7 @@ Import the typed versions from `src/engine/__fixtures__` (`index.ts`):
 | `fixtureSitesFile` | 2 sites (`fixture-plateau` ≈ 84.8°S, `fixture-ridge` 89.9°S, inside the fixture grid), 720-bin masks at 2 m and 10 m |
 | `fixtureGrid` (+ manifest, raw bins) | 8 × 8 cells at 2 km around the pole, 360 az bins; cell (ix 7, iy 7) is no-data (255) |
 | `fixturePgdaLayers`, `fixturePgdaPngUrls` | 8 × 8 grayscale PNGs (value = %) on the grid extent |
-| `fixtureValidation` | Horizons rows/summary and PGDA rows/summary, including one > 5 pp outlier with an explanation |
+| `fixtureValidation` | Horizons rows/summary and PGDA rows/summary (with pass/fail targets and `pgda.method`), including one > 5 pp outlier with an explanation; Horizons meets its target, PGDA does not |
 | `fixtureScenario` | Baseline landing at range start, 24 h mission, slip +12 h, 2 m observer, default `VisibilityOpts` |
 | `fixtureOutputs[siteId]` | `ctx` (real `SiteContext`; frame precomputed), `samples` (10 min), `windows`, `metrics.{baseline,slipped}`, `metricDelta` |
 | `fixtureGridScores` | Grid scores over the 48 h range (NaN = no data) |

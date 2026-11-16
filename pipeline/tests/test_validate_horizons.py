@@ -159,6 +159,7 @@ def test_summary_reports_count_max_and_mean():
         "maxElevErrDeg": pytest.approx(0.004),
         "meanAzErrDeg": pytest.approx(0.02),
         "meanElevErrDeg": pytest.approx(0.003),
+        "targetMaxErrDeg": 0.02,
     }
 
 
@@ -342,6 +343,7 @@ def test_shipped_validation_meets_success_criterion_1(shipped):
     assert shipped["summary"] == validate_horizons.summarize(shipped["rows"])
     assert shipped["summary"]["maxAzErrDeg"] <= MAX_ERR_DEG
     assert shipped["summary"]["maxElevErrDeg"] <= MAX_ERR_DEG
+    assert shipped["summary"]["targetMaxErrDeg"] == MAX_ERR_DEG
 
 
 def test_shipped_validation_matches_current_ephemeris_and_sites(shipped):

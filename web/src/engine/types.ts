@@ -107,6 +107,8 @@ export interface HorizonsValidation {
     maxElevErrDeg: number
     meanAzErrDeg: number
     meanElevErrDeg: number
+    /** Pass target for both max errors (SPEC.md criterion 1). Absent in files written before #71. */
+    targetMaxErrDeg?: number
   }
 }
 
@@ -131,7 +133,29 @@ export interface PgdaValidation {
     sitesTotal: number
     maxAbsSunDiffPp: number
     maxAbsEarthDiffPp: number
+    /** Pass target: fraction of sites that must be within `thresholdPp` (SPEC.md criterion 2). Absent in files written before #71. */
+    targetFractionWithin?: number
   }
+  /** How the comparison was made. Absent in files written before #71. */
+  method?: PgdaMethod | null
+}
+
+/** The PGDA comparison method as recorded by the pipeline (#57), shown next to the numbers. */
+export interface PgdaMethod {
+  /** Observer height of the primary comparison; null if unknown. An assumption, see `notes`. */
+  observerHeightM: number | null
+  /** Heights run as sensitivity checks only. */
+  sensitivityHeightsM: number[]
+  sunDefinition: string
+  earthDefinition: string
+  /** What the PGDA product itself counts. */
+  pgdaDefinition: string
+  /** Timestep and span. */
+  sampling: string
+  /** The only wording under which the within-threshold result may be stated. */
+  claimLabel: string
+  /** Limits on claims. */
+  notes: string
 }
 
 /** `validation.json`. A section is null until the pipeline produces it. */
