@@ -1,7 +1,7 @@
 // PGDA v0 layer helpers (SPEC-app P0-6): value lookup under a map position and the color ramp. Pure: no DOM.
 // Raster layout (pgda-layers.json): 8-bit grayscale, value = percent (0–100), 255 = no data; pixel (column ix, row ny − 1 − iy),
 // so the top PNG row is the highest y and the left column the lowest x.
-import { rampColor, rampCss } from './colormaps'
+import { rampColor, rampCss, type RampName } from './colormaps'
 import type { GridExtentInput } from './projection'
 
 export const NO_DATA = 255
@@ -21,10 +21,10 @@ export function rasterValueAt(values: ArrayLike<number>, geom: GridExtentInput, 
 }
 
 /** Color of a percentage (clamped to 0–100) on the layer's ramp (the shared ramps in `colormaps.ts`). */
-export const rampRgb = (layer: PgdaLayer, pct: number): [number, number, number] => rampColor(layer, pct)
+export const rampRgb = (layer: RampName, pct: number): [number, number, number] => rampColor(layer, pct)
 
 /** RGBA pixels (same order as `values`) for a canvas ImageData; no-data pixels are fully transparent. */
-export function colorizeRaster(values: ArrayLike<number>, layer: PgdaLayer): Uint8ClampedArray<ArrayBuffer> {
+export function colorizeRaster(values: ArrayLike<number>, layer: RampName): Uint8ClampedArray<ArrayBuffer> {
   const lut = Array.from({ length: 101 }, (_, p) => rampRgb(layer, p))
   const out = new Uint8ClampedArray(values.length * 4)
   for (let i = 0; i < values.length; i++) {
@@ -40,7 +40,7 @@ export function colorizeRaster(values: ArrayLike<number>, layer: PgdaLayer): Uin
 }
 
 /** CSS gradient of the ramp, for the legend bar. */
-export const rampCssGradient = (layer: PgdaLayer): string => rampCss(layer)
+export const rampCssGradient = (layer: RampName): string => rampCss(layer)
 
 /** Grayscale values from canvas RGBA pixels (the PGDA PNGs are 8-bit grayscale, so the red channel is the value). */
 export function grayFromRgba(rgba: ArrayLike<number>): Uint8Array {

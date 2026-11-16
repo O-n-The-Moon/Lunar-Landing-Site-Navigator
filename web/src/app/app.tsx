@@ -146,7 +146,7 @@ function Workspace() {
           <TimelinePanel />
           <PanoramaPanel />
         </div>
-        <div {...panel('map')}>{opened.has('map') && <MapView />}</div>
+        <div {...panel('map')}>{opened.has('map') && <MapView active={tab === 'map'} />}</div>
         <div {...panel('validation')}>{opened.has('validation') && <ValidationPanel />}</div>
       </main>
     </div>
