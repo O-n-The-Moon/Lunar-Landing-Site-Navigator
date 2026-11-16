@@ -17,6 +17,7 @@ import { GridScoresProvider } from './map/score-layer'
 import { PanoramaPanel } from './panorama/panorama-panel'
 import { TerrainView } from './scene/terrain-view'
 import { SurfaceView } from './surface/surface-view'
+import { DetailsDrawer, useDetails } from './shell/details-drawer'
 import { MissionDeck } from './shell/mission-deck'
 import { LeftRail, RailMenuButton, useRail } from './shell/left-rail'
 import { MissionClock, TopBar } from './shell/top-bar'
@@ -109,6 +110,7 @@ function Workspace() {
   const tabRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({})
   const baseId = useId()
   const rail = useRail()
+  const details = useDetails()
 
   const select = (id: TabId, focus = false) => {
     setTab(id)
@@ -181,7 +183,8 @@ function Workspace() {
               <div {...panel('map')}>{opened.has('map') && <MapView active={tab === 'map'} />}</div>
               <div {...panel('validation')}>{opened.has('validation') && <ValidationPanel />}</div>
             </main>
-            <MissionDeck />
+            <DetailsDrawer details={details} />
+            <MissionDeck details={details} />
           </div>
         </ViewTimeBar>
       </AppliedPresetProvider>

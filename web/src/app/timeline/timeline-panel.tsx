@@ -22,12 +22,15 @@ function formatElapsed(ms: number): string {
   return `T+${d > 0 ? `${d} d ` : ''}${h} h ${totalMin % 60} m`
 }
 
-/** `active`: the tab holding the timeline is showing (Play pauses while it is hidden). */
-export function TimelinePanel({ active = true }: { active?: boolean }) {
+/**
+ * `active`: the tab holding the timeline is showing (Play pauses while it is hidden).
+ * `showPlay`: this panel has its own Play button; the Details drawer turns it off (the deck's Play is the one time control).
+ */
+export function TimelinePanel({ active = true, showPlay = true }: { active?: boolean; showPlay?: boolean }) {
   const { cursorMs } = useScenario()
   const dispatch = useScenarioDispatch()
   const results = useScenarioResults()
-  const play = usePlayCursor({ active, enabled: results.siteIds.length > 0 })
+  const play = usePlayCursor({ active, enabled: showPlay && results.siteIds.length > 0 })
   const range = useMemo(
     () => ({ startMs: results.slippedLandingMs, endMs: results.slippedLandingMs + results.durationH * HOUR_MS }),
     [results.slippedLandingMs, results.durationH],
@@ -57,7 +60,7 @@ export function TimelinePanel({ active = true }: { active?: boolean }) {
   return (
     <section aria-label="Timeline">
       <h3>Timeline</h3>
-      {results.siteIds.length > 0 && (
+      {showPlay && results.siteIds.length > 0 && (
         <button type="button" className="play-button" onClick={play.toggle} aria-pressed={play.playing}>
           {play.playing ? <PauseIcon size={12} /> : <PlayIcon size={12} />} {play.playing ? 'Pause' : 'Play'}
         </button>

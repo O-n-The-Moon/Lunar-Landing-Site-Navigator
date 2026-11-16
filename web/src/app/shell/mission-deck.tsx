@@ -3,15 +3,17 @@ import { useActivePreset } from '../controls/scenario-presets'
 import { SlipSlider } from '../controls/slip-slider'
 import { TimeBar } from '../controls/time-bar'
 import { Deck } from './deck'
+import { DetailsButton, type DetailsState } from './details-drawer'
 import { SiteRows } from './site-rows'
 
-export function MissionDeck() {
+export function MissionDeck({ details }: { details: DetailsState }) {
   const preset = useActivePreset()
   return (
     <Deck>
       <div className="deck-controls">
         <SlipSlider tryDays={preset?.targetSlipDays} />
         <TimeBar />
+        <DetailsButton details={details} />
       </div>
       <SiteRows />
     </Deck>
