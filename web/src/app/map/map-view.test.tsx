@@ -86,4 +86,13 @@ describe('MapView', () => {
     const group = await screen.findByRole('radiogroup', { name: /layer/i })
     expect(within(group).getByRole('radio', { name: /earth/i })).toBeChecked()
   })
+
+  it('clears the last click message when the layer changes', async () => {
+    const { user, clickAt } = await openMap()
+    await waitFor(() => expect(screen.getByText(/Horizon grid loaded/)).toBeInTheDocument())
+    clickAt(-89.97, 30)
+    await screen.findByText(/Added Custom/)
+    await user.click(within(screen.getByRole('radiogroup', { name: /layer/i })).getByRole('radio', { name: /earth/i }))
+    expect(screen.queryByText(/Added Custom/)).not.toBeInTheDocument()
+  })
 })

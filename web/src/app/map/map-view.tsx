@@ -19,7 +19,10 @@ export function MapView() {
   const dispatch = useScenarioDispatch()
   // v0 shows the two PGDA layers; the window-score layers (`score-*`) arrive with v1, so they fall back to Sun here.
   const layer: PgdaLayer = mapLayer === 'pgda-earth' ? 'earth' : 'sun'
-  const setLayer = (l: PgdaLayer) => dispatch({ type: 'setMapLayer', layer: l === 'earth' ? 'pgda-earth' : 'pgda-sun' })
+  const setLayer = (l: PgdaLayer) => {
+    setMessage(null) // an old "Added …" / "already in the scenario" no longer describes what is on screen
+    dispatch({ type: 'setMapLayer', layer: l === 'earth' ? 'pgda-earth' : 'pgda-sun' })
+  }
   const [message, setMessage] = useState<string | null>(null)
   const values = usePgdaValues(pgda.status === 'ready' ? pgda.data.urls[layer] : undefined)
 

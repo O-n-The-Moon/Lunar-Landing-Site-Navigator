@@ -16,21 +16,25 @@ export async function decodePgdaPng(url: string): Promise<Uint8Array> {
   return grayFromRgba(ctx.getImageData(0, 0, canvas.width, canvas.height).data)
 }
 
-/** Values of the PNG at `url`; null while loading, when `url` is undefined, or if it can't be decoded. */
-export function usePgdaValues(url: string | undefined): Uint8Array | null {
-  const [decoded, setDecoded] = useState<{ url: string; values: Uint8Array } | null>(null)
+/**
+ * Values of the PNG at `url`; null while loading, when `url` is undefined, or if it can't be decoded. Decoded layers are
+ * kept, so switching back to a layer is instant and never decodes it twice. `decode` is injectable for tests.
+ */
+export function usePgdaValues(url: string | undefined, decode: (url: string) => Promise<Uint8Array> = decodePgdaPng): Uint8Array | null {
+  const [decoded, setDecoded] = useState<Record<string, Uint8Array>>({})
+  const have = url !== undefined && url in decoded
   useEffect(() => {
-    if (!url) return
+    if (!url || have) return
     let cancelled = false
-    decodePgdaPng(url).then(
+    decode(url).then(
       (values) => {
-        if (!cancelled) setDecoded({ url, values })
+        if (!cancelled) setDecoded((d) => ({ ...d, [url]: values }))
       },
       () => {}, // no canvas / bad image: the map still draws, just without values
     )
     return () => {
       cancelled = true
     }
-  }, [url])
-  return decoded && decoded.url === url ? decoded.values : null
+  }, [url, have, decode])
+  return url !== undefined ? (decoded[url] ?? null) : null
 }
