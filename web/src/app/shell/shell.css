@@ -193,3 +193,21 @@
     transition: width 150ms ease;
   }
 }
+
+/* --- cinema: the deck hidden (`]`) leaves a small way back ------------------------------- */
+.deck-peek {
+  grid-area: deck;
+  justify-self: end;
+  margin: var(--space-2) var(--space-3);
+}
+.deck-hide,
+.deck-peek {
+  font-size: 0.75rem;
+}
+kbd {
+  font: 500 0.6875rem/1 var(--font-num);
+  padding: 1px 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  color: var(--text-muted);
+}

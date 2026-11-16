@@ -20,7 +20,8 @@ import { TerrainView } from './scene/terrain-view'
 import { SurfaceView } from './surface/surface-view'
 import { DetailsDrawer, useDetails } from './shell/details-drawer'
 import { MissionDeck } from './shell/mission-deck'
-import { LeftRail, RailMenuButton, useRail } from './shell/left-rail'
+import { isNarrowViewport, LeftRail, RailMenuButton, useRail } from './shell/left-rail'
+import { useShortcut } from './shell/shortcuts'
 import { MissionClock, TopBar } from './shell/top-bar'
 import { ScenarioProvider, createInitialState } from './state'
 import { scenarioState, startingScenario } from './controls/demo-scenarios'
@@ -141,6 +142,25 @@ function Workspace({ presetId }: { presetId: string | null }) {
     else stage.removeAttribute('inert')
   }, [details.open])
 
+  // Narrow screens: the rail and the Details drawer are both panels over the stage; only one at a time.
+  const { dismiss: dismissDetails } = details
+  const { hide: hideRail } = rail
+  useEffect(() => {
+    if (rail.open && isNarrowViewport()) dismissDetails()
+  }, [rail.open, dismissDetails])
+  useEffect(() => {
+    if (details.open && isNarrowViewport()) hideRail()
+  }, [details.open, hideRail])
+
+  // Cinema: `[` folds the rail (in the rail), `]` hides the deck; together they leave the stage alone on the screen.
+  const [deckHidden, setDeckHidden] = useState(false)
+  const toggleDeck = useCallback(() => {
+    setDeckHidden((h) => !h)
+    // The button that was used unmounts with the swap: focus its counterpart (only if focus was on one of them).
+    if (document.activeElement?.matches('.deck-hide, .deck-peek')) requestAnimationFrame(() => document.querySelector<HTMLElement>('.deck-hide, .deck-peek')?.focus())
+  }, [])
+  useShortcut(']', toggleDeck)
+
   const select = (id: TabId, focus = false) => {
     setTab(id)
     details.dismiss() // it would cover another view's content
@@ -204,7 +224,13 @@ function Workspace({ presetId }: { presetId: string | null }) {
               <div {...panel('verify')}>{opened.has('verify') && <ValidationPanel />}</div>
             </main>
             <DetailsDrawer details={details} />
-            <MissionDeck details={details} />
+            {deckHidden ? (
+              <button type="button" className="deck-peek" aria-keyshortcuts="]" onClick={toggleDeck}>
+                Show deck <kbd>]</kbd>
+              </button>
+            ) : (
+              <MissionDeck details={details} onHide={toggleDeck} />
+            )}
           </div>
         </ViewTimeBar>
       </AppliedPresetProvider>
