@@ -65,3 +65,21 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* Narrow stage: the two buttons share one row across the top and the site / Sun / Earth readout sits below them,
+   so the button column no longer covers the site name. */
+@media (max-width: 640px) {
+  .surface-stage .scene-hud-tr {
+    left: var(--space-3);
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .surface-stage .scene-hud-tr button {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+  }
+  .surface-stage .surface-hud {
+    top: 44px;
+  }
+}
