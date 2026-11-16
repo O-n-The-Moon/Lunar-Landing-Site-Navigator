@@ -8,6 +8,7 @@ import {
   sunHysteresisLevels,
   type EphemerisManifest,
   type HorizonsValidation,
+  type PgdaMethod,
   type PgdaValidation,
   type PgdaValidationRow,
   type SitesFile,
@@ -33,26 +34,31 @@ export function ValidationReport({ validation, sitesFile, ephemerisManifest }: V
   const names = new Map(sitesFile.sites.map((s) => [s.id, s.name]))
   const siteName = (id: string) => names.get(id) ?? id
   const { horizons, pgda } = validation
+  const horizonsVerdict = horizons && horizonsVerdictOf(horizons)
+  const pgdaVerdict = pgda && pgdaVerdictOf(pgda)
   return (
     // Same pattern as the other views: one region per view, named like its tab.
     <section className="validation" aria-label="Validation">
       <h3>Validation</h3>
       <ul className="validation-badges" aria-label="Validation summary">
-        <li className="validation-badge">
+        <li className={['validation-badge', horizonsVerdict && verdictTone(horizonsVerdict)].filter(Boolean).join(' ')}>
           <span className="validation-badge-label">Ephemeris vs JPL Horizons</span>
           <span className={horizons ? 'num' : 'muted'}>
             {horizons
               ? `max ${fmtErr(horizons.summary.maxAzErrDeg)} az · ${fmtErr(horizons.summary.maxElevErrDeg)} el (n = ${horizons.summary.n})`
               : 'not yet produced'}
           </span>
+          {horizonsVerdict && <Verdict verdict={horizonsVerdict} />}
         </li>
-        <li className={['validation-badge', pgda && pgdaTone(pgda)].filter(Boolean).join(' ')}>
+        <li className={['validation-badge', pgda && (pgdaVerdict ? verdictTone(pgdaVerdict) : pgdaTone(pgda))].filter(Boolean).join(' ')}>
           <span className="validation-badge-label">Terrain vs PGDA</span>
           <span className={pgda ? 'num' : 'muted'}>
             {pgda
               ? `${pgda.summary.sitesWithinThreshold}/${pgda.summary.sitesTotal} sites within ±${pgda.summary.thresholdPp} pp`
               : 'not yet produced'}
           </span>
+          {pgdaVerdict && <Verdict verdict={pgdaVerdict} />}
+          {pgda?.method && <span className="validation-badge-note">{pgda.method.claimLabel}</span>}
         </li>
       </ul>
       <HorizonsSection horizons={horizons} siteName={siteName} />
@@ -62,6 +68,44 @@ export function ValidationReport({ validation, sitesFile, ephemerisManifest }: V
   )
 }
 
+/** A pass/fail result against a target in validation.json. */
+interface VerdictResult {
+  pass: boolean
+  /** "target ≤ 0.02°" */
+  target: string
+}
+
+const isTarget = (v: number | undefined, max = Infinity): v is number => typeof v === 'number' && v > 0 && v <= max
+
+/** SPEC.md criterion 1: both max errors at or under the target. No verdict for files without the target. */
+function horizonsVerdictOf({ summary }: HorizonsValidation): VerdictResult | null {
+  const target = summary.targetMaxErrDeg
+  if (!isTarget(target)) return null
+  return { pass: Math.max(summary.maxAzErrDeg, summary.maxElevErrDeg) <= target, target: `target ≤ ${target}°` }
+}
+
+/**
+ * SPEC.md criterion 2: share of sites within the threshold at or over the target. No verdict without a target or sites,
+ * or when the summary disagrees with its rows (the section then says the file is inconsistent).
+ */
+function pgdaVerdictOf({ summary, rows }: PgdaValidation): VerdictResult | null {
+  const target = summary.targetFractionWithin
+  if (!isTarget(target, 1) || summary.sitesTotal === 0) return null
+  const rowsWithin = rows.filter((r) => !isOutlier(r, summary.thresholdPp)).length
+  if (rows.length !== summary.sitesTotal || rowsWithin !== summary.sitesWithinThreshold) return null
+  return {
+    pass: summary.sitesWithinThreshold / summary.sitesTotal >= target,
+    target: `target ≥ ${fmtFractionPct(target)}% of sites`,
+  }
+}
+
+const verdictTone = (v: VerdictResult) => (v.pass ? 'good' : 'warn')
+
+function Verdict({ verdict }: { verdict: VerdictResult }) {
+  return <span className="validation-verdict">{`${verdict.pass ? 'Pass' : 'Not met'}: ${verdict.target}`}</span>
+}
+
+/** Tone for a file without a PGDA target: all sites within the threshold or not. */
 const pgdaTone = ({ summary }: PgdaValidation) =>
   summary.sitesTotal === 0 ? null : summary.sitesWithinThreshold === summary.sitesTotal ? 'good' : 'warn'
 
@@ -166,7 +210,43 @@ function PgdaSection({ pgda, siteName }: { pgda: PgdaValidation | null; siteName
     <div className="validation-section">
       <h4>Terrain vs PGDA product 69</h4>
       <p className="hint">Our long-term average Sun and Earth visibility per curated site, using our terrain horizon masks, against the PGDA pixel value.</p>
-      {pgda ? <PgdaDetail pgda={pgda} siteName={siteName} /> : <p className="hint warn">No PGDA comparison in validation.json yet.</p>}
+      {pgda ? (
+        <>
+          <PgdaMethodBlock method={pgda.method ?? null} />
+          <PgdaDetail pgda={pgda} siteName={siteName} />
+        </>
+      ) : (
+        <p className="hint warn">No PGDA comparison in validation.json yet.</p>
+      )}
+    </div>
+  )
+}
+
+/** The comparison method recorded in the file; no height or definition is assumed here. */
+function PgdaMethodBlock({ method }: { method: PgdaMethod | null }) {
+  const headingId = useId()
+  if (!method) return <p className="hint">The PGDA comparison method is not recorded in validation.json.</p>
+  const { observerHeightM, sensitivityHeightsM } = method
+  return (
+    <div role="region" aria-labelledby={headingId}>
+      <h5 id={headingId}>PGDA method</h5>
+      <p className="validation-claim">{method.claimLabel}</p>
+      <dl className="validation-methods">
+        <dt>Observer height</dt>
+        <dd>{observerHeightM === null ? 'unknown' : `${observerHeightM} m`}</dd>
+        <dt>Sensitivity runs</dt>
+        <dd>{sensitivityHeightsM.length > 0 ? sensitivityHeightsM.map((h) => `${h} m`).join(', ') : 'none'}</dd>
+        <dt>Sun</dt>
+        <dd>{method.sunDefinition}</dd>
+        <dt>Earth</dt>
+        <dd>{method.earthDefinition}</dd>
+        <dt>PGDA product 69</dt>
+        <dd>{method.pgdaDefinition}</dd>
+        <dt>Sampling</dt>
+        <dd>{method.sampling}</dd>
+        <dt>Limits</dt>
+        <dd>{method.notes}</dd>
+      </dl>
     </div>
   )
 }

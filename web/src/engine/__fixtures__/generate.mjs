@@ -462,6 +462,7 @@ writeJson('validation.json', {
       maxElevErrDeg: Math.max(...hzRows.map((r) => r.elevErrDeg)),
       meanAzErrDeg: mean(hzRows.map((r) => r.azErrDeg)),
       meanElevErrDeg: mean(hzRows.map((r) => r.elevErrDeg)),
+      targetMaxErrDeg: 0.02,
     },
   },
   pgda: {
@@ -472,6 +473,19 @@ writeJson('validation.json', {
       sitesTotal: pgdaRows.length,
       maxAbsSunDiffPp: Math.max(...pgdaRows.map((r) => Math.abs(r.sunDiffPp))),
       maxAbsEarthDiffPp: Math.max(...pgdaRows.map((r) => Math.abs(r.earthDiffPp))),
+      targetFractionWithin: 0.8,
+    },
+    // Same shape and wording as pipeline validate_pgda.METHOD.
+    method: {
+      observerHeightM: 0,
+      sensitivityHeightsM: [2, 10],
+      sunDefinition: 'any part of the solar disc above the terrain horizon (Sun elevation + 0.265 deg)',
+      earthDefinition: "any part of Earth's disc above the terrain horizon (Earth elevation + its actual angular radius, about 0.95 deg)",
+      pgdaDefinition: 'any part of the disc visible (product 69 labels)',
+      sampling: 'hourly, 163048 h (18.6 years) from 2026-01-01T00:00:00Z; Sun/Earth vectors from the pinned SPICE kernels',
+      claimLabel: 'agreement with PGDA under the any-disc definition, surface level assumed',
+      notes:
+        'Observer height is an assumption: PGDA product 69 does not document its height, and surface level (0 m) is taken from Mazarico et al. (2011) for the 2010 maps, not confirmed for the 2016 rasters. The 2 m and 10 m runs are sensitivity checks only. Not accuracy against truth, and not height-matched. App metrics use other definitions.',
     },
   },
 })

@@ -91,6 +91,13 @@ Long-term average visibility rasters from PGDA product 69, reprojected to the sa
 ### `validation.json`
 Ephemeris comparison with Horizons (per site/epoch/body, with error) and comparison of our long-term averages with PGDA (per site), plus summary statistics. The app renders this file and never computes accuracy claims itself.
 
+The file also carries what the panel needs to give a verdict and state the method, so the app hardcodes neither:
+- `horizons.summary.targetMaxErrDeg` (0.02): pass when both `maxAzErrDeg` and `maxElevErrDeg` are ≤ it (criterion 1).
+- `pgda.summary.targetFractionWithin` (0.8): pass when `sitesWithinThreshold / sitesTotal` ≥ it (criterion 2).
+- `pgda.method`: `observerHeightM` (0, or `null` if unknown; an assumption, see `notes`), `sensitivityHeightsM` ([2, 10]), `sunDefinition`, `earthDefinition`, `pgdaDefinition`, `sampling`, `claimLabel` (the only wording under which the ±5 pp result may be stated) and `notes` (limits on claims, from #57).
+
+These fields are optional for readers: a file without them renders its numbers with no verdict and no method.
+
 ### `fixtures/golden.json` (test-only, in `shared/fixtures/`)
 Python-generated input→output vectors (az/el, visible fraction, metrics) that the TS engine must reproduce.
 
@@ -178,7 +185,7 @@ Coverage target: the engine has tests for every exported function. No overall % 
 ## Success Criteria (V1 is done when…)
 
 1. **Ephemeris validity:** max Sun and Earth az/el error vs Horizons ≤ **0.02°** across ≥ 5 sites × ≥ 20 epochs (geometry only, no terrain).
-2. **Terrain validity:** our long-term average Sun and Earth visibility per curated site is within **±5 percentage points** of PGDA product 69 for ≥ 80% of sites; outliers are listed with explanations in the validation panel.
+2. **Terrain validity:** our long-term average Sun and Earth visibility per curated site, under the PGDA any-disc definition (a body is visible when any part of its disc clears the terrain horizon) at surface level (0 m, an unconfirmed working assumption, #57), is within **±5 percentage points** of PGDA product 69 for ≥ 80% of sites; outliers are listed with explanations in the validation panel. Stated only as "agreement with PGDA under the any-disc definition, surface level assumed", never as accuracy against truth or "height-matched".
 3. **Cross-language parity:** the TS engine matches `golden.json` to ≤ 1e-3° (az/el) and ≤ 1e-3 (fraction); metric durations match to ≤ 10 min.
 4. **Speed of use:** a teammate who hasn't seen the app compares 2 sites for a given date and states sunlit %, Earth-link %, and time to sunset in **≤ 30 s**.
 5. **Live slip:** dragging the slip slider updates 3 sites × 30-day mission (metrics + timelines + panorama) in **≤ 33 ms per update** on a 2020+ laptop.
@@ -203,7 +210,7 @@ Coverage target: the engine has tests for every exported function. No overall % 
 ## Open Questions
 
 1. ~~**Artemis III region coordinates:** regions are areas, not points. Which representative point per region?~~ **Resolved (#69):** each point is the geometric center of the region's USGS 1 km navigation grid ([doi:10.5066/P1MEQ6UK](https://doi.org/10.5066/P1MEQ6UK)), not the best-lit point. Artemis regions may sit to 83.5°S. See `pipeline/sites.yaml`.
-2. **PGDA observer height:** what height above the surface does product 69 assume? This decides which of our heights (2 m / 10 m) to compare against. *Open, tracked in #57; gates Checkpoint 1 (#42).*
+2. **PGDA observer height:** PGDA product 69 does not document its observer height. *Dispositioned, not confirmed (#57):* surface level (0 m) is the working assumption (from Mazarico et al. 2011, for the 2010 maps), with our 2 m and 10 m heights as sensitivity runs only. Revisit if the comparison is inconclusive. Gates Checkpoint 1 (#42) only as a labelled, conditional result.
 3. ~~**Chang'e-7 target:** do we have a citable coordinate? If not, leave it out.~~ **Resolved (#69):** left out; no citable target coordinate.
 4. ~~**Exact DEM products:** confirm file names/resolutions.~~ **Resolved (#58):** `LDEM_80S_80M` (80 m, 80–90°S near field) and `LDEM_75S_240M` (240 m, to 75°S far field). See `pipeline/DATA_SOURCES.md`.
 5. **Hackathon deliverables:** confirm the required format (video length, demo link, slides) so `docs/demo.md` matches.
