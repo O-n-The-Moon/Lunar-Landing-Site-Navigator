@@ -17,7 +17,7 @@
 ### User stories
 1. As a planner, I pick up to 3 sites (from the curated list, a map click, or lat/lon) and a landing date and mission duration, and I see sunlit %, Earth-link %, longest blackouts, slope, and time to the next sunset or Earthset.
 2. As a planner, I drag a **slip slider** (−30…+90 days) and every metric, timeline and view updates live, with the change from the original date shown.
-3. As a planner, I see a **horizon panorama** for a site: the terrain silhouette with Sun and Earth tracks, so I can see which ridge causes a blackout and when.
+3. As a planner, I see a **horizon panorama** for a site: the terrain silhouette with Sun and Earth tracks, so I can see which ridge causes a blackout and when. A **3D Terrain** tab shows the south pole with live terrain-aware shadows, and a first-person **Surface** tab shows the Sun and Earth sinking behind the real ridge.
 4. As a planner, I pick a date window and see an **opportunity map** of the south pole colored by how viable a mission would be, then click a hot spot to evaluate it.
 5. As a planner, I can open a **validation panel** showing how our numbers compare with JPL Horizons and PGDA, so I can trust them.
 
@@ -37,6 +37,7 @@
 |---|---|
 | Pipeline | Python 3.12, `uv`, `spiceypy`, `numpy`, `numba`, `rasterio`, `pyproj`, `pytest`, `ruff` |
 | Web | Vite, React 18, TypeScript (strict), D3 (SVG timeline/panorama), Canvas 2D (map), Web Workers, Vitest, ESLint |
+| 3D views | `three`, `@react-three/fiber`, `@react-three/drei` (exact pins, lazy-loaded chunk; no postprocessing). Drawing only: the engine never depends on them. |
 | Hosting | Vercel (static). **No backend.** |
 | Data | Generated files committed under `web/public/data/` (~15 MB). Raw DEMs and kernels are gitignored. |
 
@@ -94,6 +95,9 @@ All files live in `web/public/data/`. Version field `schemaVersion: 1` in every 
 ### `pgda-sun.png`, `pgda-earth.png` + `pgda-layers.json`
 Long-term average visibility rasters from PGDA product 69, reprojected to the same grid extent (8-bit grayscale = %), used as the map's v0 layer.
 
+### Display assets (additive; drawing only, not part of the shared contract above)
+`terrain-display.bin` + `terrain-display.json`: a 1024×1024 height map of the grid's square (extent and origin taken from `grid.json`, so cell = `nx · cellKm / 1024` ≈ 355.5 m), averaged from 4×4 samples of `LDEM_80S_80M` per cell (far-field fallback as in the grid). `int16-le` metres above the reference sphere, row-major `iy · nx + ix`, `iy = 0` = lowest y, same projection and origin as `grid.json`. The manifest lists the source `dems` like `grid.json`. Written by `lunarnav display-terrain` (not part of `build-all`). The 3D views use it for the *look* of the terrain only: the engine never reads it, and every visibility number still comes from `grid-horizons.bin` and the site masks. Checked against `grid-heights.bin` at the 2 km cell centres: median |Δ| ≤ 50 m, p95 ≤ 250 m. The UI labels it "display terrain, not used for visibility".
+
 ### `validation.json`
 Ephemeris comparison with Horizons (per site/epoch/body, with error) and comparison of our long-term averages with PGDA (per site), plus summary statistics. The app renders this file and never computes accuracy claims itself.
 
@@ -115,6 +119,7 @@ Python-generated input→output vectors (az/el, visible fraction, metrics) that 
 cd pipeline && uv sync
 uv run lunarnav fetch            # download SPICE kernels + LOLA DEMs + PGDA rasters → pipeline/data/raw/
 uv run lunarnav build-all        # ephemeris, site horizons, grid horizons, pgda layers → web/public/data/
+uv run lunarnav display-terrain  # → web/public/data/terrain-display.* (3D view only)
 uv run lunarnav validate         # → web/public/data/validation.json
 uv run lunarnav golden           # → shared/fixtures/golden.json
 uv run pytest
@@ -197,13 +202,12 @@ Coverage target: the engine has tests for every exported function. No overall % 
 4. **Speed of use:** a teammate who hasn't seen the app compares 2 sites for a given date and states sunlit %, Earth-link %, and time to sunset in **≤ 30 s**.
 5. **Live slip:** dragging the slip slider updates 3 sites × 30-day mission (metrics + timelines + panorama) in **≤ 33 ms per update** on a 2020+ laptop.
 6. **Opportunity map:** a 30-day window heatmap over the full grid computes in **≤ 3 s** in a Web Worker without blocking the UI.
-7. **Load:** initial transfer ≤ 3 MB (grid lazy-loaded), interactive ≤ 3 s on broadband.
+7. **Load:** first paint ≤ 3 MB; terrain/grid files stream after first paint with a visible loading state; interactive ≤ 3 s on broadband.
 8. **Demo scenario:** `docs/demo.md` documents one real slip example (sites, dates, before/after numbers) that the deployed app reproduces.
 9. **Shipped:** deployed on Vercel; README has setup + run steps.
 
 ## Out of Scope (Deferred, V2 backlog)
 
-- 3D first-person panorama with animated shadows: expensive; the 2D panorama covers the "why".
 - Power model (vertical panels, panel azimuth, battery state of charge): needs hardware assumptions; next after V1.
 - Auto-suggest alternate sites/dates after a slip: needs ranking UX; builds on the grid scoring.
 - AI mission copilot (natural language → ranked options): garnish; only on top of a working engine.
