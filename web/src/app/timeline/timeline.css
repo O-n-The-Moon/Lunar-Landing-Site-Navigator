@@ -1,0 +1,43 @@
+/* Timeline layout. The label column width is shared by every strip and by the cursor overlay, so the one cursor
+   line sits exactly over the plot column of all strips. */
+.timeline-plot {
+  --tl-label-w: 3rem;
+  position: relative;
+}
+
+.timeline-strips {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.timeline-strip-body {
+  display: grid;
+  grid-template-columns: var(--tl-label-w, 3rem) 1fr;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.timeline-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--tl-label-w) + var(--space-2));
+  right: 0;
+  touch-action: none;
+  cursor: ew-resize;
+}
+
+.timeline-cursor:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.timeline-cursor-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text);
+  pointer-events: none;
+}

@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
 import { nextEvents, type DetectedWindows } from '../../engine'
 import { fixtureOutputs, fixtureScenario } from '../../engine/__fixtures__'
+import type { CursorReadout } from './cursor-readout'
 import { timeScale } from './scales'
 import { STRIP_VIEW_W, TimelineStrip, formatInH } from './timeline-strip'
 
@@ -14,12 +15,12 @@ const range = {
   endMs: fixtureScenario.baselineLandingMs + fixtureScenario.durationH * H_MS,
 }
 
-function renderStrip(cursorMs = range.startMs, w: DetectedWindows = windows) {
-  const onCursorChange = vi.fn()
-  const view = render(
-    <TimelineStrip siteName="Plateau" windows={w} range={range} cursorMs={cursorMs} onCursorChange={onCursorChange} />,
-  )
-  return { ...view, onCursorChange }
+function renderStrip(
+  cursorMs = range.startMs,
+  w: DetectedWindows = windows,
+  extra: { ghost?: DetectedWindows; readout?: CursorReadout } = {},
+) {
+  return render(<TimelineStrip siteName="Plateau" windows={w} range={range} cursorMs={cursorMs} {...extra} />)
 }
 
 const bandRects = (container: HTMLElement, band: string) =>
@@ -109,26 +110,78 @@ describe('TimelineStrip', () => {
     expect(screen.getByText('No Earthrise in mission')).toBeInTheDocument()
   })
 
-  it('exposes the cursor as a keyboard slider', () => {
-    const cursorMs = range.startMs + 6 * H_MS
-    const { onCursorChange } = renderStrip(cursorMs)
-    const slider = screen.getByRole('slider', { name: /plateau.*cursor/i })
-    expect(slider).toHaveAttribute('aria-valuenow', String(cursorMs))
-    expect(slider).toHaveAttribute('aria-valuetext', expect.stringContaining('2026-03-01 06:00 UTC'))
-    fireEvent.keyDown(slider, { key: 'ArrowRight' })
-    expect(onCursorChange).toHaveBeenLastCalledWith(cursorMs + H_MS)
-    fireEvent.keyDown(slider, { key: 'PageDown' })
-    expect(onCursorChange).toHaveBeenLastCalledWith(range.startMs) // 06:00 − 12 h clamps to the mission start
-    fireEvent.keyDown(slider, { key: 'End' })
-    expect(onCursorChange).toHaveBeenLastCalledWith(range.endMs)
+  it('is display-only: the one shared cursor lives in the panel, not in each strip', () => {
+    const { container } = renderStrip()
+    expect(screen.queryByRole('slider')).toBeNull()
+    expect(container.querySelector('line')).toBeNull()
   })
 
-  it('moves the cursor to where the pointer is', () => {
-    const { onCursorChange } = renderStrip()
-    const slider = screen.getByRole('slider')
-    slider.getBoundingClientRect = () => ({ left: 100, width: 400, top: 0, height: 40, right: 500, bottom: 40, x: 100, y: 0, toJSON: () => ({}) })
-    fireEvent.pointerDown(slider, { clientX: 200, pointerId: 1 })
-    expect(onCursorChange).toHaveBeenLastCalledWith(range.startMs + 6 * H_MS)
+  it('shows Sun elevation and clearance at the cursor, with the sign made explicit', () => {
+    renderStrip(range.startMs, windows, { readout: { sunElevDeg: 3.456, sunClearanceDeg: -1.04 } })
+    expect(screen.getByText('Sun elev 3.5°')).toBeInTheDocument()
+    expect(screen.getByText('clearance −1.0°')).toBeInTheDocument()
+    cleanup()
+    renderStrip(range.startMs, windows, { readout: { sunElevDeg: 0.2, sunClearanceDeg: 0.04 } })
+    expect(screen.getByText('clearance +0.0°')).toBeInTheDocument()
+  })
+
+  it('omits the elevation readouts when none is given', () => {
+    renderStrip()
+    expect(screen.queryByText(/Sun elev/)).toBeNull()
+  })
+})
+
+describe('TimelineStrip baseline ghost', () => {
+  // Sun up hours 6–12 of 24 when slipped; the ghost (baseline, already shifted onto this strip's time axis) is up
+  // hours 3–15, so hours 3–6 and 12–15 are time the slip lost.
+  const slipped: DetectedWindows = {
+    sun: [{ startMs: range.startMs + 6 * H_MS, endMs: range.startMs + 12 * H_MS, clippedStart: false, clippedEnd: false }],
+    earth: [],
+    both: [],
+  }
+  const ghost: DetectedWindows = {
+    sun: [{ startMs: range.startMs + 3 * H_MS, endMs: range.startMs + 15 * H_MS, clippedStart: false, clippedEnd: false }],
+    earth: [{ startMs: range.startMs - 5 * H_MS, endMs: range.startMs + 2 * H_MS, clippedStart: false, clippedEnd: false }],
+    both: [],
+  }
+  const ghostRects = (container: HTMLElement, band: string) =>
+    [...container.querySelectorAll(`[data-ghost="${band}"]`)].map((r) => ({
+      x: Number(r.getAttribute('x')),
+      w: Number(r.getAttribute('width')),
+    }))
+
+  it('draws the baseline windows at hand-computed x (hours 3–15 of 24 → 125…625 of 1000)', () => {
+    const { container } = renderStrip(range.startMs, slipped, { ghost })
+    expect(ghostRects(container, 'sun')).toEqual([{ x: 125, w: 500 }])
+  })
+
+  it('clips ghost windows to the mission range (earth hours −5…2 → 0…83.3)', () => {
+    const { container } = renderStrip(range.startMs, slipped, { ghost })
+    const [g] = ghostRects(container, 'earth')
+    expect(g.x).toBe(0)
+    expect(g.w).toBeCloseTo((2 / 24) * STRIP_VIEW_W, 9)
+  })
+
+  it('leaves the real bands where they were, drawn after (on top of) the ghost in the same row', () => {
+    const { container } = renderStrip(range.startMs, slipped, { ghost })
+    expect(bandRects(container, 'sun')).toEqual([{ x: 250, w: 250 }])
+    const ghostEl = container.querySelector('[data-ghost="sun"]')!
+    const bandEl = container.querySelector('[data-band="sun"]')!
+    // Same row (y), and the real band follows the ghost in document order so it paints over it.
+    expect(ghostEl.getAttribute('y')).toBe(bandEl.getAttribute('y'))
+    expect(ghostEl.compareDocumentPosition(bandEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('is much fainter than the real band', () => {
+    const { container } = renderStrip(range.startMs, slipped, { ghost })
+    const opacity = (sel: string) => Number(container.querySelector(sel)!.getAttribute('fill-opacity') ?? 1)
+    expect(opacity('[data-ghost="sun"]')).toBeLessThanOrEqual(0.35)
+    expect(opacity('[data-band="sun"]')).toBe(1)
+  })
+
+  it('draws no ghost without a baseline (slip 0)', () => {
+    const { container } = renderStrip(range.startMs, slipped)
+    expect(container.querySelectorAll('[data-ghost]')).toHaveLength(0)
   })
 })
 
