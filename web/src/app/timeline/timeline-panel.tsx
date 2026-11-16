@@ -3,16 +3,16 @@
 // unslipped baseline so a loss from the slip is visible at a glance.
 import { useMemo } from 'react'
 import type { DetectedWindows } from '../../engine'
-import { useScenario, useScenarioDispatch } from '../state'
+import { HOUR_MS, useScenario, useScenarioDispatch } from '../state'
 import { useScenarioResults } from '../use-scenario-results'
 import { formatUtc } from '../controls/date-controls'
+import { PauseIcon, PlayIcon } from '../ui/icons'
 import { cursorReadout } from './cursor-readout'
 import { shiftWindows } from './ghost'
+import { usePlayCursor } from './playback'
 import { TimelineCursor } from './timeline-cursor'
 import { TimelineStrip, eventTexts } from './timeline-strip'
 import './timeline.css'
-
-const H_MS = 3_600_000
 
 /** "T+6 h 20 m" / "T+1 d 6 h 0 m": time since the (slipped) landing, to the minute. */
 function formatElapsed(ms: number): string {
@@ -22,12 +22,14 @@ function formatElapsed(ms: number): string {
   return `T+${d > 0 ? `${d} d ` : ''}${h} h ${totalMin % 60} m`
 }
 
-export function TimelinePanel() {
+/** `active`: the tab holding the timeline is showing (Play pauses while it is hidden). */
+export function TimelinePanel({ active = true }: { active?: boolean }) {
   const { cursorMs } = useScenario()
   const dispatch = useScenarioDispatch()
   const results = useScenarioResults()
+  const play = usePlayCursor({ active, enabled: results.siteIds.length > 0 })
   const range = useMemo(
-    () => ({ startMs: results.slippedLandingMs, endMs: results.slippedLandingMs + results.durationH * H_MS }),
+    () => ({ startMs: results.slippedLandingMs, endMs: results.slippedLandingMs + results.durationH * HOUR_MS }),
     [results.slippedLandingMs, results.durationH],
   )
   const slipMs = results.slippedLandingMs - results.baselineLandingMs
@@ -55,6 +57,11 @@ export function TimelinePanel() {
   return (
     <section aria-label="Timeline">
       <h3>Timeline</h3>
+      {results.siteIds.length > 0 && (
+        <button type="button" className="play-button" onClick={play.toggle} aria-pressed={play.playing}>
+          {play.playing ? <PauseIcon size={12} /> : <PlayIcon size={12} />} {play.playing ? 'Pause' : 'Play'}
+        </button>
+      )}
       {results.siteIds.length === 0 && (
         <p className="hint">Add a site to see its Sun and Earth visibility over the mission.</p>
       )}

@@ -143,7 +143,7 @@ function Workspace() {
         </div>
         <div {...panel('compare')}>
           <CompareView />
-          <TimelinePanel />
+          <TimelinePanel active={tab === 'compare'} />
           <PanoramaPanel />
         </div>
         <div {...panel('map')}>{opened.has('map') && <MapView active={tab === 'map'} />}</div>
