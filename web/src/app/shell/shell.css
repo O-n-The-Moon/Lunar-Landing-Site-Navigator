@@ -1,0 +1,191 @@
+/* Console shell (locked S2-0 layout): 40 px top bar · rail | stage · deck. The page itself never scrolls;
+   the stage and the rail scroll on their own. */
+.app {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- top bar --------------------------------------------------------------------------- */
+.topbar {
+  flex: none;
+  min-height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--chrome);
+}
+.brand {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.topbar-spacer {
+  flex: 1;
+}
+.mission-clock {
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.data-chip {
+  min-width: 0;
+  max-width: 28rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rail-menu {
+  display: none;
+}
+
+/* View tabs (WAI-ARIA tabs pattern) as a pill group. */
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.tabs [role='tab'] {
+  border: 0;
+  border-radius: 5px;
+  padding: 0.3125rem 0.875rem;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.tabs [role='tab']:hover {
+  color: var(--text);
+}
+.tabs [role='tab'][aria-selected='true'] {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+/* --- console grid ---------------------------------------------------------------------- */
+.console {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'rail stage'
+    'deck deck';
+}
+.stage {
+  grid-area: stage;
+  min-width: 0;
+  overflow-y: auto;
+}
+.deck {
+  grid-area: deck;
+  border-top: 1px solid var(--border);
+  background: var(--chrome);
+  padding: var(--space-2) var(--space-3);
+}
+
+/* --- left rail ------------------------------------------------------------------------- */
+.rail {
+  grid-area: rail;
+  position: relative;
+  width: var(--rail-w);
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--chrome);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.rail[data-open='false'] {
+  width: var(--rail-collapsed-w);
+  overflow: hidden;
+}
+.rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) 0 var(--space-3);
+}
+.rail-toggle {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: var(--glass);
+}
+.rail[data-open='false'] .rail-head {
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  padding: var(--space-2) 0 0;
+  gap: var(--space-4);
+}
+.rail[data-open='false'] .rail-toggle svg {
+  transform: rotate(180deg);
+}
+/* Folded: the heading becomes the vertical "SCENARIO" label of the strip. */
+.rail[data-open='false'] h2 {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+.rail-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+.rail-body[hidden] {
+  display: none;
+}
+
+/* --- narrow: the rail becomes a drawer over the stage ---------------------------------- */
+@media (max-width: 768px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-1) var(--space-3);
+  }
+  .rail-menu {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+  }
+  .tabs {
+    order: 10;
+    flex-basis: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .console {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'stage'
+      'deck';
+  }
+  .rail {
+    grid-area: stage;
+    z-index: 20;
+    width: min(20rem, 88vw);
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.5);
+  }
+  .rail[data-open='false'] {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rail {
+    transition: width 150ms ease;
+  }
+}

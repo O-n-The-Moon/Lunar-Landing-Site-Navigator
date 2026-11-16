@@ -24,15 +24,15 @@
   gap: var(--space-2);
   padding: 4px 8px;
   border-radius: var(--radius-sm);
-  background: rgba(13, 17, 24, 0.72);
-  backdrop-filter: blur(8px);
+  background: var(--glass);
+  backdrop-filter: blur(var(--glass-blur));
   font-size: 0.8125rem;
 }
 .surface-line {
   padding: 3px 8px;
   border-radius: var(--radius-sm);
-  background: rgba(13, 17, 24, 0.72);
-  backdrop-filter: blur(8px);
+  background: var(--glass);
+  backdrop-filter: blur(var(--glass-blur));
   font-size: 0.6875rem;
   letter-spacing: 0.06em;
   border-left: 3px solid var(--text-faint);

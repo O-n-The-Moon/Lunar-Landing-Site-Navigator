@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { HOUR_MS, missionEndMs, slippedLandingMs, useScenario, useScenarioDispatch } from '../state'
 import { usePlayCursor, type PlayCursor } from '../timeline/playback'
 import { PauseIcon, PlayIcon } from '../ui/icons'
-import { formatClock, formatDayShort } from '../ui/names'
+import { formatClock, formatDayShort, formatElapsed } from '../ui/names'
 import { formatSlipH } from './slip-slider'
 import './time-bar.css'
 
@@ -14,12 +14,6 @@ const SPEEDS = [
   { label: '6 h/s', hPerS: 6 },
   { label: '1 d/s', hPerS: 24 },
 ] as const
-
-/** Mission elapsed time as `L+3d 04h`. */
-export function formatElapsed(ms: number): string {
-  const totalH = Math.max(0, Math.floor(ms / HOUR_MS))
-  return `L+${Math.floor(totalH / 24)}d ${String(totalH % 24).padStart(2, '0')}h`
-}
 
 export interface TimeBarController {
   play: PlayCursor

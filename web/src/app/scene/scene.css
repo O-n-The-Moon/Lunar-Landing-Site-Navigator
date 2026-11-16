@@ -1,19 +1,12 @@
 .terrain-view {
-  --sun: #f6b73c;
-  --earth: #4ea8ff;
-  --border-strong: #3a475a;
-  --radius-sm: 3px;
-  --radius-lg: 8px;
-}
-.terrain-view {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 .scene-stage {
   position: relative;
-  /* leave room for the time bar below, so stage + Play fit one screen on a laptop */
-  height: clamp(320px, calc(100vh - 440px), 760px);
+  /* Fill the console stage, leaving room for the note and the time bar below (they move to the deck in S2-2). */
+  height: max(320px, calc(100dvh - var(--topbar-h) - 10.5rem));
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -57,8 +50,8 @@
   align-items: flex-start;
 }
 .scene-hud .segmented {
-  background: rgba(13, 17, 24, 0.72);
-  backdrop-filter: blur(8px);
+  background: var(--glass);
+  backdrop-filter: blur(var(--glass-blur));
   flex-wrap: wrap;
 }
 .scene-legend {
@@ -67,8 +60,8 @@
   gap: 4px;
   padding: 6px 8px;
   border-radius: var(--radius-sm);
-  background: rgba(13, 17, 24, 0.72);
-  backdrop-filter: blur(8px);
+  background: var(--glass);
+  backdrop-filter: blur(var(--glass-blur));
   max-width: 22rem;
 }
 .scene-legend .legend-ramp {
@@ -85,17 +78,17 @@
 .scene-honesty {
   padding: 4px 8px;
   border-radius: var(--radius-sm);
-  background: rgba(13, 17, 24, 0.72);
-  backdrop-filter: blur(8px);
+  background: var(--glass);
+  backdrop-filter: blur(var(--glass-blur));
 }
 .scene-hud-bl > p[role='status'] {
   padding: 4px 8px;
   border-radius: var(--radius-sm);
-  background: rgba(13, 17, 24, 0.72);
+  background: var(--glass);
 }
 .scene-hud-tr button {
-  background: rgba(13, 17, 24, 0.72);
-  backdrop-filter: blur(8px);
+  background: var(--glass);
+  backdrop-filter: blur(var(--glass-blur));
 }
 .compass {
   width: 96px;
@@ -218,14 +211,6 @@
   padding: 0;
   color: var(--accent);
   text-decoration: underline;
-}
-.terrain-view .visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }
 .terrain-view .panel {
   background: var(--surface);

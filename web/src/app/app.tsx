@@ -1,6 +1,10 @@
-// App shell (SPEC-app → Layout): scenario sidebar + 3D Terrain / Surface / Compare / Opportunity Map / Validation tabs.
+// App shell (SPEC-app → Layout): top bar with the view tabs, collapsible scenario rail, stage, bottom deck.
+// Views: 3D Terrain / Surface / Compare / Opportunity Map / Validation (Compare and the map retire in S2-5).
 import { useId, useRef, useState, type KeyboardEvent } from 'react'
+import './ui/tokens.css'
 import './app.css'
+import './ui/hud.css'
+import './shell/shell.css'
 import { CompareView } from './compare/compare-view'
 import { CustomSite } from './controls/custom-site'
 import { DateControls } from './controls/date-controls'
@@ -13,6 +17,9 @@ import { GridScoresProvider } from './map/score-layer'
 import { PanoramaPanel } from './panorama/panorama-panel'
 import { TerrainView } from './scene/terrain-view'
 import { SurfaceView } from './surface/surface-view'
+import { Deck } from './shell/deck'
+import { LeftRail, RailMenuButton, useRail } from './shell/left-rail'
+import { MissionClock, TopBar } from './shell/top-bar'
 import { ScenarioProvider, createInitialState } from './state'
 import { TimelinePanel } from './timeline/timeline-panel'
 import { ScenarioResultsProvider } from './use-scenario-results'
@@ -33,32 +40,28 @@ export function App({ dataSources }: AppProps) {
 }
 
 function Shell() {
-  const { core, kind, fallbackReason } = useCoreDataState()
+  const { core } = useCoreDataState()
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>Lunar Landing Site Navigator</h1>
-        {kind === 'fixtures' && (
-          <p className="badge badge-warn" title={fallbackReason ?? undefined}>
-            Synthetic fixture data, not real lunar data
-            {fallbackReason && <span className="muted"> ({fallbackReason})</span>}
-          </p>
-        )}
-      </header>
       {core.status === 'ready' ? (
         <ScenarioRoot />
-      ) : core.status === 'error' ? (
-        <div className="app-message" role="alert">
-          <h2>Could not load mission data</h2>
-          <p className="num">{core.message}</p>
-          <button type="button" onClick={() => window.location.reload()}>
-            Reload
-          </button>
-        </div>
       ) : (
-        <p className="app-message" role="status">
-          Loading ephemeris, sites and validation…
-        </p>
+        <>
+          <TopBar />
+          {core.status === 'error' ? (
+            <div className="app-message" role="alert">
+              <h2>Could not load mission data</h2>
+              <p className="num">{core.message}</p>
+              <button type="button" onClick={() => window.location.reload()}>
+                Reload
+              </button>
+            </div>
+          ) : (
+            <p className="app-message" role="status">
+              Loading ephemeris, sites and validation…
+            </p>
+          )}
+        </>
       )}
     </div>
   )
@@ -94,6 +97,7 @@ function Workspace() {
   const [opened, setOpened] = useState<ReadonlySet<TabId>>(() => new Set(['terrain']))
   const tabRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({})
   const baseId = useId()
+  const rail = useRail()
 
   const select = (id: TabId, focus = false) => {
     setTab(id)
@@ -119,16 +123,8 @@ function Workspace() {
   })
 
   return (
-    <div className="layout">
-      <aside className="sidebar" aria-labelledby={`${baseId}-scenario`}>
-        <h2 id={`${baseId}-scenario`}>Scenario</h2>
-        <SitePicker />
-        <CustomSite />
-        <DateControls />
-        <SlipSlider />
-        <Options />
-      </aside>
-      <main className="main">
+    <>
+      <TopBar start={<RailMenuButton rail={rail} />} end={<MissionClock />}>
         <div role="tablist" aria-label="Views" className="tabs" onKeyDown={onKeyDown}>
           {TABS.map((t) => (
             <button
@@ -148,20 +144,32 @@ function Workspace() {
             </button>
           ))}
         </div>
-        <div {...panel('terrain')}>{opened.has('terrain') && <TerrainView active={tab === 'terrain'} />}</div>
-        <div {...panel('surface')}>{opened.has('surface') && <SurfaceView active={tab === 'surface'} />}</div>
-        <div {...panel('compare')}>
-          {opened.has('compare') && (
-            <>
-              <CompareView />
-              <TimelinePanel active={tab === 'compare'} />
-              <PanoramaPanel />
-            </>
-          )}
-        </div>
-        <div {...panel('map')}>{opened.has('map') && <MapView active={tab === 'map'} />}</div>
-        <div {...panel('validation')}>{opened.has('validation') && <ValidationPanel />}</div>
-      </main>
-    </div>
+      </TopBar>
+      <div className="console">
+        <LeftRail rail={rail}>
+          <SitePicker />
+          <CustomSite />
+          <DateControls />
+          <SlipSlider />
+          <Options />
+        </LeftRail>
+        <main className="stage">
+          <div {...panel('terrain')}>{opened.has('terrain') && <TerrainView active={tab === 'terrain'} />}</div>
+          <div {...panel('surface')}>{opened.has('surface') && <SurfaceView active={tab === 'surface'} />}</div>
+          <div {...panel('compare')}>
+            {opened.has('compare') && (
+              <>
+                <CompareView />
+                <TimelinePanel active={tab === 'compare'} />
+                <PanoramaPanel />
+              </>
+            )}
+          </div>
+          <div {...panel('map')}>{opened.has('map') && <MapView active={tab === 'map'} />}</div>
+          <div {...panel('validation')}>{opened.has('validation') && <ValidationPanel />}</div>
+        </main>
+        <Deck />
+      </div>
+    </>
   )
 }

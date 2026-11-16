@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fixtureSitesFile } from '../../engine/__fixtures__'
 import { HOUR_MS, ScenarioProvider, createInitialState, useScenario } from '../state'
-import { TimeBar, formatElapsed, useTimeBarController } from './time-bar'
+import { TimeBar, useTimeBarController } from './time-bar'
 
 const T0 = Date.UTC(2026, 2, 1)
 const initial = { ...createInitialState({ sites: fixtureSitesFile.sites, landingMs: T0 }), durationH: 24 * 4, slipH: 30 }
@@ -29,14 +29,6 @@ beforeEach(() => vi.useFakeTimers())
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
-})
-
-describe('formatElapsed', () => {
-  it('writes mission elapsed time as L+days and zero-padded hours', () => {
-    expect(formatElapsed(0)).toBe('L+0d 00h')
-    expect(formatElapsed(28 * HOUR_MS)).toBe('L+1d 04h')
-    expect(formatElapsed(-HOUR_MS)).toBe('L+0d 00h')
-  })
 })
 
 describe('TimeBar', () => {
