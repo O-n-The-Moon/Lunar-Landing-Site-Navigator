@@ -58,20 +58,20 @@ PGDA_EARTH_LBL = io.RAW_DIR / "pgda/AVGVISIB_75S_120M_201608_EARTH.LBL"
 # (|diff| > THRESHOLD_PP for Sun or Earth at 0 m). run() refuses to write an
 # outlier without one. Evidence (pixel range, 2/10 m results) is appended.
 EXPLANATIONS: dict[str, str] = {
+    # Prose avoids hard-coded numbers: the appended evidence is recomputed.
     "peak-near-cabeus-b": (
-        "Site on a 12.4° slope (80 m baseline). At surface level, terrain a few "
-        "DEM cells upslope sets the Earth-facing horizon (mean 9.9° at 0 m, 8.5° "
-        "at 2 m over Earth's azimuths), so the result depends on sub-pixel "
-        "position and on how an 80 m vs. 120 m grid resolves that slope. PGDA's "
-        "own value varies across the full range nearby, so this is likely "
-        "pixel-scale variability, not a horizon error we can identify."
+        "Site on the steep flank of a peak. At surface level, terrain a few DEM "
+        "cells upslope sets the Earth-facing horizon, so the result depends on "
+        "sub-pixel position and on how an 80 m vs. 120 m grid resolves that "
+        "slope. Our 0 m value sits at the bottom of PGDA's own range within "
+        "±2 px and our 2 m value is closer to PGDA, so 0 m fits worst here. "
+        "Likely pixel-scale variability; no horizon error identified."
     ),
     "malapert-massif": (
-        "Massif summit on a 5.9° slope (80 m baseline). The Sun result is very "
-        "sensitive to nearby terrain: it changes by 14 pp between 0 m and 2 m, "
-        "which only near-field terrain can cause. PGDA's own value varies "
-        "widely within ±2 px, so this is likely pixel-scale variability, not a "
-        "horizon error we can identify."
+        "Massif summit site. The Sun result changes strongly between 0 m and "
+        "2 m, which points to near-field terrain setting the horizon. PGDA's "
+        "own value varies widely within ±2 px. Likely pixel-scale variability; "
+        "no horizon error identified."
     ),
 }
 
@@ -119,7 +119,8 @@ def body_vectors_km(
             ],
             axis=1,
         )
-    positions_km = positions_km.reshape(len(samples_utc), len(BODIES), 3)
+    if positions_km.shape != (len(samples_utc), len(BODIES), 3):
+        raise ValueError("SPICE returned an unexpected ephemeris shape")
     if not np.all(np.isfinite(positions_km)):
         raise ValueError("SPICE returned nonfinite body positions")
     return positions_km
@@ -155,7 +156,11 @@ def visibility_pct(
 def pgda_pixel_pct(
     raster: Raster, x_km: float, y_km: float, radius_px: int = PIXEL_RANGE_PX
 ) -> tuple[float, float, float]:
-    """(bilinear %, min %, max %) at the site and over +/-radius_px pixels."""
+    """(bilinear %, min %, max %) at the site and over +/-radius_px pixels.
+
+    The range is the min/max of bilinear samples at whole-pixel offsets from
+    the site, so it can slightly understate the raw pixel extremes.
+    """
     offsets_km = np.arange(-radius_px, radius_px + 1) * raster.cell_km
     dx, dy = np.meshgrid(offsets_km, offsets_km)
     centre = float(raster.sample(x_km, y_km))
@@ -186,15 +191,22 @@ def _evidence(result: SiteResult, b: int, body: str) -> str:
     )
 
 
+def _diffs_pp(
+    result: SiteResult, height_m: int
+) -> tuple[list[float], list[float], list[float]]:
+    """(ours, PGDA, ours - PGDA) for (Sun, Earth), rounded as in validation.json."""
+    ours = [round(v, _PCT_DIGITS) for v in result.ours_pct_by_height[height_m]]
+    pgda = [round(p[0], _PCT_DIGITS) for p in (result.pgda_sun, result.pgda_earth)]
+    return ours, pgda, [round(o - p, _PCT_DIGITS) for o, p in zip(ours, pgda)]
+
+
 def to_row(result: SiteResult, explanations: Mapping[str, str]) -> dict[str, Any]:
     """One validation.json pgda row at PRIMARY_HEIGHT_M.
 
     Outliers (|diff| > THRESHOLD_PP) need a written explanation; the PGDA pixel
     range and the 2/10 m results for each outlying body are appended to it.
     """
-    ours = [round(v, _PCT_DIGITS) for v in result.ours_pct_by_height[PRIMARY_HEIGHT_M]]
-    pgda = [round(p[0], _PCT_DIGITS) for p in (result.pgda_sun, result.pgda_earth)]
-    diffs = [round(o - p, _PCT_DIGITS) for o, p in zip(ours, pgda)]
+    ours, pgda, diffs = _diffs_pp(result, PRIMARY_HEIGHT_M)
     outlying = [b for b, d in enumerate(diffs) if abs(d) > THRESHOLD_PP]
     explanation = None
     if outlying:
@@ -285,7 +297,7 @@ def report(results: Sequence[SiteResult]) -> str:
         + ", ".join(f"{h} m" for h in SENSITIVITY_HEIGHTS_M)
         + ".",
         "",
-        f"{'site':<22} {'body':<5} {'PGDA':>6} {'±2 px range':>13} "
+        f"{'site':<22} {'body':<5} {'PGDA':>6} {f'±{PIXEL_RANGE_PX} px range':>13} "
         + " ".join(f"{f'{h} m':>7} {'diff':>6}" for h in heights),
     ]
     for r in results:
@@ -303,15 +315,8 @@ def report(results: Sequence[SiteResult]) -> str:
             )
     lines.append("")
     for h in heights:
-        diffs = np.array(
-            [
-                [
-                    r.ours_pct_by_height[h][b] - (r.pgda_sun, r.pgda_earth)[b][0]
-                    for b in range(2)
-                ]
-                for r in results
-            ]
-        )
+        # Rounded like the JSON rows, so the 0 m line matches the summary.
+        diffs = np.array([_diffs_pp(r, h)[2] for r in results])
         within = int(np.sum(np.all(np.abs(diffs) <= THRESHOLD_PP, axis=1)))
         lines.append(
             f"{h:>3} m: {within}/{len(results)} sites within ±{THRESHOLD_PP:g} pp; "
@@ -319,6 +324,23 @@ def report(results: Sequence[SiteResult]) -> str:
             f"Earth {np.mean(np.abs(diffs[:, 1])):.2f} pp"
         )
     return "\n".join(lines)
+
+
+def _real_horizon(terrain: DemStack) -> HorizonFn:
+    # numba compiles on import; only load it for real runs.
+    from lunarnav.horizon import compute_horizon_deg
+
+    def horizon_deg(lat: float, lon: float, h: float) -> NDArray[np.float64]:
+        return compute_horizon_deg(terrain, lat, lon, h, SITE_AZ_BINS)
+
+    return horizon_deg
+
+
+def _real_surface(terrain: DemStack) -> SurfaceFn:
+    def surface_height_m(lat: float, lon: float) -> float:
+        return float(terrain.height_m(*lat_lon_to_xy_km(lat, lon)))
+
+    return surface_height_m
 
 
 def run(
@@ -332,19 +354,11 @@ def run(
 ) -> dict[str, Any]:
     """The pgda section of validation.json. Defaults load the real inputs."""
     if horizon_deg is None or surface_height_m is None:
-        # numba compiles on import; only load it for real runs.
-        from lunarnav.horizon import compute_horizon_deg
-
         terrain = DemStack()
-
-        def horizon_deg(lat: float, lon: float, h: float) -> NDArray[np.float64]:
-            return compute_horizon_deg(terrain, lat, lon, h, SITE_AZ_BINS)
-
-        def surface_height_m(lat: float, lon: float) -> float:
-            return float(terrain.height_m(*lat_lon_to_xy_km(lat, lon)))
-
-    if pgda_sun is None or pgda_earth is None:
-        pgda_sun, pgda_earth = PdsRaster(PGDA_SUN_LBL), PdsRaster(PGDA_EARTH_LBL)
+        horizon_deg = horizon_deg or _real_horizon(terrain)
+        surface_height_m = surface_height_m or _real_surface(terrain)
+    pgda_sun = pgda_sun or PdsRaster(PGDA_SUN_LBL)
+    pgda_earth = pgda_earth or PdsRaster(PGDA_EARTH_LBL)
     if sites is None:
         sites = yaml.safe_load(SITES_YAML.read_text(encoding="utf-8"))["sites"]
     if body_vecs_km is None:

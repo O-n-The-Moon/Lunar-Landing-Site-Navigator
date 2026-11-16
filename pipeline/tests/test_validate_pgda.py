@@ -27,12 +27,15 @@ def _body_vecs_km(az_deg, elev_deg, dist_km, height_m=0.0):
     return site_vector_km(LAT_DEG, LON_DEG, height_m) + dist_km * direction
 
 
-def _sun_earth(sun_elev_deg, earth_elev_deg, az_deg=None, height_m=0.0):
+def _sun_earth(
+    sun_elev_deg, earth_elev_deg, az_deg=None, height_m=0.0, earth_dist_km=None
+):
     n = len(sun_elev_deg)
+    earth_dist_km = EARTH_DIST_KM if earth_dist_km is None else earth_dist_km
     az_deg = np.zeros(n) if az_deg is None else np.asarray(az_deg, dtype=float)
     sun = _body_vecs_km(az_deg, np.asarray(sun_elev_deg, float), SUN_DIST_KM, height_m)
     earth = _body_vecs_km(
-        az_deg, np.asarray(earth_elev_deg, float), EARTH_DIST_KM, height_m
+        az_deg, np.asarray(earth_elev_deg, float), earth_dist_km, height_m
     )
     return np.stack([sun, earth], axis=1)
 
@@ -50,6 +53,16 @@ def test_sun_counts_when_any_part_of_nominal_disc_clears_horizon():
 def test_earth_uses_its_actual_angular_radius():
     # ~0.950 deg at 384,400 km: -0.94 is still visible, -0.96 is not.
     vecs = _sun_earth([10, 10, 10, 10], [-0.94, -0.96, 0.5, -3.0])
+    _, earth_pct = validate_pgda.visibility_pct(
+        np.zeros(AZ_BINS), vecs, LAT_DEG, LON_DEG
+    )
+    assert earth_pct == pytest.approx(50.0)
+
+
+def test_earth_radius_follows_distance():
+    # Near perigee (360,000 km) the radius is ~1.014 deg, so -0.98 is visible;
+    # a constant ~0.95 deg would hide it.
+    vecs = _sun_earth([10, 10], [-0.98, -1.03], earth_dist_km=360_000.0)
     _, earth_pct = validate_pgda.visibility_pct(
         np.zeros(AZ_BINS), vecs, LAT_DEG, LON_DEG
     )
@@ -116,6 +129,13 @@ def test_pgda_pixel_range_ignores_missing_neighbours():
 def test_pgda_pixel_without_coverage_at_site_raises():
     with pytest.raises(ValueError, match="PGDA"):
         validate_pgda.pgda_pixel_pct(LinearRaster(x_nan_km=-1.0), 0.0, 0.0)
+
+
+class ConstantRaster:
+    cell_km = 0.12
+
+    def sample(self, x_km, y_km):
+        return np.full(np.broadcast(x_km, y_km).shape, 0.5)
 
 
 # --- rows and summary (validation.json contract) ------------------------------
@@ -197,17 +217,38 @@ def test_criterion_2_needs_80_percent_of_sites_within():
     assert not validate_pgda.criterion_2_passes(rows_with(7, 2))
 
 
+def test_report_counts_per_height_on_rounded_diffs_and_both_bodies():
+    result = validate_pgda.SiteResult(
+        site_id="s",
+        # 0 m: Sun +5.004 rounds to 5.0 (within, like the JSON/panel).
+        # 2 m: Sun within, Earth +6 (out). 10 m: both out.
+        ours_pct_by_height={0: (55.004, 50.0), 2: (50.0, 56.0), 10: (60.0, 60.0)},
+        pgda_sun=(50.0, 45.0, 55.0),
+        pgda_earth=(50.0, 45.0, 55.0),
+    )
+    text = validate_pgda.report([result])
+    assert "  0 m: 1/1 sites within" in text
+    assert "  2 m: 0/1 sites within" in text
+    assert " 10 m: 0/1 sites within" in text
+
+
+def test_missing_terrain_at_site_raises():
+    site = {"id": "hole", "latDeg": LAT_DEG, "lonDeg": LON_DEG}
+    with pytest.raises(ValueError, match="hole"):
+        validate_pgda.compare_site(
+            site,
+            horizon_deg=lambda lat, lon, h: np.zeros(AZ_BINS),
+            surface_height_m=lambda lat, lon: float("nan"),
+            pgda_sun=ConstantRaster(),
+            pgda_earth=ConstantRaster(),
+            body_vecs_km=_sun_earth([1.0], [1.0]),
+        )
+
+
 # --- run() with injected inputs ------------------------------------------------
 
 
-class ConstantRaster:
-    cell_km = 0.12
-
-    def sample(self, x_km, y_km):
-        return np.full(np.broadcast(x_km, y_km).shape, 0.5)
-
-
-def test_run_compares_surface_level_and_reports_sensitivity(capsys):
+def test_run_compares_surface_level_and_reports_sensitivity(capsys, monkeypatch):
     sites = [{"id": "flat", "latDeg": LAT_DEG, "lonDeg": LON_DEG}]
     # Sun/Earth at elevation +1 deg half the time, -3 deg otherwise.
     vecs = _sun_earth([1.0, -3.0, 1.0, -3.0], [1.0, -3.0, 1.0, -3.0])
@@ -217,15 +258,25 @@ def test_run_compares_surface_level_and_reports_sensitivity(capsys):
         heights_seen.append(height_m)
         return np.zeros(AZ_BINS)
 
+    # Masks take height above the surface; az/el takes height above the sphere.
+    total_heights_seen = []
+    real_visibility_pct = validate_pgda.visibility_pct
+
+    def spy(mask, vecs, lat, lon, height_m=0.0):
+        total_heights_seen.append(height_m)
+        return real_visibility_pct(mask, vecs, lat, lon, height_m)
+
+    monkeypatch.setattr(validate_pgda, "visibility_pct", spy)
     result = validate_pgda.run(
         sites=sites,
         horizon_deg=horizon,
-        surface_height_m=lambda lat, lon: 0.0,
+        surface_height_m=lambda lat, lon: 3000.0,
         pgda_sun=ConstantRaster(),
         pgda_earth=ConstantRaster(),
         body_vecs_km=vecs,
     )
     assert sorted(heights_seen) == [0, 2, 10]
+    assert sorted(total_heights_seen) == [3000, 3002, 3010]
     assert result["rows"] == [
         {
             "siteId": "flat",
