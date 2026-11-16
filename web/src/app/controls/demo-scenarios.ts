@@ -89,6 +89,11 @@ export function scenarioAvailable(sc: DemoScenario, sites: readonly Site[]): boo
   return sc.siteIds.every((id) => sites.some((s) => s.id === id))
 }
 
+/** The preset the app opens on: the first one the catalog supports, so the first screen is a story, not an empty default. */
+export function startingScenario(sites: readonly Site[]): DemoScenario | null {
+  return DEMO_SCENARIOS.find((sc) => scenarioAvailable(sc, sites)) ?? null
+}
+
 /**
  * The full scenario state for a preset. The doc's numbers hold at the app defaults, so loading a preset also resets
  * the assumptions (observer height, Sun threshold, Earth margin) to them. The map layer is kept.

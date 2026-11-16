@@ -20,6 +20,7 @@ import { MissionDeck } from './shell/mission-deck'
 import { LeftRail, RailMenuButton, useRail } from './shell/left-rail'
 import { MissionClock, TopBar } from './shell/top-bar'
 import { ScenarioProvider, createInitialState } from './state'
+import { scenarioState, startingScenario } from './controls/demo-scenarios'
 import { TimeBarProvider } from './controls/time-bar'
 import { ScenarioResultsProvider, useScenarioResults } from './use-scenario-results'
 import { ValidationPanel } from './validation/validation-panel'
@@ -69,12 +70,17 @@ function Shell() {
 /** Creates the initial scenario once, from the loaded site catalog. */
 function ScenarioRoot() {
   const { sitesFile } = useCoreData()
-  const [initialState] = useState(() => createInitialState({ sites: sitesFile.sites }))
+  // Opens on the first demo scenario the catalog supports (none on fixture data: the default scenario then).
+  const [start] = useState(() => {
+    const base = createInitialState({ sites: sitesFile.sites })
+    const preset = startingScenario(sitesFile.sites)
+    return { state: preset ? scenarioState(preset, base) : base, presetId: preset?.id ?? null }
+  })
   return (
-    <ScenarioProvider initialState={initialState}>
+    <ScenarioProvider initialState={start.state}>
       <ScenarioResultsProvider>
         <GridScoresProvider>
-          <Workspace />
+          <Workspace presetId={start.presetId} />
         </GridScoresProvider>
       </ScenarioResultsProvider>
     </ScenarioProvider>
@@ -98,7 +104,7 @@ function ViewTimeBar({ active, children }: { active: boolean; children: ReactNod
   )
 }
 
-function Workspace() {
+function Workspace({ presetId }: { presetId: string | null }) {
   const [tab, setTab] = useState<TabId>('terrain')
   // Panels mount on first open (so the grid loads lazily) and then stay mounted.
   const [opened, setOpened] = useState<ReadonlySet<TabId>>(() => new Set(['terrain']))
@@ -163,7 +169,7 @@ function Workspace() {
           ))}
         </div>
       </TopBar>
-      <AppliedPresetProvider>
+      <AppliedPresetProvider initialId={presetId}>
         <ViewTimeBar active={tab !== 'verify'}>
           <div className="console">
             <LeftRail rail={rail}>

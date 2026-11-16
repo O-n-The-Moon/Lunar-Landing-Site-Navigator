@@ -12,9 +12,9 @@ interface Applied {
 }
 const AppliedContext = createContext<Applied | null>(null)
 
-/** Remembers which preset the user loaded last (the scenario itself doesn't, and shouldn't, know). */
-export function AppliedPresetProvider({ children }: { children: ReactNode }) {
-  const [id, setId] = useState<string | null>(null)
+/** Remembers which preset is loaded (the scenario itself doesn't, and shouldn't, know); `initialId`: the one the app opened on. */
+export function AppliedPresetProvider({ initialId = null, children }: { initialId?: string | null; children: ReactNode }) {
+  const [id, setId] = useState<string | null>(initialId)
   return createElement(AppliedContext.Provider, { value: { id, setId } }, children)
 }
 

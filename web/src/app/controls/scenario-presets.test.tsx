@@ -42,8 +42,15 @@ describe('demo scenario presets', () => {
     const group = screen.getByRole('group', { name: 'Demo scenarios' })
     expect(within(group).getAllByRole('button')).toHaveLength(DEMO_SCENARIOS.length)
     expect(railToggle()).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.queryByRole('button', { name: /^try/i })).not.toBeInTheDocument()
+    // The app opens on the first preset (its "Try" is already offered) with the rail open.
+    expect(within(group).getByRole('button', { name: /athena vs ridge/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Try +15 d' })).toBeEnabled()
+    expect(deckSites().getAllByRole('listitem')).toHaveLength(2)
 
+    await user.click(within(group).getByRole('button', { name: /haworth vs nobile/i }))
+    expect(within(group).getByRole('button', { name: /haworth vs nobile/i, hidden: true })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Try +15 d' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: /scenario panel/i }))
     await user.click(within(group).getByRole('button', { name: /athena vs ridge/i }))
     expect(railToggle()).toHaveAttribute('aria-expanded', 'false')
     expect(deckSites().getAllByRole('listitem').map((li) => li.textContent)).toEqual([
