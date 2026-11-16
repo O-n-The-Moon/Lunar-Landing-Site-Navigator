@@ -22,7 +22,7 @@ describe('App shell', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Compare' }))
     expect(screen.getByRole('heading', { name: /lunar landing site navigator/i })).toBeInTheDocument()
     expect(screen.getByText(/synthetic fixture data/i)).toBeInTheDocument()
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['3D Terrain', 'Compare', 'Opportunity Map', 'Validation'])
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['3D Terrain', 'Surface', 'Compare', 'Opportunity Map', 'Validation'])
     for (const name of ['Compare', 'Timeline', 'Horizon panorama']) {
       expect(screen.getByRole('region', { name })).toBeInTheDocument()
     }

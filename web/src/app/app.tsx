@@ -1,4 +1,4 @@
-// App shell (SPEC-app → Layout): scenario sidebar + 3D Terrain / Compare / Opportunity Map / Validation tabs.
+// App shell (SPEC-app → Layout): scenario sidebar + 3D Terrain / Surface / Compare / Opportunity Map / Validation tabs.
 import { useId, useRef, useState, type KeyboardEvent } from 'react'
 import './app.css'
 import { CompareView } from './compare/compare-view'
@@ -12,6 +12,7 @@ import { MapView } from './map/map-view'
 import { GridScoresProvider } from './map/score-layer'
 import { PanoramaPanel } from './panorama/panorama-panel'
 import { TerrainView } from './scene/terrain-view'
+import { SurfaceView } from './surface/surface-view'
 import { ScenarioProvider, createInitialState } from './state'
 import { TimelinePanel } from './timeline/timeline-panel'
 import { ScenarioResultsProvider } from './use-scenario-results'
@@ -80,6 +81,7 @@ function ScenarioRoot() {
 
 const TABS = [
   { id: 'terrain', label: '3D Terrain' },
+  { id: 'surface', label: 'Surface' },
   { id: 'compare', label: 'Compare' },
   { id: 'map', label: 'Opportunity Map' },
   { id: 'validation', label: 'Validation' },
@@ -147,6 +149,7 @@ function Workspace() {
           ))}
         </div>
         <div {...panel('terrain')}>{opened.has('terrain') && <TerrainView active={tab === 'terrain'} />}</div>
+        <div {...panel('surface')}>{opened.has('surface') && <SurfaceView active={tab === 'surface'} />}</div>
         <div {...panel('compare')}>
           {opened.has('compare') && (
             <>
