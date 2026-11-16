@@ -267,6 +267,11 @@
 
 /* --- narrow: Both, the sun event and the band move to Details (S2-3); letter, name, Sun and Earth stay ---- */
 @media (max-width: 640px) {
+  /* The stage is the hero: the deck never takes more than 40 % of the window, and scrolls inside that. */
+  .deck {
+    max-height: 40vh;
+    overflow-y: auto;
+  }
   .srow {
     grid-template-columns: minmax(0, 1fr) auto auto;
     gap: var(--space-2);

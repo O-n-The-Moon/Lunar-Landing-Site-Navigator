@@ -211,3 +211,11 @@ kbd {
   border-radius: 3px;
   color: var(--text-muted);
 }
+
+/* The real-data chip is attribution that the Verify view repeats; on a phone it would cost a whole top-bar row.
+   The fixture-data warning stays (it must never be hidden). */
+@media (max-width: 640px) {
+  .data-chip:not(.chip-warn) {
+    display: none;
+  }
+}

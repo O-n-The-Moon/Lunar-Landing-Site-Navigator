@@ -66,16 +66,22 @@ Reproduce: sites `de-gerlache-rim-2` + `malapert-massif`, duration 14 d, landing
 | slip +14 d | Nobile Rim 2 (Artemis III region) (`nobile-rim-2`) | 2028-11-05 | 0.0% | 25.9% | **0.0%** | no sunlight |
 <!-- demo:scenarios:end -->
 
-## The 3D beat (UI v2, hand-written; outside the generated block)
+## The 30-second demo (UI v2 console, hand-written; outside the generated block)
 
-Run after any scenario above. The default tab is **3D Terrain**.
+The app opens on the first scenario above ("Athena vs ridge", 20 Feb 2029) in the 3D Terrain view. Add `?nointro` to the URL to skip the fly-in when rehearsing.
 
-1. **See the terrain.** The south pole renders from the LOLA 80 m display DEM (×3 vertical, labelled "display only"). Shadows are the engine's own Sun/horizon state from the 2 km horizon grid. Beacons show each site's state in words (`SUN + EARTH`, `SUN ONLY`, `EARTH ONLY`, `NO SUN, NO EARTH`), computed from the site's own finer horizon.
-2. **Press Play** (6 h/s). Shadows sweep and beacons flip as the timeline's windows open and close; the timeline and panorama follow the same cursor.
-3. **Slip the landing** with the Days slider. The shadows and beacons update without a visible stall.
-4. **Switch to Surface.** The first-person skyline shows the Sun disk dropping behind the ridge in the same frame the timeline says blocked (`SUN BLOCKED · ridge at az …`).
-5. **Overlays.** PGDA Sun/Earth (NASA long-term averages) and Window Sun/Earth/Both (scored for the mission window from the 2 km grid, labelled grid-approximate) are draped on the terrain. The "2D map" toggle shows the same layers in 2D.
+| s | Screen | What to do and say |
+|---|---|---|
+| 0–4 | Intro fly-in | The Moon orbits down to the south pole while the boot log counts the real data (ephemeris epochs, sites, grid). "The Sun skims the horizon at the pole, so mountains cast shadows hundreds of kilometres long." Esc or Skip ends it early. |
+| 4–10 | 3D Terrain | Real shadows from the LOLA terrain and the SPICE ephemeris; beacons A and B say in words what each site has (`SUN + EARTH`, `EARTH ONLY`, …). The deck shows Athena at Sun 77 % / Earth 55 % / Both 51 %. |
+| 10–18 | Deck: **Try +15 d** | Shadows sweep. Athena drops to Sun 0 % (−77 points); the ridge site rises from 7 % to 62 % (+54). "Fifteen days of slip hands the lead to the ridge." |
+| 18–24 | **Surface**, Play | From the lander: the Sun slides along the skyline and the ridge blocks it (`SUN BLOCKED · ridge at az …`) in the same frame the timeline says blocked. |
+| 24–30 | **Verify** | "Checked against JPL Horizons: max error 0.000026° elevation; 10 of 12 sites within ±5 points of NASA's PGDA." Every number on this tab is read from `validation.json`. |
 
-Screenshots: [3D live shadows](img/ui-v2/terrain-1440-live-shadows.jpg), [3D PGDA Sun](img/ui-v2/terrain-1440-pgda-sun.jpg), [Surface](img/ui-v2/surface-1440.jpg), [2D map, Window Sun](img/ui-v2/map-1440-window-sun.jpg).
+Also worth showing if there is time: the PGDA and window-score overlays on 3D Terrain (the "2D map" button gives exact hover values), **Details** (full metric table and timeline), and `[` / `]` to fold the rail and hide the deck for a clean stage.
 
-Measured in Chrome on the dev server (Apple Silicon, 2 sites × 14 d): Play 60 fps (worst frame 17.7 ms); slip step with 3D visible, synchronous commit median 8.3 ms, max 12.3 ms; window scoring 0.4 s compute (0.8 s including the 300 ms debounce). Transfer sizes on the Vercel preview (brotli): `grid-horizons.bin` 11.9 MB → 4.75 MB, `terrain-display.bin` 2.1 MB → 1.78 MB, both streamed after first paint; first paint is about 1.5 MB (JS 86 kB, `ephemeris.bin` 1.40 MB).
+The intro is skipped by `?nointro`, Esc, the Skip button, reduced-motion settings, no WebGL and synthetic fixture data. It lasts 4.0 s and the console loads underneath it, so the horizon grid is already coming in.
+
+Screenshots: [3D live shadows](img/ui-v2/terrain-1440-live-shadows.jpg), [3D PGDA Sun](img/ui-v2/terrain-1440-pgda-sun.jpg), [Surface](img/ui-v2/surface-1440.jpg), [2D map, Window Sun](img/ui-v2/map-1440-window-sun.jpg) (from the earlier Slice 1 console).
+
+Measured in Chrome on the production build (Apple Silicon, 3 sites × 30 d, 3D Terrain + deck + slip outlook mounted, 39 slider steps): each step reaches the screen in a median 15 ms (p95 17 ms, max 18 ms; synchronous commit median 7.6 ms), no long tasks, so the 33 ms slip budget holds. Transfer sizes on the Vercel preview (brotli, Slice 1): `grid-horizons.bin` 11.9 MB → 4.75 MB, `terrain-display.bin` 2.1 MB → 1.78 MB, both streamed after first paint. The intro texture (`textures/moon-color-2k.jpg`, 447 kB) loads after first paint with the intro chunk; main JS is 89.7 kB gzip.
