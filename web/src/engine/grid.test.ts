@@ -173,8 +173,8 @@ describe('scoreGrid', () => {
     }
   })
 
-  it('without hysteresis, matches the fixture scores (plain thresholds per hourly sample)', () => {
-    const opts = { ...DEFAULT_VISIBILITY_OPTS, hysteresis: 0, earthHysteresisDeg: 0 }
+  it('at default options, matches the fixture scores (generate.mjs writes them with scoreGrid)', () => {
+    const opts = DEFAULT_VISIBILITY_OPTS
     const scores = scoreGrid(fixtureGrid, fixtureEphemeris, fixtureGridScores.startMs, fixtureGridScores.endMs, opts)
     for (const key of ['sunPct', 'earthPct', 'bothPct'] as const) {
       fixtureGridScores[key].forEach((want, i) => {
