@@ -9,7 +9,7 @@ export function CompareView() {
   const headingId = useId()
   return (
     <section aria-labelledby={headingId}>
-      <h3 id={headingId}>Compare</h3>
+      <h3 id={headingId}>Metrics</h3>
       <MetricCards results={results} />
     </section>
   )

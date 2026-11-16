@@ -138,7 +138,7 @@ describe('Surface tab', () => {
   it('stops rendering while another tab is showing', async () => {
     const { sceneEl } = await openSurface()
     expect(sceneEl).toHaveAttribute('data-active', 'true')
-    fireEvent.click(screen.getByRole('tab', { name: 'Compare' }))
+    fireEvent.click(screen.getByRole('tab', { name: '3D Terrain' }))
     await waitFor(() => expect(screen.getByTestId('surface-scene')).toHaveAttribute('data-active', 'false'))
   })
 

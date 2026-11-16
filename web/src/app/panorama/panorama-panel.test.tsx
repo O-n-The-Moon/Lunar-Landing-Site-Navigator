@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { fixtureSitesFile } from '../../engine/__fixtures__'
-import { renderAppOnCompare } from '../test-utils'
+import { App } from '../app'
+import { fixtureDataSource } from '../data'
 import { renderedRidgeYAt } from './test-helpers'
 
 afterEach(cleanup)
@@ -9,8 +10,14 @@ afterEach(cleanup)
 const plateau = fixtureSitesFile.sites.find((s) => s.id === 'fixture-plateau')
 if (!plateau) throw new Error('fixture-plateau missing')
 
+/**
+ * The panorama lives in the Surface view's 2D engineering view (jsdom has no WebGL, so Surface shows it directly); the
+ * shared timeline cursor it is checked against lives in the Details drawer, opened after the view is chosen (a view change closes it).
+ */
 async function renderApp() {
-  await renderAppOnCompare()
+  render(<App dataSources={{ source: fixtureDataSource() }} />)
+  fireEvent.click(await screen.findByRole('tab', { name: 'Surface' }))
+  fireEvent.click(within(screen.getByRole('region', { name: 'Mission deck' })).getByRole('button', { name: 'Details' }))
   return screen.findByRole('region', { name: 'Horizon panorama' })
 }
 

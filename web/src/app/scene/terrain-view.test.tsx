@@ -69,8 +69,8 @@ describe('3D Terrain tab', () => {
     expect(order(source.loadGridHeights)).toBeLessThan(order(source.loadDisplayTerrain))
     expect(order(source.loadDisplayTerrain)).toBeLessThan(order(source.loadGrid))
 
-    await user.click(screen.getByRole('tab', { name: 'Opportunity Map' })) // the map shares the loads
-    await within(screen.getByRole('tabpanel', { name: 'Opportunity Map' })).findByText(/horizon grid loaded/i)
+    await user.click(terrainPanel().getByRole('button', { name: '2D map' })) // the map shares the loads
+    await terrainPanel().findByText(/horizon grid loaded/i)
     expect(source.loadGrid).toHaveBeenCalledTimes(1)
     expect(source.loadGridHeights).toHaveBeenCalledTimes(1)
   })
@@ -169,7 +169,7 @@ describe('3D Terrain tab', () => {
   it('stops rendering while another tab is showing', async () => {
     const user = await renderTerrain()
     expect(scene().active).toBe(true)
-    await user.click(screen.getByRole('tab', { name: 'Compare' }))
+    await user.click(screen.getByRole('tab', { name: 'Surface' }))
     await waitFor(() => expect(scene().active).toBe(false))
   })
 
@@ -209,14 +209,14 @@ describe('window scores with several views mounted', () => {
     }
   }
 
-  it('runs one worker and one scoring job for the 3D overlay and the Map tab together, and drapes the cell values un-flipped', async () => {
+  it('runs one worker and one scoring job for the 3D overlay and the 2D map together, and drapes the cell values un-flipped', async () => {
     FakeWorker.instances = []
     vi.stubGlobal('Worker', FakeWorker)
     const user = await renderTerrain()
     await waitFor(() => expect(scene().shadow).not.toBeNull())
     await user.click(terrainPanel().getByRole('button', { name: 'Sun' })) // window overlay in 3D
-    await user.click(screen.getByRole('tab', { name: 'Opportunity Map' }))
-    await user.click(within(screen.getByRole('tabpanel', { name: 'Opportunity Map' })).getByRole('radio', { name: 'Window Sun' }))
+    await user.click(terrainPanel().getByRole('button', { name: '2D map' })) // the scene stays mounted, frozen
+    await user.click(terrainPanel().getByRole('radio', { name: 'Window Sun' }))
     await waitFor(() => expect(FakeWorker.instances.flatMap((w) => w.scoreRequests()).length).toBeGreaterThan(0), { timeout: 2000 })
     await new Promise((r) => setTimeout(r, 400)) // longer than the debounce: a second consumer would have sent its own job by now
     expect(FakeWorker.instances).toHaveLength(1)
@@ -228,7 +228,7 @@ describe('window scores with several views mounted', () => {
     sunPct[4 * 8 + 4] = 100
     const scores = { startMs: requests[0].startMs, endMs: requests[0].endMs, nx: 8, ny: 8, sunPct, earthPct: sunPct, bothPct: sunPct }
     act(() => FakeWorker.instances[0].onmessage?.({ data: { type: 'result', requestId: requests[0].requestId, scores, elapsedMs: 5 } } as MessageEvent<GridWorkerResponse>))
-    await user.click(screen.getByRole('tab', { name: '3D Terrain' }))
+    await user.click(terrainPanel().getByRole('button', { name: 'Back to 3D' }))
     await waitFor(() => expect(scene().overlay).not.toBeNull())
     const overlay = scene().overlay
     if (!overlay) throw new Error('expected an overlay')
