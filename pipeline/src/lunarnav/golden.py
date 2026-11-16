@@ -12,9 +12,11 @@ walk with the same hysteresis rules as the engine, which instead samples every
 tolerance is therefore a real check, not a restatement of the engine.
 """
 
+import hashlib
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -79,6 +81,33 @@ class Inputs:
     ephemeris: Ephemeris
     sites: dict[str, Any]
     ephemeris_manifest: dict[str, Any]
+
+
+def binary_sha256(path: Path) -> str:
+    """sha256 of the file's bytes (for binary contract files)."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def text_sha256(path: Path) -> str:
+    """sha256 of a text file with CRLF read as LF.
+
+    A Windows checkout with core.autocrlf has CRLF JSON while git and CI have LF,
+    so raw bytes would give a different digest per machine for the same content.
+    """
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
+def input_fingerprint() -> dict[str, str]:
+    """Digests of the contract files golden.json is generated from.
+
+    golden.test.ts recomputes these, so a stale golden.json fails with one clear
+    message instead of hundreds of parity mismatches (#89).
+    """
+    return {
+        "ephemerisBinSha256": binary_sha256(io.EPHEMERIS_BIN),
+        "ephemerisJsonSha256": text_sha256(io.EPHEMERIS_JSON),
+        "sitesJsonSha256": text_sha256(io.SITES_JSON),
+    }
 
 
 def load_inputs() -> Inputs:
@@ -342,6 +371,7 @@ def build_golden(inputs: Inputs) -> dict[str, Any]:
         "schemaVersion": SCHEMA_VERSION,
         "generatedBy": "lunarnav golden",
         "seed": SEED,
+        "inputs": input_fingerprint(),
         "opts": OPTS,
         "notes": {
             "cases": "tUtcMs -> az/el, horizon, Sun fraction; earthVisible = "

@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest'
+// @vitest-environment node
+// Node, not jsdom: crypto.subtle.digest rejects buffers from jsdom's realm. Engine code needs no DOM.
+import { beforeAll, describe, expect, it } from 'vitest'
 import golden from '../../../shared/fixtures/golden.json'
+import ephemerisBinUrl from '../../public/data/ephemeris.bin?inline'
+import ephemerisJsonText from '../../public/data/ephemeris.json?raw'
+import sitesJsonText from '../../public/data/sites.json?raw'
+import { dataUrlToArrayBuffer } from './__fixtures__/data-url'
 import { realSiteContext, realSitesFile } from './__fixtures__/real-data'
 import { detectWindows, sampleSite } from './windows'
 import type { SiteContext, VisibilityOpts } from './types'
@@ -10,21 +16,91 @@ const FRACTION_TOL = 1e-3
 
 type GoldenCase = (typeof golden.cases)[number]
 
+/** golden.json → inputs: digests of the contract files it was generated from (golden.py input_fingerprint). */
+type InputFingerprint = Record<string, string>
+
+const REGENERATE = 'cd pipeline && uv run lunarnav golden'
+
+async function sha256Hex(bytes: BufferSource): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))
+  return Array.from(digest, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** Text files are hashed with CRLF read as LF, like golden.py text_sha256 (Windows checkouts have CRLF). */
+const lfBytes = (text: string) => new TextEncoder().encode(text.replace(/\r\n/g, '\n'))
+
+async function actualFingerprint(): Promise<InputFingerprint> {
+  return {
+    ephemerisBinSha256: await sha256Hex(dataUrlToArrayBuffer(ephemerisBinUrl)),
+    ephemerisJsonSha256: await sha256Hex(lfBytes(ephemerisJsonText)),
+    sitesJsonSha256: await sha256Hex(lfBytes(sitesJsonText)),
+  }
+}
+
+/** Null when golden.json was generated from these files; otherwise why it is stale and how to fix it. */
+function staleGoldenMessage(recorded: InputFingerprint | undefined, actual: InputFingerprint): string | null {
+  if (!recorded) return `golden.json has no inputs fingerprint, so it predates #89. Regenerate it: ${REGENERATE}`
+  const keys = [...new Set([...Object.keys(recorded), ...Object.keys(actual)])].sort()
+  const differ = keys.filter((k) => recorded[k] !== actual[k])
+  if (differ.length === 0) return null
+  return (
+    `golden.json is stale: it was generated from different contract files (${differ.join(', ')} differ). ` +
+    `Engine parity results are meaningless until it is regenerated: ${REGENERATE}`
+  )
+}
+
+// Started once at import; the parity suites below wait for it in beforeAll.
+const staleness = actualFingerprint().then((actual) => staleGoldenMessage(golden.inputs, actual))
+
+describe('golden.json freshness (inputs fingerprint)', () => {
+  const fp = { ephemerisBinSha256: 'a', ephemerisJsonSha256: 'b', sitesJsonSha256: 'c' }
+
+  it('accepts a matching fingerprint', () => {
+    expect(staleGoldenMessage({ ...fp }, fp)).toBeNull()
+  })
+
+  it('names each differing file and the regenerate command', () => {
+    const msg = staleGoldenMessage({ ...fp, sitesJsonSha256: 'old' }, fp)
+    expect(msg).toContain('golden.json is stale')
+    expect(msg).toContain('sitesJsonSha256')
+    expect(msg).not.toContain('ephemerisBinSha256')
+    expect(msg).toContain(REGENERATE)
+  })
+
+  it('treats a missing or differently shaped fingerprint as stale', () => {
+    expect(staleGoldenMessage(undefined, fp)).toContain(REGENERATE)
+    expect(staleGoldenMessage({ ephemerisBinSha256: 'a' }, fp)).toContain('ephemerisJsonSha256, sitesJsonSha256')
+  })
+
+  it('hashes text with CRLF read as LF', async () => {
+    expect(await sha256Hex(lfBytes('{\r\n  "a": 1\r\n}\r\n'))).toBe(await sha256Hex(lfBytes('{\n  "a": 1\n}\n')))
+  })
+
+  it('matches the shipped web/public/data files', async () => {
+    expect(await staleness).toBeNull()
+  })
+})
+
 /** Signed azimuth difference in [−180, 180), so 359.9995° vs 0.0003° counts as −0.0008°. */
 function azDiffDeg(a: number, b: number): number {
   return ((a - b + 540) % 360) - 180
 }
 
 describe('engine golden parity (shared/fixtures/golden.json cases)', () => {
-  const { sunThreshold, hysteresis, earthMarginDeg, earthHysteresisDeg } = golden.opts
-  const opts: VisibilityOpts = { sunThreshold, hysteresis, earthMarginDeg, earthHysteresisDeg }
+  // Fail every case with the one clear cause instead of hundreds of numeric mismatches.
+  beforeAll(async () => {
+    const stale = await staleness
+    if (stale) throw new Error(stale)
+  })
+
+  const opts: VisibilityOpts = golden.opts
   const ctxCache = new Map<string, SiteContext>()
 
   function ctxFor(c: GoldenCase): SiteContext {
     const key = `${c.siteId}@${c.observerHeightM}`
     let ctx = ctxCache.get(key)
     if (!ctx) {
-      // Cases carry their own height (2 or 10 m); golden.opts.observerHeightM is only the scenario default.
+      // Cases carry their own height (2 or 10 m); it is not a visibility option.
       ctx = realSiteContext(c.siteId, c.observerHeightM)
       ctxCache.set(key, ctx)
     }
