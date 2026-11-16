@@ -8,9 +8,12 @@ import { ChevronIcon, MenuIcon } from '../ui/icons'
 export interface RailState {
   open: boolean
   toggle: () => void
-  /** Folds the rail (used once a scenario is set). */
+  /** Folds the rail (used once a scenario is set) and moves focus to its toggle, which stays visible. */
   close: () => void
   bodyId: string
+  /** DOM ids of the two buttons that open the rail (the strip's chevron, the top bar's menu). */
+  toggleId: string
+  menuId: string
 }
 
 /** True when a keystroke belongs to a text field or a native control, not to a shortcut. */
@@ -31,7 +34,16 @@ export function useRail(): RailState {
   const [open, setOpen] = useState(railStartsOpen)
   const bodyId = useId()
   const toggle = useCallback(() => setOpen((o) => !o), [])
-  const close = useCallback(() => setOpen(false), [])
+  const toggleId = useId()
+  const menuId = useId()
+  const close = useCallback(() => {
+    setOpen(false)
+    // The control that was just used is inside the body that is being hidden, so focus would fall to <body>. On
+    // narrow screens the whole rail is hidden and the top bar's menu button is the one still showing.
+    const toggle = document.getElementById(toggleId)
+    const menu = document.getElementById(menuId)
+    ;(toggle && toggle.offsetParent !== null ? toggle : (menu ?? toggle))?.focus()
+  }, [toggleId, menuId])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -43,7 +55,7 @@ export function useRail(): RailState {
     return () => window.removeEventListener('keydown', onKey)
   }, [toggle])
 
-  return { open, toggle, close, bodyId }
+  return { open, toggle, close, bodyId, toggleId, menuId }
 }
 
 export function LeftRail({ rail, children }: { rail: RailState; children: ReactNode }) {
@@ -53,6 +65,7 @@ export function LeftRail({ rail, children }: { rail: RailState; children: ReactN
       <div className="rail-head">
         <h2 id={headingId}>Scenario</h2>
         <button
+          id={rail.toggleId}
           type="button"
           className="rail-toggle"
           aria-expanded={rail.open}
@@ -75,7 +88,7 @@ export function LeftRail({ rail, children }: { rail: RailState; children: ReactN
 /** Top-bar button that opens the rail as a drawer on narrow screens (hidden by CSS on wide ones). */
 export function RailMenuButton({ rail }: { rail: RailState }) {
   return (
-    <button type="button" className="rail-menu" aria-expanded={rail.open} aria-controls={rail.bodyId} onClick={rail.toggle}>
+    <button id={rail.menuId} type="button" className="rail-menu" aria-expanded={rail.open} aria-controls={rail.bodyId} onClick={rail.toggle}>
       <MenuIcon size={16} />
       <span className="visually-hidden">Scenario menu</span>
     </button>

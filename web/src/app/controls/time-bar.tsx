@@ -18,6 +18,8 @@ export interface TimeBarController {
   play: PlayCursor
   /** Play can start: the owning views are showing and there is at least one site to look at. */
   canPlay: boolean
+  /** A view that shows the cursor is open. */
+  viewActive: boolean
   speedIndex: number
   setSpeedIndex: (i: number) => void
 }
@@ -32,7 +34,9 @@ const TimeBarContext = createContext<TimeBarController | null>(null)
 export function TimeBarProvider({ active, canPlay = true, children }: { active: boolean; canPlay?: boolean; children: ReactNode }) {
   const [speedIndex, setSpeedIndex] = useState(1)
   const play = usePlayCursor({ active, enabled: canPlay, speedHPerS: SPEEDS[speedIndex].hPerS })
-  return createElement(TimeBarContext.Provider, { value: { play, canPlay: canPlay && active, speedIndex, setSpeedIndex } }, children)
+  // Not memoized: `play` is a new object each render (usePlayCursor reads the cursor), so a memo would never hit.
+  const value = { play, canPlay: canPlay && active, viewActive: active, speedIndex, setSpeedIndex }
+  return createElement(TimeBarContext.Provider, { value }, children)
 }
 
 export function useTimeBar(): TimeBarController {
@@ -45,7 +49,7 @@ export function TimeBar() {
   const scenario = useScenario()
   const { cursorMs } = scenario
   const dispatch = useScenarioDispatch()
-  const { play, canPlay, speedIndex, setSpeedIndex } = useTimeBar()
+  const { play, canPlay, viewActive, speedIndex, setSpeedIndex } = useTimeBar()
   const startMs = slippedLandingMs(scenario)
   const endMs = missionEndMs(scenario)
 
@@ -57,7 +61,7 @@ export function TimeBar() {
         onClick={play.toggle}
         disabled={!canPlay}
         aria-pressed={play.playing}
-        title={canPlay ? undefined : 'Play runs in the 3D Terrain and Surface views (Compare has its own Play)'}
+        title={viewActive ? undefined : 'Play runs in the 3D Terrain and Surface views (Compare has its own Play)'}
       >
         {play.playing ? <PauseIcon size={12} /> : <PlayIcon size={12} />}
         {play.playing ? 'Pause' : 'Play'}

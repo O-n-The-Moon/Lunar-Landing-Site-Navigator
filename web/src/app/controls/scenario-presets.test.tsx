@@ -65,6 +65,19 @@ describe('demo scenario presets', () => {
     expect(screen.getByRole('button', { name: 'Try +15 d' })).toBeEnabled()
   })
 
+  it('keep keyboard focus on a visible control after the rail folds, and show the story on screen', async () => {
+    const user = userEvent.setup()
+    await renderApp(sourceWithDemoSites())
+    const button = screen.getByRole('button', { name: /athena vs ridge/i })
+    expect(button).toHaveAccessibleDescription(DEMO_SCENARIOS[0].story)
+    button.focus()
+    await user.keyboard('{Enter}')
+    expect(document.activeElement).not.toBe(document.body)
+    // The strip's chevron on wide screens, the top bar's menu button on narrow ones (jsdom can't tell which shows).
+    expect([railToggle(), screen.getByRole('button', { name: /scenario menu/i })]).toContain(document.activeElement)
+    expect(screen.getAllByText(DEMO_SCENARIOS[0].story).some((el) => !el.classList.contains('visually-hidden'))).toBe(true)
+  })
+
   it('stop being the active preset (no Try) once the user changes the mission', async () => {
     const user = userEvent.setup()
     await renderApp(sourceWithDemoSites())

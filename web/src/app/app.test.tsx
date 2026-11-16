@@ -51,6 +51,16 @@ describe('App shell', () => {
     expect(source.loadGrid).toHaveBeenCalledTimes(1)
   })
 
+  it('the deck’s Play is on for the 3D views and off on Compare, which has its own Play', async () => {
+    await renderApp()
+    fireEvent.change(screen.getByLabelText(/duration/i), { target: { value: '1' } }) // the fixture ephemeris is 48 h: sites need a mission inside it
+    expect(screen.getByRole('button', { name: 'Play' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('tab', { name: 'Compare' }))
+    expect(within(screen.getByRole('region', { name: 'Time' })).getByRole('button', { name: 'Play' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('tab', { name: 'Surface' }))
+    expect(within(screen.getByRole('region', { name: 'Time' })).getByRole('button', { name: 'Play' })).toBeEnabled()
+  })
+
   it('supports arrow-key tab navigation', async () => {
     await renderApp()
     const terrain = screen.getByRole('tab', { name: '3D Terrain' })

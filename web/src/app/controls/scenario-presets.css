@@ -46,3 +46,7 @@
   grid-area: title;
   font-size: 0.8125rem;
 }
+
+.preset-story {
+  margin-top: var(--space-2);
+}

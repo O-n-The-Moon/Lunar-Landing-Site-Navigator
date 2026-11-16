@@ -5,6 +5,7 @@ import { fixtureEphemeris, fixtureSitesFile } from '../../engine/__fixtures__'
 import { App } from '../app'
 import { fixtureDataSource } from '../data'
 import { DEFAULT_LANDING_MS, HOUR_MS } from '../state'
+import { OUTLOOK_DAY_MIN, bestSlipIndex } from './slip-outlook'
 
 afterEach(cleanup)
 
@@ -39,5 +40,41 @@ describe('slip outlook', () => {
     fireEvent.click(strip, { clientX: 31.5 })
     expect(screen.getByRole('slider', { name: /days/i })).toHaveValue('1')
     expect(screen.getByText('+1 d', { selector: '.slip-total' })).toBeInTheDocument()
+  })
+
+  it('maps the first and last columns to −30 d and +90 d', async () => {
+    const strips = await renderOutlook()
+    const strip = strips[0]
+    strip.getBoundingClientRect = () => ({ left: 0, width: 121, top: 0, height: 7, right: 121, bottom: 7, x: 0, y: 0, toJSON: () => ({}) })
+    const days = screen.getByRole('slider', { name: /slip \(days\)/i })
+    fireEvent.click(strip, { clientX: 120.9 })
+    expect(days).toHaveValue('90')
+    fireEvent.click(strip, { clientX: 0.1 })
+    expect(days).toHaveValue('-30')
+  })
+})
+
+describe('bestSlipIndex', () => {
+  const N = 121
+  const strip = (fill: number, set: Record<number, number> = {}) => Float32Array.from({ length: N }, (_, i) => set[i] ?? fill)
+  const at = (day: number) => day - OUTLOOK_DAY_MIN
+
+  it('picks the highest Both %', () => {
+    expect(bestSlipIndex(strip(10, { [at(15)]: 80 }))).toBe(at(15))
+  })
+
+  it('breaks ties toward the slip nearest 0', () => {
+    expect(bestSlipIndex(strip(0, { [at(-20)]: 50, [at(7)]: 50, [at(40)]: 50 }))).toBe(at(7))
+    expect(bestSlipIndex(strip(0, { [at(-3)]: 50, [at(3)]: 50 }))).toBe(at(-3)) // equally near: the earlier one
+  })
+
+  it('recommends nothing for a strip that is all zero, all equal, or not computed', () => {
+    expect(bestSlipIndex(strip(0))).toBeNull()
+    expect(bestSlipIndex(strip(100))).toBeNull()
+    expect(bestSlipIndex(strip(NaN))).toBeNull()
+  })
+
+  it('ignores slips that were not computed', () => {
+    expect(bestSlipIndex(strip(NaN, { [at(2)]: 30, [at(5)]: 60 }))).toBe(at(5))
   })
 })

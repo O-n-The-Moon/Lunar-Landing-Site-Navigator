@@ -6,12 +6,12 @@ import { useCoreData } from '../data'
 import { HOUR_MS, SLIP_RANGE_H, slippedLandingMs, useScenario, useScenarioDispatch } from '../state'
 import { missionInCoverage } from '../use-scenario-results'
 import { formatUtc } from './date-controls'
-import { SlipOutlook } from './slip-outlook'
+import { OUTLOOK_DAY_MAX, OUTLOOK_DAY_MIN, SlipOutlook } from './slip-outlook'
 
 const MINUS = '−'
 const FINE_H = 12
-const DAY_MIN = SLIP_RANGE_H.min / 24
-const DAY_MAX = SLIP_RANGE_H.max / 24
+const DAY_MIN = OUTLOOK_DAY_MIN
+const DAY_MAX = OUTLOOK_DAY_MAX
 
 /**
  * Splits a slip into whole days (what the day slider shows) and a fine part within ±12 h. A slip of d × 24 ± 12 h
@@ -80,13 +80,13 @@ export function SlipSlider({ tryDays }: { tryDays?: number }) {
       <div className="slip-days">
         <div className="slip-row">
           <label htmlFor={daysId} className="visually-hidden">
-            Days
+            Slip (days)
           </label>
           <span className="num slip-end" aria-hidden="true">
             {MINUS}30
           </span>
           <div className="slip-track">
-            <SlipOutlook currentDay={days} markDay={tryDays} />
+            <SlipOutlook currentDay={days} markDay={tryDays} landingMs={landingMs} durationH={durationH} />
             <input
               id={daysId}
               type="range"

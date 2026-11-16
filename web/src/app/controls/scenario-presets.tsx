@@ -1,6 +1,6 @@
 // Demo scenarios (docs/demo.md): one click loads a preset's sites and landing at slip 0, and the deck's "Try +N d"
 // button then applies the slip that tells its story. Hidden when the catalog lacks the sites (fixture data).
-import { createContext, createElement, useContext, useState, type ReactNode } from 'react'
+import { createContext, createElement, useContext, useId, useState, type ReactNode } from 'react'
 import { useCoreData } from '../data'
 import { useScenario, useScenarioDispatch } from '../state'
 import { DEMO_SCENARIOS, matchesScenario, scenarioAvailable, scenarioState, type DemoScenario } from './demo-scenarios'
@@ -41,6 +41,7 @@ export function ScenarioPresets({ onApplied }: { onApplied?: () => void }) {
   const dispatch = useScenarioDispatch()
   const { setId } = useApplied()
   const active = useActivePreset()
+  const baseId = useId()
   const available = DEMO_SCENARIOS.filter((sc) => scenarioAvailable(sc, sitesFile.sites))
   if (available.length === 0) return null
 
@@ -55,6 +56,7 @@ export function ScenarioPresets({ onApplied }: { onApplied?: () => void }) {
               className="preset"
               aria-pressed={active?.id === sc.id}
               title={sc.story}
+              aria-describedby={`${baseId}-${sc.id}`}
               onClick={() => {
                 dispatch({ type: 'replace', state: scenarioState(sc, scenario) })
                 setId(sc.id)
@@ -65,9 +67,14 @@ export function ScenarioPresets({ onApplied }: { onApplied?: () => void }) {
               <span className="preset-title">{sc.title}</span>
               <span className="preset-when">{sc.when}</span>
             </button>
+            <span id={`${baseId}-${sc.id}`} className="visually-hidden">
+              {sc.story}
+            </span>
           </li>
         ))}
       </ul>
+      {/* The story is on screen too (not only in a tooltip), for touch and keyboard users. */}
+      {active && <p className="hint preset-story">{active.story}</p>}
     </fieldset>
   )
 }
