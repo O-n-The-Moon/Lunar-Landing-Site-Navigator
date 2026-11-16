@@ -15,8 +15,10 @@ import {
   fetchDataSource,
   fixtureDataSource,
   useCoreDataState,
+  useDisplayTerrain,
   useGrid,
   usePgdaLayers,
+  useTerrainHeights,
   type DataSource,
 } from './data'
 
@@ -24,6 +26,17 @@ afterEach(cleanup)
 
 const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } })
 const bin = (b: ArrayBuffer) => new Response(b, { headers: { 'content-type': 'application/octet-stream' } })
+
+const displayManifest = {
+  schemaVersion: 1,
+  projection: 'polar-stereographic-south',
+  sphereRadiusKm: 1737.4,
+  originKm: [-8, -8],
+  cellKm: 1,
+  nx: 16,
+  ny: 16,
+  dtype: 'int16-le',
+}
 
 const files: Record<string, () => Response> = {
   'ephemeris.json': () => json(fixtureEphemerisManifest),
@@ -34,6 +47,8 @@ const files: Record<string, () => Response> = {
   'grid-horizons.bin': () => bin(fixtureGridHorizonsBin()),
   'grid-heights.bin': () => bin(fixtureGridHeightsBin()),
   'pgda-layers.json': () => json(fixturePgdaLayers),
+  'terrain-display.json': () => json(displayManifest),
+  'terrain-display.bin': () => bin(new Int16Array(displayManifest.nx * displayManifest.ny).fill(7).buffer),
 }
 
 /** Serves `files` under /data/; anything else gets index.html, like Vite's dev server. */
@@ -75,6 +90,35 @@ describe('fetchDataSource', () => {
     const grid = await fetchDataSource('/data/', fakeFetch()).loadGrid((p) => progress.push(p))
     expect(grid.manifest.nx).toBe(fixtureGridManifest.nx)
     expect(progress.at(-1)).toBe(1)
+  })
+
+  it('loads the 2 km heights alone, without the horizon grid', async () => {
+    const fetchFn = fakeFetch()
+    const field = await fetchDataSource('/data/', fetchFn).loadGridHeights()
+    expect(field.source).toBe('grid')
+    expect(field.frame.nx).toBe(fixtureGridManifest.nx)
+    expect(field.heightM).toHaveLength(fixtureGridManifest.nx * fixtureGridManifest.ny)
+    expect(fetchFn.mock.calls.map(([u]) => u)).not.toContain('/data/grid-horizons.bin')
+  })
+
+  it('rejects a grid-heights.bin of the wrong size', async () => {
+    const short = fakeFetch({ 'grid-heights.bin': () => bin(new ArrayBuffer(10)) })
+    await expect(fetchDataSource('/data/', short).loadGridHeights()).rejects.toThrow(/grid-heights\.bin: expected/)
+  })
+
+  it('loads the display terrain, and names the missing file when it is absent', async () => {
+    const field = await fetchDataSource('/data/', fakeFetch()).loadDisplayTerrain()
+    expect(field.source).toBe('display')
+    expect(field.frame.nx).toBe(16)
+    expect(field.heightM[0]).toBe(7)
+    const missing = fakeFetch({ 'terrain-display.json': () => new Response('<html>', { headers: { 'content-type': 'text/html' } }) })
+    await expect(fetchDataSource('/data/', missing).loadDisplayTerrain()).rejects.toThrow('terrain-display.json: not found')
+  })
+
+  it('the fixture source has the 2 km heights but no display terrain', async () => {
+    const fixtures = fixtureDataSource()
+    expect((await fixtures.loadGridHeights()).source).toBe('grid')
+    await expect(fixtures.loadDisplayTerrain()).rejects.toThrow(/not available in fixtures/)
   })
 
   it('resolves PGDA layer URLs against the base URL', async () => {
@@ -190,5 +234,70 @@ describe('DataProvider', () => {
       </DataProvider>,
     )
     expect(await screen.findByText('grid ready')).toBeInTheDocument()
+  })
+})
+
+describe('terrain hooks', () => {
+  function Heights() {
+    const { state, retry } = useTerrainHeights()
+    return (
+      <p>
+        heights {state.status}
+        {state.status === 'error' && <button onClick={retry}>retry heights</button>}
+      </p>
+    )
+  }
+  function Display({ enabled }: { enabled: boolean }) {
+    return <p>display {useDisplayTerrain(enabled).status}</p>
+  }
+
+  it('loads the 2 km heights once however many components ask, with the grid untouched', async () => {
+    const fixtures = fixtureDataSource()
+    const source: DataSource = {
+      ...fixtures,
+      loadGrid: vi.fn(fixtures.loadGrid),
+      loadGridHeights: vi.fn(fixtures.loadGridHeights),
+    }
+    render(
+      <DataProvider source={source}>
+        <Heights />
+        <Heights />
+      </DataProvider>,
+    )
+    expect((await screen.findAllByText('heights ready')).length).toBe(2)
+    expect(source.loadGridHeights).toHaveBeenCalledTimes(1)
+    expect(source.loadGrid).not.toHaveBeenCalled()
+  })
+
+  it('can retry the 2 km heights after an error', async () => {
+    const fixtures = fixtureDataSource()
+    const loadGridHeights = vi.fn(fixtures.loadGridHeights).mockRejectedValueOnce(new Error('boom'))
+    render(
+      <DataProvider source={{ ...fixtures, loadGridHeights }}>
+        <Heights />
+      </DataProvider>,
+    )
+    fireEvent.click(await screen.findByText('retry heights'))
+    expect(await screen.findByText('heights ready')).toBeInTheDocument()
+    expect(loadGridHeights).toHaveBeenCalledTimes(2)
+  })
+
+  it('loads the display terrain only once enabled, and reports its absence as an error state', async () => {
+    const fixtures = fixtureDataSource()
+    const source: DataSource = { ...fixtures, loadDisplayTerrain: vi.fn(fixtures.loadDisplayTerrain) }
+    const { rerender } = render(
+      <DataProvider source={source}>
+        <Display enabled={false} />
+      </DataProvider>,
+    )
+    await waitFor(() => expect(screen.getByText('display idle')).toBeInTheDocument())
+    expect(source.loadDisplayTerrain).not.toHaveBeenCalled()
+    rerender(
+      <DataProvider source={source}>
+        <Display enabled />
+      </DataProvider>,
+    )
+    expect(await screen.findByText('display error')).toBeInTheDocument()
+    expect(source.loadDisplayTerrain).toHaveBeenCalledTimes(1)
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { NO_DATA, colorizeRaster, grayFromRgba, rampCssGradient, rampRgb, rasterValueAt } from './pgda-raster'
+import { NO_DATA, colorizeRaster, grayFromRgba, pgdaToGridOrder, rampCssGradient, rampRgb, rasterValueAt } from './pgda-raster'
 
 // 4 × 4 raster, 2 km cells, origin (−4, −4): x, y ∈ [−4, 4). Pixel (column ix, row ny − 1 − iy): the top PNG row is the highest y.
 const geom = { originKm: [-4, -4] as const, cellKm: 2, nx: 4, ny: 4 }
@@ -79,5 +79,42 @@ describe('grayFromRgba', () => {
   it('takes the red channel of each RGBA pixel (the PNGs are 8-bit grayscale, so R = G = B = value)', () => {
     const rgba = Uint8ClampedArray.from([10, 10, 10, 255, 255, 255, 255, 255, 0, 0, 0, 255])
     expect(Array.from(grayFromRgba(rgba))).toEqual([10, 255, 0])
+  })
+})
+
+describe('pgdaToGridOrder', () => {
+  it('flips the PNG rows into grid order (iy = 0 is the lowest y) and turns 255 into NaN', () => {
+    const grid = pgdaToGridOrder(values, geom.nx, geom.ny)
+    expect(grid).toBeInstanceOf(Float32Array)
+    expect(grid).toHaveLength(16)
+    // Grid row 0 is the bottom PNG row.
+    expect(Array.from(grid.slice(0, 4))).toEqual([40, 41, 42, 43])
+    expect(Array.from(grid.slice(12, 16))).toEqual([10, 11, 12, 13])
+    expect(grid[1 * 4 + 3]).toBeNaN() // the PNG's NO_DATA cell
+  })
+
+  it('agrees with rasterValueAt for every cell (so a 3D overlay is not flipped north–south)', () => {
+    const grid = pgdaToGridOrder(values, geom.nx, geom.ny)
+    for (let iy = 0; iy < geom.ny; iy++) {
+      for (let ix = 0; ix < geom.nx; ix++) {
+        const xKm = geom.originKm[0] + (ix + 0.5) * geom.cellKm
+        const yKm = geom.originKm[1] + (iy + 0.5) * geom.cellKm
+        const expected = rasterValueAt(values, geom, xKm, yKm)
+        const got = grid[iy * geom.nx + ix]
+        if (expected === null) expect(got).toBeNaN()
+        else expect(got).toBe(expected)
+      }
+    }
+  })
+
+  it('treats values above 100 as no data, like the 2D map', () => {
+    const grid = pgdaToGridOrder(Uint8Array.from([101, 200, 50, 0]), 2, 2)
+    expect(Array.from(grid.slice(0, 2))).toEqual([50, 0])
+    expect(grid[2]).toBeNaN()
+    expect(grid[3]).toBeNaN()
+  })
+
+  it('rejects an array that is not nx × ny', () => {
+    expect(() => pgdaToGridOrder(new Uint8Array(5), 2, 2)).toThrow(RangeError)
   })
 })
