@@ -68,7 +68,7 @@ export function eventTexts(windows: DetectedWindows, cursorMs: number): { sunTex
 }
 
 /** "3.5°", or "+3.5°" / "−1.0°" when `signed` (U+2212 minus, like the metric cards). */
-function formatDeg(deg: number, signed: boolean): string {
+export function formatDeg(deg: number, signed: boolean): string {
   const r = Math.round(deg * 10) / 10
   const body = `${Math.abs(r).toFixed(1)}°`
   if (r < 0) return `−${body}`

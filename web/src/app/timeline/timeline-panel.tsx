@@ -5,7 +5,8 @@ import { useMemo } from 'react'
 import type { DetectedWindows } from '../../engine'
 import { useScenario, useScenarioDispatch } from '../state'
 import { useScenarioResults } from '../use-scenario-results'
-import { cursorReadout, type CursorReadout } from './cursor-readout'
+import { formatUtc } from '../controls/date-controls'
+import { cursorReadout } from './cursor-readout'
 import { shiftWindows } from './ghost'
 import { TimelineCursor } from './timeline-cursor'
 import { TimelineStrip, eventTexts } from './timeline-strip'
@@ -13,24 +14,12 @@ import './timeline.css'
 
 const H_MS = 3_600_000
 
-const formatUtc = (ms: number) => `${new Date(ms).toISOString().slice(0, 16).replace('T', ' ')} UTC`
-
-/** "T+6 h" / "T+1 d 6 h": time since the (slipped) landing. */
+/** "T+6 h 20 m" / "T+1 d 6 h 0 m": time since the (slipped) landing, to the minute. */
 function formatElapsed(ms: number): string {
-  const totalH = Math.round(ms / H_MS)
-  const d = Math.floor(totalH / 24)
-  const h = totalH % 24
-  return d > 0 ? `T+${d} d ${h} h` : `T+${h} h`
-}
-
-/** The engine throws RangeError for a cursor outside the ephemeris; the strip then just omits the readout. */
-function readoutOrNull(compute: () => CursorReadout): CursorReadout | null {
-  try {
-    return compute()
-  } catch (e) {
-    if (!(e instanceof RangeError)) throw e
-    return null
-  }
+  const totalMin = Math.floor(ms / 60_000)
+  const d = Math.floor(totalMin / 1440)
+  const h = Math.floor((totalMin % 1440) / 60)
+  return `T+${d > 0 ? `${d} d ` : ''}${h} h ${totalMin % 60} m`
 }
 
 export function TimelinePanel() {
@@ -51,7 +40,9 @@ export function TimelinePanel() {
   const strips = results.sites.map((r, i) => ({
     r,
     ghost: ghosts[i],
-    readout: readoutOrNull(() => cursorReadout(r.ctx, cursorMs)),
+    // Inside the ephemeris by construction: the reducer keeps the cursor in the mission, which `useScenarioResults` only
+    // evaluates inside coverage. A RangeError here would be a real data bug, so let it surface.
+    readout: cursorReadout(r.ctx, cursorMs),
   }))
   const valueText = [
     `${formatUtc(cursorMs)}, ${formatElapsed(cursorMs - range.startMs)} into the mission`,
@@ -83,7 +74,7 @@ export function TimelinePanel() {
               ghost={ghost}
               range={range}
               cursorMs={cursorMs}
-              readout={readout ?? undefined}
+              readout={readout}
             />
           ))}
         </div>

@@ -6,9 +6,7 @@ import { fixtureDataSource } from '../data'
 import { createInitialState, scenarioReducer, type ScenarioAction } from '../state'
 import { computeScenarioResults } from '../use-scenario-results'
 import { cursorReadout } from './cursor-readout'
-import { shiftWindows } from './ghost'
-import { timeScale } from './scales'
-import { STRIP_VIEW_W, eventTexts } from './timeline-strip'
+import { STRIP_VIEW_W, eventTexts, formatDeg } from './timeline-strip'
 
 afterEach(cleanup)
 
@@ -70,9 +68,10 @@ describe('TimelinePanel', () => {
     const strips = within(panel).getAllByRole('figure')
     results.sites.forEach((site, i) => {
       const r = cursorReadout(site.ctx, cursorMs)
-      const text = strips[i].textContent ?? ''
-      expect(text).toContain(`Sun elev ${r.sunElevDeg.toFixed(1)}°`)
-      expect(text).toMatch(/clearance [+−]\d+\.\d°/)
+      // Distinct numbers per site, so wiring the wrong value (e.g. elevation twice) fails.
+      expect(strips[i]).toHaveTextContent(`Sun elev ${formatDeg(r.sunElevDeg, false)}`)
+      expect(strips[i]).toHaveTextContent(`clearance ${formatDeg(r.sunClearanceDeg, true)}`)
+      expect(r.sunClearanceDeg).not.toBeCloseTo(r.sunElevDeg, 1)
     })
   })
 
@@ -88,16 +87,16 @@ describe('TimelinePanel', () => {
     const { state, results } = expected(12)
     expect(within(panel).getByText(/unslipped baseline/i)).toBeInTheDocument()
 
-    const range = { startMs: results.slippedLandingMs, endMs: results.slippedLandingMs + 24 * H_MS }
-    const scale = timeScale(range, { x0: 0, x1: STRIP_VIEW_W })
     const strips = within(panel).getAllByRole('figure')
     expect(strips).toHaveLength(results.sites.length)
     results.sites.forEach((site, i) => {
-      const shifted = shiftWindows(site.baseline.windows, results.slippedLandingMs - state.landingMs)
       for (const band of ['sun', 'earth', 'both'] as const) {
-        const want = shifted[band]
-          .filter((w) => w.endMs > range.startMs && w.startMs < range.endMs)
-          .map((w) => ({ x: scale.x(Math.max(w.startMs, range.startMs)), x1: scale.x(Math.min(w.endMs, range.endMs)) }))
+        // Independent of shiftWindows/timeScale: x is the baseline edge's time since the BASELINE landing, as a
+        // fraction of the mission, so this also pins the slip direction.
+        const frac = (ms: number) => ((ms - state.landingMs) / (24 * H_MS)) * STRIP_VIEW_W
+        const want = site.baseline.windows[band]
+          .filter((w) => frac(w.endMs) > 0 && frac(w.startMs) < STRIP_VIEW_W)
+          .map((w) => ({ x: Math.max(0, frac(w.startMs)), x1: Math.min(STRIP_VIEW_W, frac(w.endMs)) }))
         const got = rects(strips[i], 'data-ghost', band)
         expect(got).toHaveLength(want.length)
         got.forEach((g, k) => {
@@ -125,6 +124,23 @@ describe('TimelinePanel', () => {
     fireEvent.change(fine, { target: { value: '12' } })
     const { results } = expected(12)
     expect(Number(within(panel).getByRole('slider').getAttribute('aria-valuenow'))).toBe(results.slippedLandingMs + H_MS)
+  })
+
+  it('keeps working with the cursor at the very end of the mission (the ephemeris edge case)', async () => {
+    const { panel, fine } = await renderPanel()
+    fireEvent.change(fine, { target: { value: '12' } }) // slipped mission ends at the fixture ephemeris end
+    fireEvent.keyDown(within(panel).getByRole('slider'), { key: 'End' })
+    const { results } = expected(12)
+    expect(Number(within(panel).getByRole('slider').getAttribute('aria-valuenow'))).toBe(results.slippedLandingMs + 24 * H_MS)
+    expect(within(panel).getAllByRole('figure')[0]).toHaveTextContent(/Sun elev/)
+  })
+
+  it('shows no cursor, only the hint, when there are no sites', async () => {
+    const { panel } = await renderPanel()
+    for (const b of screen.getAllByRole('button', { name: /^remove /i })) fireEvent.click(b)
+    expect(within(panel).queryByRole('slider')).toBeNull()
+    expect(within(panel).queryByRole('figure')).toBeNull()
+    expect(within(panel).getByText(/add a site/i)).toBeInTheDocument()
   })
 
   it('says what the cursor reads for screen readers, for every site', async () => {
