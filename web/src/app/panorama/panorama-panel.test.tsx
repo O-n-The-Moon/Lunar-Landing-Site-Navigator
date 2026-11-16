@@ -37,14 +37,16 @@ describe('PanoramaPanel', () => {
     fireEvent.change(screen.getByLabelText(/duration/i), { target: { value: '1' } })
     // The focused site is the first scenario site.
     expect(within(panel).getByText(plateau.name)).toBeTruthy()
-    const slider = within(screen.getByRole('region', { name: 'Timeline' })).getAllByRole('slider')[0]
-    expect(slider.getAttribute('aria-label')).toMatch(plateau.name)
+    const timeline = screen.getByRole('region', { name: 'Timeline' })
+    // The one shared cursor; the focused site's own strip says what the timeline shows for it.
+    const slider = within(timeline).getByRole('slider')
+    const strip = within(timeline).getByRole('figure', { name: `${plateau.name} timeline` })
 
     // Step the shared cursor hour by hour through the mission.
     let blockedHiddenSteps = 0
     for (let k = 0; k <= 24; k++) {
       if (k > 0) fireEvent.keyDown(slider, { key: 'ArrowRight' })
-      const tl = slider.getAttribute('aria-valuetext') ?? ''
+      const tl = strip.textContent ?? ''
       const sunUp = /Sunset in|No sunset in mission/.test(tl)
       const earthUp = /Earthset in|No Earthset in mission/.test(tl)
       // Lit / in view always matches the timeline.
