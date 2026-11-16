@@ -2,6 +2,11 @@
   "schemaVersion": 1,
   "generatedBy": "lunarnav golden",
   "seed": 20260101,
+  "inputs": {
+    "ephemerisBinSha256": "1204f9f9ce58d7dbd7716429f6a37352cc9327bb0279bac4a2394f30c08f1420",
+    "ephemerisJsonSha256": "3d95cd17d637f9e6affe57a1aa2064e503d58bd1dabb330b11c985bb6576baae",
+    "sitesJsonSha256": "55feaba8a544e723ec07ad79ef6f3c3edd5fa1afba3342c444b8c16dde1535e8"
+  },
   "opts": {
     "sunThreshold": 0.5,
     "hysteresis": 0.05,

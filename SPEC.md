@@ -106,6 +106,7 @@ These fields are optional for readers: a file without them renders its numbers w
 
 ### `fixtures/golden.json` (test-only, in `shared/fixtures/`)
 Python-generated input→output vectors (az/el, visible fraction, metrics) that the TS engine must reproduce.
+`inputs` fingerprints the contract files it was generated from: `{ "ephemerisBinSha256", "ephemerisJsonSha256", "sitesJsonSha256" }`, lowercase hex SHA-256. The `.bin` is hashed as raw bytes; the JSON files (UTF-8) are hashed with CRLF normalized to LF, so Windows (`core.autocrlf`) and CI checkouts agree. `golden.test.ts` checks it first: on a mismatch it fails with "golden.json is stale … `uv run lunarnav golden`" instead of reporting parity errors.
 
 ## Commands
 

@@ -1,5 +1,6 @@
 """Golden vector generator: independent checks of the reference, no SPICE needed."""
 
+import hashlib
 import itertools
 import json
 
@@ -303,3 +304,37 @@ def test_main_writes_byte_identical_file(tmp_path, monkeypatch):
     golden.main()
     assert target.read_bytes() == first
     assert json.loads(first)["schemaVersion"] == 1
+
+
+# --- input fingerprint (#89) ---------------------------------------------------
+
+
+def test_text_digest_ignores_crlf_line_endings(tmp_path):
+    # A Windows checkout (core.autocrlf) has CRLF JSON; git and CI have LF.
+    lf, crlf = tmp_path / "lf.json", tmp_path / "crlf.json"
+    lf.write_bytes(b'{\n  "a": 1\n}\n')
+    crlf.write_bytes(b'{\r\n  "a": 1\r\n}\r\n')
+    assert golden.text_sha256(lf) == golden.text_sha256(crlf)
+    # sha256 of the LF bytes, so other languages can reproduce it.
+    assert golden.text_sha256(lf) == hashlib.sha256(lf.read_bytes()).hexdigest()
+
+
+def test_text_digest_changes_with_content(tmp_path):
+    a, b = tmp_path / "a.json", tmp_path / "b.json"
+    a.write_bytes(b'{"a": 1}\n')
+    b.write_bytes(b'{"a": 2}\n')
+    assert golden.text_sha256(a) != golden.text_sha256(b)
+
+
+def test_binary_digest_is_raw_bytes(tmp_path):
+    p = tmp_path / "x.bin"
+    p.write_bytes(b"\r\n\x00\x01")  # never normalized: CR LF inside floats is data
+    assert golden.binary_sha256(p) == hashlib.sha256(p.read_bytes()).hexdigest()
+
+
+def test_golden_records_the_fingerprint_of_its_inputs(built):
+    assert built["inputs"] == {
+        "ephemerisBinSha256": golden.binary_sha256(io.EPHEMERIS_BIN),
+        "ephemerisJsonSha256": golden.text_sha256(io.EPHEMERIS_JSON),
+        "sitesJsonSha256": golden.text_sha256(io.SITES_JSON),
+    }
