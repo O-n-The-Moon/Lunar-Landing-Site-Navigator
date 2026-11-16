@@ -258,3 +258,90 @@ select:disabled {
 .placeholder p {
   margin: 0;
 }
+
+/* --- opportunity map (v0) ------------------------------------------------------------- */
+.map-view {
+  display: grid;
+  gap: var(--space-2);
+}
+.opportunity-map {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 44rem;
+}
+.map-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.map-layers {
+  display: flex;
+  gap: var(--space-3);
+}
+.map-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-muted);
+  font-family: var(--font-num);
+  font-size: 0.8rem;
+}
+.map-legend-bar {
+  width: 8rem;
+  height: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.map-plot {
+  position: relative;
+  aspect-ratio: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.map-raster,
+.map-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.map-overlay {
+  cursor: crosshair;
+}
+.map-grid line,
+.map-grid circle {
+  stroke: var(--text-muted);
+  stroke-opacity: 0.6;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.map-labels {
+  fill: var(--text-muted);
+  pointer-events: none;
+}
+.map-markers text {
+  fill: var(--text);
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 3px;
+  pointer-events: none;
+}
+.marker {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.5;
+}
+.marker-selected {
+  fill: var(--accent);
+  stroke: var(--bg);
+  stroke-width: 2;
+}
+.map-readout {
+  margin: 0;
+  min-height: 1.5em;
+  font-family: var(--font-num);
+}
