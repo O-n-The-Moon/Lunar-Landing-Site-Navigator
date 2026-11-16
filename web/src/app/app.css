@@ -345,3 +345,7 @@ select:disabled {
   min-height: 1.5em;
   font-family: var(--font-num);
 }
+/* One raster cell = one 2 km PGDA area average: show cells as cells, not a smoothed field. */
+.map-raster {
+  image-rendering: pixelated;
+}

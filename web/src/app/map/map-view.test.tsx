@@ -77,4 +77,13 @@ describe('MapView', () => {
     expect(await screen.findByText(/already has 3 sites/)).toBeInTheDocument()
     expect(siteNames()).toHaveLength(3)
   })
+
+  it('keeps the chosen layer in the scenario, so it survives switching tabs', async () => {
+    const { user } = await openMap()
+    await user.click(within(screen.getByRole('radiogroup', { name: /layer/i })).getByRole('radio', { name: /earth/i }))
+    await user.click(screen.getByRole('tab', { name: /compare/i }))
+    await user.click(screen.getByRole('tab', { name: /opportunity map/i }))
+    const group = await screen.findByRole('radiogroup', { name: /layer/i })
+    expect(within(group).getByRole('radio', { name: /earth/i })).toBeChecked()
+  })
 })

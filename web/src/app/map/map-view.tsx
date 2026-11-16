@@ -15,9 +15,11 @@ export function MapView() {
   const { state: pgda, retry: retryPgda } = usePgdaLayers()
   const { state: grid, retry: retryGrid } = useGrid()
   const { sitesFile } = useCoreData()
-  const { sites } = useScenario()
+  const { sites, mapLayer } = useScenario()
   const dispatch = useScenarioDispatch()
-  const [layer, setLayer] = useState<PgdaLayer>('sun')
+  // v0 shows the two PGDA layers; the window-score layers (`score-*`) arrive with v1, so they fall back to Sun here.
+  const layer: PgdaLayer = mapLayer === 'pgda-earth' ? 'earth' : 'sun'
+  const setLayer = (l: PgdaLayer) => dispatch({ type: 'setMapLayer', layer: l === 'earth' ? 'pgda-earth' : 'pgda-sun' })
   const [message, setMessage] = useState<string | null>(null)
   const values = usePgdaValues(pgda.status === 'ready' ? pgda.data.urls[layer] : undefined)
 

@@ -19,6 +19,17 @@ describe('rasterValueAt', () => {
     expect(rasterValueAt(values, geom, -3, -3)).toBe(40) // bottom-left
   })
 
+  it('treats values above 100 like no data, in the readout and in the picture', () => {
+    const odd = Uint8Array.from([101, 200, 50, 0])
+    const g = { originKm: [0, 0] as const, cellKm: 1, nx: 2, ny: 2 }
+    expect(rasterValueAt(odd, g, 0.5, 1.5)).toBeNull() // 101
+    expect(rasterValueAt(odd, g, 1.5, 1.5)).toBeNull() // 200
+    expect(rasterValueAt(odd, g, 0.5, 0.5)).toBe(50)
+    expect(rasterValueAt(odd, g, 1.5, 0.5)).toBe(0) // 0 % is a value, not "no data"
+    const rgba = colorizeRaster(odd, 'sun')
+    expect([rgba[3], rgba[7], rgba[11], rgba[15]]).toEqual([0, 0, 255, 255])
+  })
+
   it('returns null for no-data cells and for positions outside the raster', () => {
     expect(rasterValueAt(values, geom, 3, -1)).toBeNull()
     expect(rasterValueAt(values, geom, 4.01, 0)).toBeNull()

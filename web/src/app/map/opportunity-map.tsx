@@ -68,8 +68,9 @@ export function OpportunityMap({ geom, layer, onLayerChange, values, markers, on
   // One pixel per PGDA cell, scaled to the box by CSS. Repainted when the layer or the decoded raster changes.
   useEffect(() => {
     const ctx = canvasRef.current?.getContext('2d')
-    if (!ctx || !values) return
-    ctx.putImageData(new ImageData(colorizeRaster(values, layer) as Uint8ClampedArray<ArrayBuffer>, geom.nx, geom.ny), 0, 0)
+    if (!ctx) return
+    ctx.clearRect(0, 0, geom.nx, geom.ny) // never leave the previous layer's pixels under the new layer's legend
+    if (values) ctx.putImageData(new ImageData(colorizeRaster(values, layer), geom.nx, geom.ny), 0, 0)
   }, [values, layer, geom.nx, geom.ny])
 
   /** Map km under a pointer event, or null outside the plot or the raster. */

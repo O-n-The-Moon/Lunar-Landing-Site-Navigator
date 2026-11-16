@@ -4,6 +4,9 @@
 import type { GridExtentInput } from './projection'
 
 export const NO_DATA = 255
+/** A valid cell value is a whole percent, 0–100; 255 (no data) and anything else is not drawn or read out. */
+const isPercent = (v: number) => v >= 0 && v <= 100
+
 export type PgdaLayer = 'sun' | 'earth'
 
 /** Percent under a map position (km), or null outside the raster or on a no-data cell. */
@@ -13,7 +16,7 @@ export function rasterValueAt(values: ArrayLike<number>, geom: GridExtentInput, 
   const iy = Math.floor((yKm - originKm[1]) / cellKm)
   if (!(ix >= 0 && ix < nx && iy >= 0 && iy < ny)) return null
   const v = values[(ny - 1 - iy) * nx + ix]
-  return v === undefined || v === NO_DATA ? null : v
+  return v === undefined || !isPercent(v) ? null : v
 }
 
 type Rgb = readonly [number, number, number]
@@ -43,14 +46,17 @@ export function rampRgb(layer: PgdaLayer, pct: number): [number, number, number]
 }
 
 /** RGBA pixels (same order as `values`) for a canvas ImageData; no-data pixels are fully transparent. */
-export function colorizeRaster(values: ArrayLike<number>, layer: PgdaLayer): Uint8ClampedArray {
+export function colorizeRaster(values: ArrayLike<number>, layer: PgdaLayer): Uint8ClampedArray<ArrayBuffer> {
   const lut = Array.from({ length: 101 }, (_, p) => rampRgb(layer, p))
   const out = new Uint8ClampedArray(values.length * 4)
   for (let i = 0; i < values.length; i++) {
     const v = values[i]
-    if (v === NO_DATA) continue // stays 0,0,0,0
-    const [r, g, b] = lut[Math.min(100, v)]
-    out.set([r, g, b, 255], i * 4)
+    if (!isPercent(v)) continue // stays 0,0,0,0
+    const [r, g, b] = lut[v]
+    out[i * 4] = r
+    out[i * 4 + 1] = g
+    out[i * 4 + 2] = b
+    out[i * 4 + 3] = 255
   }
   return out
 }
