@@ -290,3 +290,24 @@
     flex-wrap: wrap;
   }
 }
+
+/* --- slip outlook: strips above the track, columns centred over the thumb positions --------------------------- */
+.slip-track {
+  min-width: 0;
+}
+.slip-outlook {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 2px;
+  /* Thumb is 18 px: a column for day d is centred where the thumb centre is for d (see SlipOutlook). */
+  margin-inline: calc(9.075px - 100% / 240);
+}
+.slip-outlook-strip {
+  display: block;
+  width: 100%;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--surface-3);
+  cursor: pointer;
+}

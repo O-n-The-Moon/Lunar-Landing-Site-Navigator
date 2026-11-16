@@ -6,6 +6,7 @@ import { useCoreData } from '../data'
 import { HOUR_MS, SLIP_RANGE_H, slippedLandingMs, useScenario, useScenarioDispatch } from '../state'
 import { missionInCoverage } from '../use-scenario-results'
 import { formatUtc } from './date-controls'
+import { SlipOutlook } from './slip-outlook'
 
 const MINUS = '−'
 const FINE_H = 12
@@ -84,19 +85,22 @@ export function SlipSlider({ tryDays }: { tryDays?: number }) {
           <span className="num slip-end" aria-hidden="true">
             {MINUS}30
           </span>
-          <input
-            id={daysId}
-            type="range"
-            min={DAY_MIN}
-            max={DAY_MAX}
-            step={1}
-            value={days}
-            aria-valuetext={`${signed(days)} days (${outcome})`}
-            onChange={(e) => {
-              const d = Number(e.target.value)
-              setSlip(d * 24 + hours, d)
-            }}
-          />
+          <div className="slip-track">
+            <SlipOutlook currentDay={days} markDay={tryDays} />
+            <input
+              id={daysId}
+              type="range"
+              min={DAY_MIN}
+              max={DAY_MAX}
+              step={1}
+              value={days}
+              aria-valuetext={`${signed(days)} days (${outcome})`}
+              onChange={(e) => {
+                const d = Number(e.target.value)
+                setSlip(d * 24 + hours, d)
+              }}
+            />
+          </div>
           <span className="num slip-end" aria-hidden="true">
             +90 d
           </span>
