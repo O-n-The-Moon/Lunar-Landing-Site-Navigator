@@ -6,8 +6,7 @@
     "sunThreshold": 0.5,
     "hysteresis": 0.05,
     "earthMarginDeg": 1.0,
-    "earthHysteresisDeg": 0.1,
-    "observerHeightM": 2
+    "earthHysteresisDeg": 0.1
   },
   "notes": {
     "cases": "tUtcMs -> az/el, horizon, Sun fraction; earthVisible = earthElevDeg - earthHorizonDeg >= earthMarginDeg (no hysteresis). The first 240 are uniform random site x time; the rest are extra instants with the Sun disk partly hidden (0 < sunFraction < 1). Cases within 0.005 deg of the Earth margin are dropped.",

@@ -265,14 +265,12 @@ describe('diffMetrics', () => {
 })
 
 describe('missionMetrics golden parity (shared/fixtures/golden.json scenarios)', () => {
-  const { observerHeightM, ...visibility } = golden.opts
-  const opts: VisibilityOpts = visibility
+  const opts: VisibilityOpts = golden.opts
   /** SPEC-engine → Testing: scenario totals ≤ 10 min. */
   const TOTAL_TOL_H = 10 / 60
 
   it.each(golden.scenarios.map((sc) => [sc.id, sc] as const))('%s', (_, sc) => {
-    expect(sc.observerHeightM).toBe(observerHeightM)
-    const m = missionMetrics(realSiteContext(sc.siteId, observerHeightM), sc.landingUtcMs, sc.durationH, opts)
+    const m = missionMetrics(realSiteContext(sc.siteId, sc.observerHeightM), sc.landingUtcMs, sc.durationH, opts)
     const t = sc.totals
     const pctTol = (100 * TOTAL_TOL_H) / sc.durationH
     expect(Math.abs(m.sunlitPct - t.sunlitPct)).toBeLessThanOrEqual(pctTol)
@@ -294,7 +292,7 @@ describe('missionMetrics golden parity (shared/fixtures/golden.json scenarios)',
 
   it('takes ≤ 5 ms per site for a 30-day mission (SPEC-engine → Performance)', () => {
     const sc = golden.scenarios[0]
-    const ctx = realSiteContext(sc.siteId, observerHeightM)
+    const ctx = realSiteContext(sc.siteId, sc.observerHeightM)
     for (let i = 0; i < 5; i++) missionMetrics(ctx, sc.landingUtcMs, 30 * 24, opts)
     const runsMs: number[] = []
     for (let i = 0; i < 21; i++) {

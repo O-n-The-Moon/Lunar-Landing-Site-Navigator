@@ -246,7 +246,7 @@ def _states(inputs: golden.Inputs, site: dict[str, Any]) -> dict[str, NDArray[An
     """Hourly Sun / Earth / both on-states over the whole ephemeris coverage."""
     eph = inputs.ephemeris
     t = eph.start_ms + np.arange(eph.count, dtype=np.float64) * eph.step_ms
-    walk = golden._site_state(inputs, site, golden.OPTS["observerHeightM"], t)
+    walk = golden._site_state(inputs, site, golden.SCENARIO_HEIGHT_M, t)
     thr, hys = golden.OPTS["sunThreshold"], golden.OPTS["hysteresis"]
     sun = golden.hysteresis_states(
         walk["sunFraction"], min(1.0, thr + hys), max(0.0, thr - hys)
@@ -331,7 +331,7 @@ def render_section(
             f"Search: every curated site, baseline landings daily from "
             f"{FIRST_LANDING:%Y-%m-%d} to the end of the ephemeris, slips of 1-"
             f"{MAX_SLIP_DAYS} days later. Mission {MISSION_DAYS} days, observer "
-            f"{opts['observerHeightM']} m, Sun threshold {opts['sunThreshold']}, Earth "
+            f"{golden.SCENARIO_HEIGHT_M} m, Sun threshold {opts['sunThreshold']}, Earth "
             f"margin {opts['earthMarginDeg']}° (app defaults). Ranking score is "
             f"**Both** (Sun and Earth link). The search uses hourly samples; the numbers "
             f"below are the 1-minute reference (`golden.py`) and agree with the TS engine "

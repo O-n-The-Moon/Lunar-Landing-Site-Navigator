@@ -78,6 +78,19 @@ def test_run_stats_on_a_known_pattern():
     assert golden.run_stats(np.zeros(4, dtype=bool), 60)["longestGapH"] == 4.0
 
 
+def test_opts_match_visibility_opts_and_height_lives_on_each_scenario(built):
+    # VisibilityOpts has no observerHeightM (#82); the height is per case / scenario (#94).
+    assert set(built["opts"]) == {
+        "sunThreshold",
+        "hysteresis",
+        "earthMarginDeg",
+        "earthHysteresisDeg",
+    }
+    assert built["scenarios"]
+    for sc in built["scenarios"]:
+        assert sc["observerHeightM"] == golden.SCENARIO_HEIGHT_M
+
+
 def test_case_count_schema_and_ranges(built):
     cases = built["cases"]
     assert len(cases) >= 200
