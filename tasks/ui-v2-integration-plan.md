@@ -1,7 +1,7 @@
-# Plan: bring UI v2 (3D Terrain + Surface, then the Mission Console) into this repo
+# Plan: bring UI v2 (3D Terrain + Surface, then a focused 3-view console) into this repo
 
-> **Status:** plan only, nothing built (2026-11-15). **Owner:** apokhrel7.
-> **Design source:** [`ui-v2-mission-console-plan.md`](ui-v2-mission-console-plan.md), a verbatim copy of the demo repo plan. Its §3–§7 (look, layout, modes, architecture) and §8a (Slice 1 build spec) still apply. **This file decides how the work lands here; where they differ, this file wins.**
+> **Status:** plan only, nothing built (2026-11-15). Branch `ui-v2-slice1`, rebased on `main` @ `dac8482`. **Owner:** apokhrel7.
+> **Design source:** [`ui-v2-mission-console-plan.md`](ui-v2-mission-console-plan.md), a verbatim copy of the demo repo plan. Its §3 (design contract) and §8a (Slice 1 build spec) still apply. Its §4–§7 layout and panel list are **trimmed** by §5 below (no GO/NO-GO, telemetry rail, ANALYSIS mode or mock panels). **This file decides how the work lands here; where they differ, this file wins.**
 > **Reference code:** `O-n-The-Moon/Lunar-Landing-Site-Navigator-demo`, branch `ui-v2-mission-console` @ `121986b` (local: `../Lunar-Landing-Site-Navigator-demo`). Slice 1 = commits `81e90d0..1141489`. Handoffs: demo `handoffs/apokhrel7/2026-11-15-1822-ui-v2-slice1-reviewed.md` (newest, has the review fixes and open items) and `…-1930-ui-v2-slice1-built.md` (how it was built).
 
 ## 0. Is this a good idea? (short answer: yes for Slice 1, yes for Slice 2 with timing care)
@@ -18,18 +18,19 @@
 - It also delivers two open issues: **#29** (window-score layer, demo `use-grid-scores.ts`) and **#33** (Play, demo `use-play-cursor.ts`).
 
 **What to watch:**
-- **Slice 2 changes the whole layout.** It collides with teammates' in-flight work on the same views. Start it after **CP2 (#43)**, land it as small PRs, and finish it before **feature freeze (#44)**.
+- **Slice 2 changes the whole layout** (but is now small, §5). It collides with teammates' in-flight work on the same views. Start it after **CP2 (#43)** and finish it before **feature freeze (#44)**.
+- **Fewer features, done well.** Judges see three views (3D Terrain, Surface, Verify) plus one slip/time deck with the key numbers. Everything else is cut or folded away (§5).
 - **Slice 1 is additive** (new tabs, new files), so it can start now.
 
 ## 1. Ground truth: how far apart the two repos are
 
 ```
-upstream main:  … 19c82f9 ──► 11 team PRs (T30 T26 T22 T21 T19 T27 #116–#120) ──► 0fcb688  (this repo, today)
+upstream main:  … 19c82f9 ──► 13 team PRs (T30 T26 T22 T21 T19 T27 #116–#122) ──► dac8482  (this repo, today)
                     │
 demo repo:          └─► demo redesign (758f9b8..bad5a52, 50 files) ──► Slice 1 (81e90d0..1141489, 55 files)
 ```
 
-- The demo branch is Slice 1, on top of a **demo-only redesign**, on top of a **main that's 11 PRs old**.
+- The demo branch is Slice 1, on top of a **demo-only redesign**, on top of a **main that's 13 PRs old**.
 - Main has since built its own versions of the same areas: custom sites on the grid (T26), timeline ghosts + cursor (T21), panorama tracks (T22), opportunity map v0 (T27), PGDA validation (T19) and `missionRun` (#92). **About 18 files were changed on both sides.**
 - **So: no `git merge`, no cherry-pick.** We **port**: copy the Slice 1 *new* files as they are, and re-write the few integration points against main's current APIs. Main's logic wins over the demo redesign's logic wherever both exist.
 - Good news: the engine-facing types match. `SiteRun`/`SiteResult` are identical, main's `isIn` (`panorama/tracks.ts:33`) has the same rule as the demo's `isUpAt`, and `MAP_LAYERS` / `cursorMs` / `setCursor` already exist in main's `state.ts`.
@@ -38,13 +39,15 @@ demo repo:          └─► demo redesign (758f9b8..bad5a52, 50 files) ──�
 
 | Topic | Decision | Source |
 |---|---|---|
-| Demo redesign (site cards, slip hero + outlook strip, presets, top-bar restyle) | **Not ported on its own.** Slice 1 takes only the small helpers it needs (§3). Site cards, outlook strip and presets come back in **Slice 2** (ANALYSIS + bottom deck) with the v2 look, so nothing is restyled twice. | User, 2026-11-15 |
+| Demo redesign (site cards, slip hero + outlook strip, presets, top-bar restyle) | **Not ported on its own.** Slice 1 takes only the small helpers it needs (§3). In **Slice 2** only the pieces that fit the bottom deck come back (slip "Try +N d" target, presets, outlook strip, compact site rows), with the v2 look, so nothing is restyled twice. The full site cards are not ported. | User, 2026-11-15 |
 | Team sign-off: deps, pulling "3D panorama" out of Deferred, Display-assets contract addition, SPEC criterion 7 | **Already agreed by the team.** P0 writes it into `SPEC.md` so the repo matches. | User, 2026-11-15 |
-| Slice 2 mock panels (battery SoC, DSN handover) | **Real data only first.** Battery/DSN become an opt-in phase (S2-8) with `ILLUSTRATIVE` badges; they stay in SPEC Deferred until then. | User, 2026-11-15 |
+| Slice 2 scope | **Trimmed (user, 2026-11-15, "not a million things").** Final app = 3 views (**3D Terrain**, **Surface**, **Verify**) + a collapsible left rail + **one bottom deck** (slip, Play, compact per-site numbers) + the **~4 s intro fly-in** (kept). **Cut:** GO/NO-GO board and pills, telemetry rail, ANALYSIS mode, battery/DSN mocks (stay in SPEC Deferred), presentation mode, full site cards. | User, 2026-11-15 |
+| Opportunity Map | **Replaced by the 3D Terrain overlays** (same PGDA + window-score layers, draped on the terrain). The tab is removed in Slice 2. The 2D map stays as the **WebGL fallback** and as a small "2D" toggle inside 3D Terrain (exact hover values). Grid scoring still runs in the worker (criterion 6). | User, 2026-11-15 |
+| Compare tab | **Replaced by the bottom deck** in Slice 2: one row per site with Sun / Earth / Both %, Δ vs baseline, next sunset, a mini band. The full metric table + timeline sit behind a "Details" drawer, so SPEC-app P0-3/P0-4 and criterion 4 (state sunlit %, Earth-link %, time to sunset in ≤ 30 s) still hold. | User, 2026-11-15 |
 | Default tab during Slice 1 | **3D Terrain.** The horizon grid streams in after first paint, and criterion 7 is reworded to cover that (P0). | User, 2026-11-15 |
-| Existing tabs | **Kept.** Slice 1 adds tabs `3D Terrain · Surface · Compare · Opportunity Map · Validation`. Slice 2 *regroups* them into modes (OPS / SURFACE / ANALYSIS / VERIFY) and deletes nothing that still has a job. Old chrome (tab bar, old layout CSS) is removed only in the last cleanup PR (S2-7). | User + design plan §2 |
+| Existing tabs | **Kept during Slice 1** (`3D Terrain · Surface · Compare · Opportunity Map · Validation`), so the review is safe. Slice 2 ends with 3 views; Compare and Opportunity Map are removed only after their replacements work (S2-5). No capability is lost: every number and layer is still reachable. | User + design plan §2 |
 | 3D stack | Exact pins: `three@0.187.0`, `@types/three@0.187.0`, `@react-three/fiber@8.18.0`, `@react-three/drei@9.122.0`. No postprocessing in Slice 1 (bloom = S2-6, would pin three ≤ 0.187). Lazy chunk. | Demo plan §8a.1 |
-| Workflow | **One branch per slice.** Slice 1 on `ui-v2-slice1` (created 2026-11-15 from `main` @ `0fcb688`), one small commit per phase P0–P9, **one PR** after the user's and Claude's review. Slice 2 starts on a **new branch from `main`** only after the Slice 1 PR merges. One umbrella issue per slice for the `Closes #N` line (the Slice 1 PR also closes #97, #29, #33); the branch is renamed `<N>-ui-v2-slice1` once that issue exists. No per-phase issues. Teammates already agreed, so no coordination step. **No push / merge without an explicit OK in-session.** Before the PR: a fresh `agent-skills:code-reviewer` subagent on `git diff main...HEAD` (CLAUDE.md). | User, 2026-11-15 + AGENTS.md |
+| Workflow | **One branch per slice.** Slice 1 on `ui-v2-slice1` (created 2026-11-15, rebased on `main` @ `dac8482`; rebase again before the PR), one small commit per phase P0–P9, **one PR** after the user's and Claude's review. Slice 2 starts on a **new branch from `main`** only after the Slice 1 PR merges. One umbrella issue per slice for the `Closes #N` line (the Slice 1 PR also closes #97, #29, #33); the branch is renamed `<N>-ui-v2-slice1` once that issue exists. No per-phase issues. Teammates already agreed, so no coordination step. **No push / merge without an explicit OK in-session.** Before the PR: a fresh `agent-skills:code-reviewer` subagent on `git diff main...HEAD` (CLAUDE.md). | User, 2026-11-15 + AGENTS.md |
 | Demo repo | Read-only reference. Never merged into main; it keeps its own preview. | Demo plan §12 |
 
 ## 3. What Slice 1 imports from demo-only code, and what it uses here
@@ -77,8 +80,8 @@ Each row is one commit or a few commits on `ui-v2-slice1`, in this order; every 
 |---|---|---|---|---|
 | **P0** | `[Docs] UI v2: SPEC updates the team agreed` | demo `SPEC.md` "Display assets" section | `SPEC.md`: move "3D … with animated shadows" from Deferred to V1 (3D Terrain + Surface tabs); add the 4 deps to the allowed list; **criterion 7** → "first paint ≤ 3 MB; terrain/grid files stream after first paint with a visible loading state; interactive ≤ 3 s on broadband"; "Display assets" contract section (files additive, never read by the engine). `SPEC-app.md`: add the 3D Terrain / Surface sections (from demo plan §5 OPS/SURFACE, trimmed) and the new tab order. Link both plan files from `tasks/plan.md`. | Docs only. The team sees the agreement in writing. |
 | **P1** | **#97** Share scenario results (provider) | demo `use-scenario-results.ts` provider parts (`bad5a52`) | `ScenarioResultsProvider` inside `ScenarioProvider` (`app.tsx`); `useScenarioResults()` reads context; memo stages unchanged. **Keep main's T26 grid/custom-site logic** (`useGridForSetups`, `GridAvailability`), not the demo's. | Existing tests green; a test that two consumers share one result object. Measure slip-step time before/after (issue's method). |
-| **P2** | `[Engine] illuminationAt: visible Sun fraction per grid cell` | `web/src/engine/grid.ts` (`illuminationAt` + WeakMap frame cache), `grid.test.ts` additions (`0d974dc`, `1141489`) | Reconcile with main's `grid.ts` (12.6 kB; T25/#104 changes). Document in `SPEC-engine.md` (check #104 isn't editing the same section). | Both demo tests: vs `scoreGrid` (hysteresis 0) and vs `gridSiteContext`+`azEl`+`horizonElevAt`+`visibleDiskFraction` for every fixture cell; RangeError outside the ephemeris. Golden parity untouched. |
-| **P3** | `[Pipeline] display-terrain: LOLA 80 m display heights (1024²)` | `pipeline/src/lunarnav/display_terrain.py`, `tests/test_display_terrain.py`, `web/public/data/terrain-display.{bin,json}`, `io.py` + `cli.py` lines (`edc1357`) | Rebase on main's `dem.py` (+12), `io.py`, `cli.py`, `test_cli.py`. Fold in **review item 12**: derive the extent and origin from the grid constants (`GRID_NX * GRID_CELL_KM`, `GRID_ORIGIN_KM`), and add an always-on test comparing the committed `.bin` with `grid-heights.bin` (median ≤ 50 m, p95 ≤ 250 m). Record source DEM file names in `terrain-display.json` the same way #119 does for `grid.json`. **Not** in `BUILD_STEPS`. **Regenerate here** (`uv run lunarnav fetch` first, about 400 MB, gitignored). | `uv run pytest && ruff check && ruff format --check`. Acceptance numbers met; files ≤ 2.5 MB. |
+| **P2** | `[Engine] illuminationAt: visible Sun fraction per grid cell` | `web/src/engine/grid.ts` (`illuminationAt` + WeakMap frame cache), `grid.test.ts` additions (`0d974dc`, `1141489`) | Reconcile with main's `grid.ts` (#122 moved option checks to `checkVisibilityOpts` in `windows.ts`; `illuminationAt` takes no opts, so nothing to reuse there). Add one line to the **grid API block in `SPEC-engine.md`** (now complete after #122): `illuminationAt(grid, eph, tUtcMs, out?): Float32Array // raw visible Sun fraction per cell, NaN on no-data; no hysteresis; display only`. | Both demo tests: vs `scoreGrid` (hysteresis 0, so `scoreGrid`'s 48 h hourly lead-in can't change the state; cells within 0.02 of the threshold are skipped as in the demo) and vs `gridSiteContext`+`azEl`+`horizonElevAt`+`visibleDiskFraction` for every fixture cell; RangeError outside the ephemeris. Golden parity untouched. |
+| **P3** | `[Pipeline] display-terrain: LOLA 80 m display heights (1024²)` | `pipeline/src/lunarnav/display_terrain.py`, `tests/test_display_terrain.py`, `web/public/data/terrain-display.{bin,json}`, `io.py` + `cli.py` lines (`edc1357`) | Rebase on main's `dem.py` (+12), `io.py`, `cli.py`, `test_cli.py`. Fold in **review item 12**: derive the extent and origin from the grid constants (`GRID_NX * GRID_CELL_KM`, `GRID_ORIGIN_KM`), and add an always-on test comparing the committed `.bin` with `grid-heights.bin` (median ≤ 50 m, p95 ≤ 250 m). Record source DEM file names in `terrain-display.json` the same way #119 does for `grid.json`. **Not** in `BUILD_STEPS`. **Regenerate here** (the raw DEMs are already in `pipeline/data/raw/dem/`, no fetch needed) and compare bytes with the demo's file. No `golden.json` regeneration: P3 doesn't touch `ephemeris.*` or `sites.json`, which #121 fingerprints. | `uv run pytest && ruff check && ruff format --check`. Acceptance numbers met; files ≤ 2.5 MB. |
 | **P4** | `[UI] 3D foundations: deps, display-terrain loaders, pure scene modules` | `package.json` pins (`81e90d0`); `app/terrain-data.ts`; `data.ts` loader parts (`a2ebda1`); `scene/world.ts`, `terrain-mesh.ts`, `overlay-textures.ts`, `site-status.ts`, `overlay-layers.ts`, `webgl.ts` + tests (`8714416`, `1141489`) | New `scene/frame.ts` adapter (§3). `site-status` uses `isIn`. `overlay-textures` uses main's ramps. `data.ts` additions on main's `LazyResource` (§3). No UI yet, so nothing visible changes. | `npm ci` then `tsc -b`, `npm run lint`, `vitest`, `build` green. Bundle unchanged (three isn't imported by any live code yet). |
 | **P5** | **#29** Opportunity map v1: window-score layer | `map/use-grid-scores.ts` + test, the score-ramp parts of `map/colormaps.ts` | Wire into main's `map-view.tsx` / `opportunity-map.tsx` (T27's files; listed in the PR). Uses the existing `workers/grid-score.worker.ts`. 300 ms debounce per SPEC-app P0-6. | SPEC criterion 6 (≤ 3 s, non-blocking). Score layers render; the `score-*` fallback note in `map-view.tsx:20` goes away. |
 | **P6** | **#33** Play / animate the cursor + time bar | `timeline/use-play-cursor.ts` + test (`c14f771`), `controls/time-bar.{tsx,css}` | Hook lands as `timeline/playback.ts`. `TimelinePanel` gets Play (24 s sweep default; 1 h/s · 6 h/s · 1 d/s in the time bar). No outlook strip; slip = readout only. Remove the duplicate `HOUR_MS` (review item). | Hook tests (one frame per `act`; see gotchas). Play keeps timeline + panorama in sync (#33 acceptance). |
@@ -88,23 +91,57 @@ Each row is one commit or a few commits on `ui-v2-slice1`, in this order; every 
 
 **Order notes:** P2 and P3 are independent of the UI rows. P1 must be in before P7 (perf). P5 and P6 need P4.
 
-## 5. Slice 2 (after Slice 1 review, real data only)
+## 5. Slice 2: focused console (after Slice 1 review, real data only)
 
-Design source: demo plan §3 (design contract), §4 (layout), §5 (modes), §6 (panels, **minus battery/DSN**), §7 (architecture). Start after **CP2 (#43)**, since this changes the layout every teammate works in. Every phase leaves the app working.
+**Goal:** few features, done well. Judges see the 3D views, the slip, and the numbers. Nothing else competes with the stage.
 
-| # | PR | Delivers | Done when |
+```
+┌ top bar: brand · [ 3D Terrain | Surface | Verify ] · UTC / L+ clock · data-source chip ──┐
+│ left rail      │                                                                        │
+│ (collapsible;  │                 3D stage (as big as possible: the hero)                │
+│ sites, date,   │      live shadows · beacons · overlays (+ "2D" toggle) / first-person  │
+│ options)       │                                                                        │
+├────────────────┴────────────────────────────────────────────────────────────────────────┤
+│ bottom deck: SLIP −30 ──●── +90 d  Try +15 d  [outlook strip] │ ▶ Play 1h/s 6h/s 1d/s │ cursor │
+│ A Athena   Sun 82 % (−31)  Earth 64 %  Both 52 %  sunset in 3 d 4 h  ████░░░   [Details]  │
+│ B Shackl.  Sun 40 % (+12)  …                                          ░░███░              │
+└──────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Clutter rules** (check in every Slice 2 step):
+- At most **3 floating elements** over the stage at once (e.g. overlay picker, legend, compass). Everything else lives in the rail or the deck.
+- The left rail **collapses** once a scenario is set (chevron + `[`); the stage grows to fill it.
+- **One** slip control and **one** time control in the whole app.
+- Numbers are shown **once**: in the deck rows. The 3D beacons show state (colour + text), not numbers.
+- Every element must answer "does a judge need this in the 30-second demo?" If not, it goes behind "Details" or is cut.
+
+**Where today's views end up:**
+
+| Today | After Slice 2 |
+|---|---|
+| Tab bar (5 tabs) | 3 views: **3D Terrain · Surface · Verify** (APG tabs, restyled) |
+| Sidebar | Collapsible **left rail** |
+| Sidebar slip slider + time bar | **Bottom deck** (one slip, one Play/cursor) |
+| Compare: metric cards table | Deck rows (key numbers + Δ) + full table in the **Details** drawer |
+| Compare: timeline strips | Mini band per deck row + full timeline in the **Details** drawer |
+| Compare: 2D panorama | Surface's **"Engineering view (2D)"** toggle (already there in Slice 1) |
+| Opportunity Map tab | **3D Terrain overlays** + a small **"2D"** toggle; 2D map is also the WebGL fallback |
+| Validation | **Verify**, restyled ("checked against JPL Horizons and PGDA", every number from `validation.json`) |
+
+| # | Step (commit) | Delivers | Done when |
 |---|---|---|---|
-| **S2-0** | Design lock (no code) | Re-open the mock-up (`https://claude.ai/artifact/HYXWoavbJ2fvc3PzQKnnce`) and update it with the real 3D screenshots from P9. Agree on fonts (Inter + JetBrains Mono, OFL, self-hosted woff2 in `public/fonts/`, ≈ 150 kB) and tokens. | User (and team) OK the look. |
-| **S2-1** | Design system v2 + console shell | `ui/tokens.css`, `hud.css`, `shell/` (top bar with mission clock, mode switch `OPS · SURFACE · ANALYSIS · VERIFY` as APG tabs, collapsible left rail = today's sidebar, bottom-deck placeholder). Mapping: OPS = 3D Terrain, SURFACE = Surface, ANALYSIS = Compare + 2D map, VERIFY = Validation. | **The app works exactly as before inside the shell**; all tests green (update the tab-name queries). |
-| **S2-2** | Bottom deck | The slip control moves out of the sidebar into the deck: SlipSlider + time bar + compact Sun/Earth/Both strips with a shared cursor. **From the demo redesign:** slip outlook heat strip (`slip-outlook.tsx`), "Try +N d" target button, scenario presets. Reconcile the presets with main's T30 scenarios (`docs/demo.md`, `pipeline/src/lunarnav/demo.py`), so one source of scenarios. | One slip control on screen; slip ≤ 33 ms with everything mounted (criterion 5, measured). |
-| **S2-3** | Telemetry rail (real) | Mission clock `UTC … · L+Xd hh:mm · SLIP +15 d`; Sun telemetry (elevation, clearance, visible-fraction gauge, "sunset in …" from `nextEvents`); Earth link (elevation, clearance, **range km**, **one-way light time** from `bodyVectorKm`); status pills. Pure helpers with tests; no physics in components. | Every value matches the engine/timeline at the cursor (tests on fixtures). |
-| **S2-4** | GO/NO-GO board + ANALYSIS | `gonogo/rules.ts` (thresholds visible in the header: POWER, COMMS, BOTH, LONGEST DARK, SLOPE → OVERALL) from real `missionMetrics`. **From the demo redesign:** site cards (`site-cards.tsx`: Both % ring, Sun/Earth bars, `explain()` sentence), restyled. The metric-cards table stays under "All metrics". Timeline, 2D panorama and 2D map stay. | Rules unit-tested; each cell has an icon + text (never colour alone). |
-| **S2-5** | Intro + motion | ≈ 4 s skippable fly-in (`?nointro`, Esc, Skip, `prefers-reduced-motion`), boot log from real counts. Moon texture (approved; **ask before downloading**, ≈ 0.5 MB public domain). Number ticking, status pulses, cinema mode (`[` `]`), presentation mode. | Intro ≤ 4.5 s, never with `?nointro`; reduced motion respected. |
-| **S2-6** | Slice 1 gap items | Scale bar; beacon hover mini-readout; stars in OPS; labels occluded by terrain. **Bloom only if wanted** (`@react-three/postprocessing` is one more dep; pin three ≤ 0.187). | Visual QA. |
-| **S2-7** | Hardening + cleanup | Perf (budgets in demo plan §10), a11y (contrast ≥ 4.5:1 on glass, canvas text summaries, keyboard), responsive 1440/1024/390. **Remove dead chrome**: old tab bar and old layout CSS, leftover duplicate controls. Update `docs/demo.md` / demo script. Code review on the whole Slice 2 diff. | All checks green; preview smoke-tested; 30-second demo (demo plan §9) runs end to end. |
-| **S2-8** | *(opt-in, later)* Illustrative models | Battery SoC (`power-model.ts`) and DSN handover strip (`dsn-mock.ts`), each with an `ILLUSTRATIVE` badge + assumptions popover. Needs a SPEC Deferred → V1 note first. | Only if the user asks. |
+| **S2-0** | Design lock (no code) | Update the mock-up (`https://claude.ai/artifact/HYXWoavbJ2fvc3PzQKnnce`) to the trimmed layout above, using real P9 screenshots. Fonts (Inter + JetBrains Mono, OFL, self-hosted woff2 in `public/fonts/`, ≈ 150 kB) and tokens from demo plan §3. | User OKs the look and the density. |
+| **S2-1** | Design tokens + shell | `ui/tokens.css`, `hud.css` (glass panels, corner ticks), `shell/` (top bar with mission clock, collapsible left rail, deck placeholder). **All 5 tabs still present** in the new shell. | App works exactly as before inside the shell; all tests green. |
+| **S2-2** | Bottom deck | Slip moves from the sidebar into the deck with the time bar (one control each). **From the demo redesign:** "Try +N d" target button, scenario presets, slip outlook strip. Presets come from main's T30 scenarios (`docs/demo.md`, `pipeline/src/lunarnav/demo.py`): one source. Per-site rows: Sun / Earth / Both %, Δ vs baseline, next sunset (`nextEvents`), mini band. | One slip control on screen; slip ≤ 33 ms with everything mounted (criterion 5, measured); row values = `missionMetrics` (tests). |
+| **S2-3** | Details drawer + "2D" toggles | Drawer from the deck: the full metric-cards table and the full timeline (main's T21 components, restyled). "2D" toggle in 3D Terrain → `MapView`. | Criterion 4 (fresh user, ≤ 30 s) still passes; P0-3/P0-4 acceptance tests still green. |
+| **S2-4** | Intro fly-in (kept) | ≈ 4 s skippable fly-in (orbit → south pole) with a short boot log from real counts ("EPHEMERIS · N epochs · SITES 12 · GRID 182×182"). Skipped by `?nointro`, Esc, Skip, `prefers-reduced-motion`. The horizon grid starts downloading during it. Moon texture (approved; **ask before downloading**, ≈ 0.5 MB public domain). | Intro ≤ 4.5 s; never with `?nointro`; reduced motion respected; tests for the skip rules. |
+| **S2-5** | Retire old views | Remove the **Compare** and **Opportunity Map** tabs (their content now lives in the deck, drawer and toggles), the old header and the old layout CSS. Update `app.test.tsx` and `test-utils.tsx` on purpose (tab list = 3 views). Rename Validation → Verify. Update `SPEC-app.md` Layout + P0-6 (map = 3D overlays, 2D as toggle/fallback). | Nothing reachable before is unreachable now (checklist in the PR); all tests green. |
+| **S2-6** | Polish (bonus) | Number ticking (150 ms), beacon pulse on state change, cinema mode (`[` `]` hide rail + deck). Small Slice 1 gaps if time: scale bar, beacon hover readout, stars in 3D Terrain. **No bloom** (would add a dep). | Visual QA. |
+| **S2-7** | Hardening | Perf (demo plan §10 budgets), a11y (contrast ≥ 4.5:1 on glass, canvas text summaries, keyboard for every control), responsive 1440 / 1024 / 390. Update `docs/demo.md` + the 30-second demo (demo plan §9, minus the battery/board beats). Code review on `git diff main...HEAD`. | All checks green; preview smoke-tested; the 30-second demo runs end to end. |
 
-**Cut line:** S2-1 → S2-4 is the "console" demo. S2-5 and S2-6 are bonuses. If time runs out mid-Slice 2, the app still works because every phase keeps the old views reachable.
+**Cut line:** S2-1 → S2-3 + S2-5 is the shippable console. S2-4 (intro) is next in value; S2-6 is bonus. Before S2-5 the app always still has the old tabs, so stopping early is safe.
+
+**Cut entirely (not built):** GO/NO-GO board and status pills, telemetry rail, ANALYSIS mode, battery SoC and DSN mocks (stay in SPEC Deferred), presentation mode, full site cards, bloom/postprocessing.
 
 ## 6. Risks for this migration
 
@@ -151,7 +188,7 @@ Plus an `agent-skills:code-reviewer` subagent on `git diff main...HEAD` with `co
 - **This repo is newer** for `sites.json` (DEM file names, #119), `grid.json` (#119) and `validation.json` (pass/fail targets + PGDA comparison, #116). The 3D views show these newer values automatically, because they go through the same loaders and engine.
 - The engine work the views need is done here (T8–T14, T25 grid + worker, #92 `missionRun`, #93 never-up/never-sets). Only **one** engine addition: `illuminationAt` (P2).
 - **One new data file:** `terrain-display.bin` + `.json` (P3). It is generated from the LOLA DEMs already on this machine. The demo's copy should come out byte-identical (same DEMs and grid extent); P3 regenerates it here and compares with the demo's file to prove it.
-- Open data/engine issues (#104 SPEC-engine doc + fixtures, #103 lint guard, #89 stale-golden check) don't block UI v2.
+- #104 (SPEC-engine grid API + fixtures) and #89 (stale-golden fingerprint) merged on 2026-11-15 as #122 / #121. The only open engine issue, #103 (lint guard on `_` imports), doesn't block UI v2.
 
 ## 11. Still open (small)
 
