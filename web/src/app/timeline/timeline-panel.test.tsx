@@ -36,7 +36,7 @@ const rects = (root: Element, attr: string, band: string) =>
 const total = (rs: { w: number }[]) => rs.reduce((a, r) => a + r.w, 0)
 
 describe('TimelinePanel', () => {
-  it('the deck’s Play moves the one cursor, Pause stops it, and a view that is not the stage pauses it (#33)', async () => {
+  it('the deck’s Play moves the one cursor, Pause stops it, and the Verify view pauses it (#33)', async () => {
     const user = userEvent.setup()
     const { panel } = await renderPanel()
     const cursor = () => Number(within(panel).getByRole('slider').getAttribute('aria-valuenow'))
@@ -55,7 +55,7 @@ describe('TimelinePanel', () => {
     expect(cursor()).toBe(stopped)
 
     await user.click(time().getByRole('button', { name: 'Play' }))
-    await user.click(screen.getByRole('tab', { name: /validation/i }))
+    await user.click(screen.getByRole('tab', { name: 'Verify' }))
     expect(time().getByRole('button', { name: 'Play' })).toHaveAttribute('aria-pressed', 'false')
   })
 

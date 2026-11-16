@@ -1,5 +1,5 @@
-// Play (#33): sweeps the shared scenario cursor through the slipped mission (SPEC-app P1 play). Used by the Compare tab's
-// timeline panel (a whole mission in 24 s) and by the 3D views' time bar (a fixed number of mission hours per second).
+// Play (#33): sweeps the shared scenario cursor through the slipped mission (SPEC-app P1 play). Used by the deck's time bar
+// (a fixed number of mission hours per second; with no speed, a whole mission plays in PLAY_SECONDS).
 import { useEffect, useRef, useState } from 'react'
 import { HOUR_MS, missionEndMs, slippedLandingMs, useScenario, useScenarioDispatch } from '../state'
 

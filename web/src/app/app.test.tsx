@@ -15,20 +15,33 @@ function renderApp(source: DataSource = fixtureDataSource()) {
 const siteList = () => within(screen.getByRole('group', { name: /sites/i })).getAllByRole('radio')
 
 describe('App shell', () => {
-  it('renders the title, a fixture-data warning, the tabs and every view placeholder', async () => {
+  it('renders the title, a fixture-data warning, the three views and the controls', async () => {
     await renderApp()
     // 3D Terrain is the default tab; the other views mount when first opened.
     expect(screen.getByRole('tab', { name: '3D Terrain' })).toHaveAttribute('aria-selected', 'true')
-    fireEvent.click(screen.getByRole('tab', { name: 'Compare' }))
     expect(screen.getByRole('heading', { name: /lunar landing site navigator/i })).toBeInTheDocument()
     expect(screen.getByText(/synthetic fixture data/i)).toBeInTheDocument()
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['3D Terrain', 'Surface', 'Compare', 'Opportunity Map', 'Validation'])
-    for (const name of ['Metrics', 'Timeline', 'Horizon panorama']) {
-      expect(screen.getByRole('region', { name })).toBeInTheDocument()
-    }
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['3D Terrain', 'Surface', 'Verify'])
     for (const name of ['Slip', 'Custom site', 'Options']) {
       expect(screen.getByRole('group', { name })).toBeInTheDocument()
     }
+    expect(screen.getByRole('region', { name: 'Mission deck' })).toBeInTheDocument()
+  })
+
+  it('every old view is still reachable: metrics and timeline in Details, the panorama in Surface, the map in 3D Terrain, Verify', async () => {
+    await renderApp()
+    const deck = within(screen.getByRole('region', { name: 'Mission deck' }))
+    fireEvent.click(deck.getByRole('button', { name: 'Details' }))
+    const drawer = within(screen.getByRole('dialog', { name: 'Details' }))
+    expect(drawer.getByRole('region', { name: 'Metrics' })).toBeInTheDocument()
+    expect(drawer.getByRole('region', { name: 'Timeline' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Surface' }))
+    expect(screen.getByRole('region', { name: 'Horizon panorama' })).toBeInTheDocument() // jsdom has no WebGL: the 2D horizon view
+    fireEvent.click(screen.getByRole('tab', { name: 'Verify' }))
+    expect(screen.getByRole('region', { name: 'Verify' })).toBeVisible()
+    fireEvent.click(screen.getByRole('tab', { name: '3D Terrain' }))
+    expect(within(screen.getByRole('tabpanel', { name: '3D Terrain' })).getByRole('radiogroup', { name: /layer/i })).toBeInTheDocument() // the 2D map
   })
 
   it('shows a clear message when data fails to load', async () => {
@@ -37,7 +50,7 @@ describe('App shell', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not load mission data.*sites\.json: HTTP 404/i)
   })
 
-  it('without WebGL the 3D Terrain tab says so and shows the 2D map; the grid loads once and the Map tab adds no second load', async () => {
+  it('without WebGL the 3D Terrain tab says so and shows the 2D map; the grid loads once, for the map and the deck together', async () => {
     const fixtures = fixtureDataSource()
     const source: DataSource = { ...fixtures, loadGrid: vi.fn(fixtures.loadGrid), loadGridHeights: vi.fn(fixtures.loadGridHeights) }
     await renderApp(source) // src/test-setup.ts: jsdom has no WebGL
@@ -46,16 +59,15 @@ describe('App shell', () => {
     await waitFor(() => expect(source.loadGrid).toHaveBeenCalledTimes(1))
     expect(source.loadGridHeights).not.toHaveBeenCalled() // no 3D scene, no 3D heights
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Opportunity Map' }))
-    expect(await within(screen.getByRole('tabpanel', { name: 'Opportunity Map' })).findByText(/horizon grid loaded: 8 × 8 cells/i)).toBeInTheDocument()
+    expect(await within(terrain).findByText(/horizon grid loaded: 8 × 8 cells/i)).toBeInTheDocument()
     expect(source.loadGrid).toHaveBeenCalledTimes(1)
   })
 
-  it('the deck’s Play is on for the 3D views and off on Compare, which has its own Play', async () => {
+  it('the deck’s Play is on for the 3D views and off on Verify', async () => {
     await renderApp()
     fireEvent.change(screen.getByLabelText(/duration/i), { target: { value: '1' } }) // the fixture ephemeris is 48 h: sites need a mission inside it
     expect(screen.getByRole('button', { name: 'Play' })).toBeEnabled()
-    fireEvent.click(screen.getByRole('tab', { name: 'Compare' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Verify' }))
     expect(within(screen.getByRole('region', { name: 'Time' })).getByRole('button', { name: 'Play' })).toBeDisabled()
     fireEvent.click(screen.getByRole('tab', { name: 'Surface' }))
     expect(within(screen.getByRole('region', { name: 'Time' })).getByRole('button', { name: 'Play' })).toBeEnabled()
@@ -66,10 +78,10 @@ describe('App shell', () => {
     const terrain = screen.getByRole('tab', { name: '3D Terrain' })
     terrain.focus()
     await userEvent.keyboard('{ArrowLeft}') // wraps from the first tab to the last
-    const validation = screen.getByRole('tab', { name: 'Validation' })
-    expect(validation).toHaveAttribute('aria-selected', 'true')
-    expect(validation).toHaveFocus()
-    expect(screen.getByRole('region', { name: 'Validation' })).toBeVisible()
+    const verify = screen.getByRole('tab', { name: 'Verify' })
+    expect(verify).toHaveAttribute('aria-selected', 'true')
+    expect(verify).toHaveFocus()
+    expect(screen.getByRole('region', { name: 'Verify' })).toBeVisible()
   })
 })
 

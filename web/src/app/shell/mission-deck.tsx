@@ -6,15 +6,14 @@ import { Deck } from './deck'
 import { DetailsButton, type DetailsState } from './details-drawer'
 import { SiteRows } from './site-rows'
 
-/** `detailsDisabled`: the Compare tab shows the same table and timeline (goes away with that tab, S2-5). */
-export function MissionDeck({ details, detailsDisabled = false }: { details: DetailsState; detailsDisabled?: boolean }) {
+export function MissionDeck({ details }: { details: DetailsState }) {
   const preset = useActivePreset()
   return (
     <Deck>
       <div className="deck-controls">
         <SlipSlider tryDays={preset?.targetSlipDays} />
         <TimeBar />
-        <DetailsButton details={details} disabled={detailsDisabled} />
+        <DetailsButton details={details} />
       </div>
       <SiteRows />
     </Deck>

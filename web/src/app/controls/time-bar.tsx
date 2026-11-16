@@ -28,7 +28,7 @@ const TimeBarContext = createContext<TimeBarController | null>(null)
 
 /**
  * Owns Play and its speed for the app. `active`: a view that shows the cursor is open (Play pauses while it is not,
- * e.g. on the Compare tab, which has its own Play until it retires, and resumes when a view is shown again).
+ * i.e. on Verify, and resumes when a view is shown again).
  * `canPlay`: there is something to see (at least one site).
  */
 export function TimeBarProvider({ active, canPlay = true, children }: { active: boolean; canPlay?: boolean; children: ReactNode }) {
@@ -61,7 +61,7 @@ export function TimeBar() {
         onClick={play.toggle}
         disabled={!canPlay}
         aria-pressed={play.playing}
-        title={viewActive ? undefined : 'Play runs in the 3D Terrain and Surface views (Compare has its own Play)'}
+        title={viewActive ? undefined : 'Play runs in the 3D Terrain and Surface views'}
       >
         {play.playing ? <PauseIcon size={12} /> : <PlayIcon size={12} />}
         {play.playing ? 'Pause' : 'Play'}

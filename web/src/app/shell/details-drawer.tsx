@@ -31,7 +31,7 @@ export function useDetails(): DetailsState {
 }
 
 /** The deck's button. */
-export function DetailsButton({ details, disabled = false }: { details: DetailsState; disabled?: boolean }) {
+export function DetailsButton({ details }: { details: DetailsState }) {
   return (
     <button
       id={details.buttonId}
@@ -39,8 +39,6 @@ export function DetailsButton({ details, disabled = false }: { details: DetailsS
       className="details-button"
       aria-expanded={details.open}
       aria-controls={details.drawerId}
-      disabled={disabled}
-      title={disabled ? 'The Compare tab already shows these' : undefined}
       onClick={details.toggle}
     >
       Details
@@ -74,7 +72,7 @@ export function DetailsDrawer({ details }: { details: DetailsState }) {
         </button>
       </div>
       <CompareView />
-      <TimelinePanel showPlay={false} />
+      <TimelinePanel />
     </aside>
   )
 }

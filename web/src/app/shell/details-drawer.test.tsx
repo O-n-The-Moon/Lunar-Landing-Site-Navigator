@@ -87,15 +87,14 @@ describe('Details drawer', () => {
     expect(stage).not.toHaveAttribute('inert')
   })
 
-  it('closes when the view changes, and is unavailable on the Compare tab, which already shows the same content', async () => {
+  it('closes when the view changes, and can be opened again on any view', async () => {
     const user = await renderApp()
-    await user.click(detailsButton())
-    await user.click(screen.getByRole('tab', { name: 'Surface' }))
-    expect(screen.queryByRole('dialog', { name: 'Details' })).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('tab', { name: 'Compare' }))
-    expect(detailsButton()).toBeDisabled()
-    await user.click(screen.getByRole('tab', { name: '3D Terrain' }))
-    expect(detailsButton()).toBeEnabled()
+    for (const view of ['Surface', 'Verify', '3D Terrain']) {
+      await user.click(detailsButton())
+      expect(screen.getByRole('dialog', { name: 'Details' })).toBeInTheDocument()
+      await user.click(screen.getByRole('tab', { name: view }))
+      expect(screen.queryByRole('dialog', { name: 'Details' })).not.toBeInTheDocument()
+      expect(detailsButton()).toBeEnabled()
+    }
   })
 })

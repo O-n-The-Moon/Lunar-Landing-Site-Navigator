@@ -6,10 +6,8 @@ import type { DetectedWindows } from '../../engine'
 import { HOUR_MS, useScenario, useScenarioDispatch } from '../state'
 import { useScenarioResults } from '../use-scenario-results'
 import { formatUtc } from '../controls/date-controls'
-import { PauseIcon, PlayIcon } from '../ui/icons'
 import { cursorReadout } from './cursor-readout'
 import { shiftWindows } from './ghost'
-import { usePlayCursor } from './playback'
 import { TimelineCursor } from './timeline-cursor'
 import { TimelineStrip, eventTexts } from './timeline-strip'
 import './timeline.css'
@@ -22,15 +20,11 @@ function formatElapsed(ms: number): string {
   return `T+${d > 0 ? `${d} d ` : ''}${h} h ${totalMin % 60} m`
 }
 
-/**
- * `active`: the tab holding the timeline is showing (Play pauses while it is hidden).
- * `showPlay`: this panel has its own Play button; the Details drawer turns it off (the deck's Play is the one time control).
- */
-export function TimelinePanel({ active = true, showPlay = true }: { active?: boolean; showPlay?: boolean }) {
+/** The deck's time control owns Play; this panel's cursor is the same `cursorMs`. */
+export function TimelinePanel() {
   const { cursorMs } = useScenario()
   const dispatch = useScenarioDispatch()
   const results = useScenarioResults()
-  const play = usePlayCursor({ active, enabled: showPlay && results.siteIds.length > 0 })
   const range = useMemo(
     () => ({ startMs: results.slippedLandingMs, endMs: results.slippedLandingMs + results.durationH * HOUR_MS }),
     [results.slippedLandingMs, results.durationH],
@@ -60,11 +54,6 @@ export function TimelinePanel({ active = true, showPlay = true }: { active?: boo
   return (
     <section aria-label="Timeline">
       <h3>Timeline</h3>
-      {showPlay && results.siteIds.length > 0 && (
-        <button type="button" className="play-button" onClick={play.toggle} aria-pressed={play.playing}>
-          {play.playing ? <PauseIcon size={12} /> : <PlayIcon size={12} />} {play.playing ? 'Pause' : 'Play'}
-        </button>
-      )}
       {results.siteIds.length === 0 && (
         <p className="hint">Add a site to see its Sun and Earth visibility over the mission.</p>
       )}

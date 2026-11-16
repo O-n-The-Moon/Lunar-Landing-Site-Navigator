@@ -15,11 +15,11 @@ const rail = () => screen.getByRole('complementary', { name: 'Scenario' })
 const railToggle = () => within(rail()).getByRole('button', { name: /scenario panel/i })
 
 describe('console shell', () => {
-  it('puts the five view tabs, the mission clock and the data chip in the top bar', async () => {
+  it('puts the three view tabs, the mission clock and the data chip in the top bar', async () => {
     await renderApp()
     const top = screen.getByRole('banner')
     expect(within(top).getByRole('heading', { level: 1, name: 'Lunar Landing Site Navigator' })).toBeInTheDocument()
-    expect(within(top).getAllByRole('tab')).toHaveLength(5)
+    expect(within(top).getAllByRole('tab')).toHaveLength(3)
     // The cursor starts at the (unslipped) landing: 2026-03-01 00:00 UTC on fixtures.
     expect(within(top).getByText('L+0d 00h · 1 Mar 2026 00:00 UTC')).toHaveAttribute('datetime', '2026-03-01T00:00:00.000Z')
     expect(within(top).getByText(/synthetic fixture data, not real lunar data/i)).toBeInTheDocument()
@@ -39,7 +39,7 @@ describe('console shell', () => {
     const duration = screen.getByLabelText('Duration (days)')
     await user.clear(duration)
     await user.type(duration, '1')
-    await user.click(screen.getByRole('tab', { name: 'Compare' }))
+    await user.click(within(screen.getByRole('region', { name: 'Mission deck' })).getByRole('button', { name: 'Details' }))
     const scrub = await within(screen.getByRole('region', { name: 'Timeline' })).findByRole('slider')
     scrub.focus()
     await user.keyboard('{End}')
@@ -73,7 +73,7 @@ describe('scenario rail', () => {
     await user.keyboard('[[')
     expect(railToggle()).toHaveAttribute('aria-expanded', 'true')
 
-    await user.click(screen.getByRole('tab', { name: 'Validation' }))
+    await user.click(screen.getByRole('tab', { name: 'Verify' }))
     await user.keyboard('[[')
     expect(railToggle()).toHaveAttribute('aria-expanded', 'false')
     await user.keyboard('[[')

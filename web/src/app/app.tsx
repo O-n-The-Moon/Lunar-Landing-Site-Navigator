@@ -1,20 +1,18 @@
 // App shell (SPEC-app → Layout): top bar with the view tabs, collapsible scenario rail, stage, bottom deck.
-// Views: 3D Terrain / Surface / Compare / Opportunity Map / Validation (Compare and the map retire in S2-5).
+// Views: 3D Terrain / Surface / Verify. The full metric table and timeline are the deck's Details drawer; the 2D map is
+// 3D Terrain's "2D map" toggle (and its WebGL fallback); the 2D panorama is Surface's "Engineering view".
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import './ui/tokens.css'
 import './app.css'
 import './ui/hud.css'
 import './shell/shell.css'
-import { CompareView } from './compare/compare-view'
 import { CustomSite } from './controls/custom-site'
 import { DateControls } from './controls/date-controls'
 import { Options } from './controls/options'
 import { AppliedPresetProvider, ScenarioPresets } from './controls/scenario-presets'
 import { SitePicker } from './controls/site-picker'
 import { DataProvider, defaultDataSources, useCoreData, useCoreDataState, type DataSource } from './data'
-import { MapView } from './map/map-view'
 import { GridScoresProvider } from './map/score-layer'
-import { PanoramaPanel } from './panorama/panorama-panel'
 import { TerrainView } from './scene/terrain-view'
 import { SurfaceView } from './surface/surface-view'
 import { DetailsDrawer, useDetails } from './shell/details-drawer'
@@ -23,7 +21,6 @@ import { LeftRail, RailMenuButton, useRail } from './shell/left-rail'
 import { MissionClock, TopBar } from './shell/top-bar'
 import { ScenarioProvider, createInitialState } from './state'
 import { TimeBarProvider } from './controls/time-bar'
-import { TimelinePanel } from './timeline/timeline-panel'
 import { ScenarioResultsProvider, useScenarioResults } from './use-scenario-results'
 import { ValidationPanel } from './validation/validation-panel'
 
@@ -87,9 +84,7 @@ function ScenarioRoot() {
 const TABS = [
   { id: 'terrain', label: '3D Terrain' },
   { id: 'surface', label: 'Surface' },
-  { id: 'compare', label: 'Compare' },
-  { id: 'map', label: 'Opportunity Map' },
-  { id: 'validation', label: 'Validation' },
+  { id: 'verify', label: 'Verify' },
 ] as const
 type TabId = (typeof TABS)[number]['id']
 
@@ -123,7 +118,7 @@ function Workspace() {
 
   const select = (id: TabId, focus = false) => {
     setTab(id)
-    details.dismiss() // it would cover another view's content, or repeat the Compare tab
+    details.dismiss() // it would cover another view's content
     setOpened((prev) => (prev.has(id) ? prev : new Set([...prev, id])))
     if (focus) tabRefs.current[id]?.focus()
   }
@@ -169,7 +164,7 @@ function Workspace() {
         </div>
       </TopBar>
       <AppliedPresetProvider>
-        <ViewTimeBar active={tab === 'terrain' || tab === 'surface'}>
+        <ViewTimeBar active={tab !== 'verify'}>
           <div className="console">
             <LeftRail rail={rail}>
               <ScenarioPresets onApplied={rail.close} />
@@ -181,20 +176,10 @@ function Workspace() {
             <main ref={stageRef} className="stage">
               <div {...panel('terrain')}>{opened.has('terrain') && <TerrainView active={tab === 'terrain'} />}</div>
               <div {...panel('surface')}>{opened.has('surface') && <SurfaceView active={tab === 'surface'} />}</div>
-              <div {...panel('compare')}>
-                {opened.has('compare') && (
-                  <>
-                    <CompareView />
-                    <TimelinePanel active={tab === 'compare'} />
-                    <PanoramaPanel />
-                  </>
-                )}
-              </div>
-              <div {...panel('map')}>{opened.has('map') && <MapView active={tab === 'map'} />}</div>
-              <div {...panel('validation')}>{opened.has('validation') && <ValidationPanel />}</div>
+              <div {...panel('verify')}>{opened.has('verify') && <ValidationPanel />}</div>
             </main>
             <DetailsDrawer details={details} />
-            <MissionDeck details={details} detailsDisabled={tab === 'compare'} />
+            <MissionDeck details={details} />
           </div>
         </ViewTimeBar>
       </AppliedPresetProvider>

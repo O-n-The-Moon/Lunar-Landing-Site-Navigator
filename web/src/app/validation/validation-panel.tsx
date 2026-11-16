@@ -39,8 +39,9 @@ export function ValidationReport({ validation, sitesFile, ephemerisManifest }: V
   const pgdaVerdict = pgda && pgdaVerdictOf(pgda)
   return (
     // Same pattern as the other views: one region per view, named like its tab.
-    <section className="validation" aria-label="Validation">
-      <h3>Validation</h3>
+    <section className="validation" aria-label="Verify">
+      <h3>Verify</h3>
+      <p className="hint">Checked against JPL Horizons and PGDA. Every accuracy number here is read from validation.json.</p>
       <ul className="validation-badges" aria-label="Validation summary">
         <li className={['validation-badge', horizonsVerdict && verdictTone(horizonsVerdict)].filter(Boolean).join(' ')}>
           <span className="validation-badge-label">Ephemeris vs JPL Horizons</span>
