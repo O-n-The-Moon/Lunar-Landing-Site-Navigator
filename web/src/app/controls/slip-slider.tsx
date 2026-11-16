@@ -48,7 +48,8 @@ function coveredSlipRangeH(eph: Ephemeris, landingMs: number, durationH: number)
   return min <= max ? { min, max } : null
 }
 
-export function SlipSlider() {
+/** `tryDays`: the slip a loaded demo scenario is about; the "Try" button applies it. */
+export function SlipSlider({ tryDays }: { tryDays?: number }) {
   const scenario = useScenario()
   const { slipH, landingMs, durationH } = scenario
   const { ephemeris } = useCoreData()
@@ -102,6 +103,11 @@ export function SlipSlider() {
         </div>
       </div>
       <span className="num slip-value">{signed(days)} d</span>
+      {tryDays !== undefined && (
+        <button type="button" className="slip-try" disabled={slipH === tryDays * 24} onClick={() => setSlip(tryDays * 24, tryDays)}>
+          Try {signed(tryDays)} d
+        </button>
+      )}
       <div className="slip-meta">
         <div className="slip-fine">
           <label htmlFor={fineId}>Fine (hours)</label>

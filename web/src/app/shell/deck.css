@@ -20,11 +20,11 @@
   flex: 1 1 30rem;
   max-width: 44rem;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) 4.5rem;
+  grid-template-columns: auto minmax(0, 1fr) 4.5rem auto;
   grid-template-areas:
-    'label days value'
-    '.     meta meta'
-    '.     warn warn';
+    'label days value try'
+    '.     meta meta  meta'
+    '.     warn warn  warn';
   align-items: center;
   gap: var(--space-1) var(--space-3);
   padding: 0;
@@ -63,6 +63,19 @@
   font-size: 1.125rem;
   font-weight: 500;
   white-space: nowrap;
+}
+.slip-try {
+  grid-area: try;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--sun);
+  border-color: rgba(246, 183, 60, 0.45);
+  background: var(--sun-soft);
+}
+.slip-try:disabled {
+  color: var(--text-muted);
+  border-color: var(--border);
+  background: none;
 }
 .slip-meta {
   grid-area: meta;
@@ -264,11 +277,11 @@
     display: none;
   }
   .deck .slip-slider {
-    grid-template-columns: minmax(0, 1fr) 4rem;
+    grid-template-columns: minmax(0, 1fr) 4rem auto;
     grid-template-areas:
-      'days value'
-      'meta meta'
-      'warn warn';
+      'days value try'
+      'meta meta meta'
+      'warn warn warn';
   }
   .deck .slip-slider .deck-label {
     display: none;

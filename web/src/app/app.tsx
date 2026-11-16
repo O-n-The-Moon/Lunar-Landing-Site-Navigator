@@ -9,6 +9,7 @@ import { CompareView } from './compare/compare-view'
 import { CustomSite } from './controls/custom-site'
 import { DateControls } from './controls/date-controls'
 import { Options } from './controls/options'
+import { AppliedPresetProvider, ScenarioPresets } from './controls/scenario-presets'
 import { SitePicker } from './controls/site-picker'
 import { DataProvider, defaultDataSources, useCoreData, useCoreDataState, type DataSource } from './data'
 import { MapView } from './map/map-view'
@@ -155,32 +156,35 @@ function Workspace() {
           ))}
         </div>
       </TopBar>
-      <ViewTimeBar active={tab === 'terrain' || tab === 'surface'}>
-      <div className="console">
-        <LeftRail rail={rail}>
-          <SitePicker />
-          <CustomSite />
-          <DateControls />
-          <Options />
-        </LeftRail>
-        <main className="stage">
-          <div {...panel('terrain')}>{opened.has('terrain') && <TerrainView active={tab === 'terrain'} />}</div>
-          <div {...panel('surface')}>{opened.has('surface') && <SurfaceView active={tab === 'surface'} />}</div>
-          <div {...panel('compare')}>
-            {opened.has('compare') && (
-              <>
-                <CompareView />
-                <TimelinePanel active={tab === 'compare'} />
-                <PanoramaPanel />
-              </>
-            )}
+      <AppliedPresetProvider>
+        <ViewTimeBar active={tab === 'terrain' || tab === 'surface'}>
+          <div className="console">
+            <LeftRail rail={rail}>
+              <ScenarioPresets onApplied={rail.close} />
+              <SitePicker />
+              <CustomSite />
+              <DateControls />
+              <Options />
+            </LeftRail>
+            <main className="stage">
+              <div {...panel('terrain')}>{opened.has('terrain') && <TerrainView active={tab === 'terrain'} />}</div>
+              <div {...panel('surface')}>{opened.has('surface') && <SurfaceView active={tab === 'surface'} />}</div>
+              <div {...panel('compare')}>
+                {opened.has('compare') && (
+                  <>
+                    <CompareView />
+                    <TimelinePanel active={tab === 'compare'} />
+                    <PanoramaPanel />
+                  </>
+                )}
+              </div>
+              <div {...panel('map')}>{opened.has('map') && <MapView active={tab === 'map'} />}</div>
+              <div {...panel('validation')}>{opened.has('validation') && <ValidationPanel />}</div>
+            </main>
+            <MissionDeck />
           </div>
-          <div {...panel('map')}>{opened.has('map') && <MapView active={tab === 'map'} />}</div>
-          <div {...panel('validation')}>{opened.has('validation') && <ValidationPanel />}</div>
-        </main>
-        <MissionDeck />
-      </div>
-      </ViewTimeBar>
+        </ViewTimeBar>
+      </AppliedPresetProvider>
     </>
   )
 }

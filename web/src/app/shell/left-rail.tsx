@@ -8,6 +8,8 @@ import { ChevronIcon, MenuIcon } from '../ui/icons'
 export interface RailState {
   open: boolean
   toggle: () => void
+  /** Folds the rail (used once a scenario is set). */
+  close: () => void
   bodyId: string
 }
 
@@ -29,6 +31,7 @@ export function useRail(): RailState {
   const [open, setOpen] = useState(railStartsOpen)
   const bodyId = useId()
   const toggle = useCallback(() => setOpen((o) => !o), [])
+  const close = useCallback(() => setOpen(false), [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -40,7 +43,7 @@ export function useRail(): RailState {
     return () => window.removeEventListener('keydown', onKey)
   }, [toggle])
 
-  return { open, toggle, bodyId }
+  return { open, toggle, close, bodyId }
 }
 
 export function LeftRail({ rail, children }: { rail: RailState; children: ReactNode }) {
