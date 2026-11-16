@@ -28,22 +28,32 @@ export function usePlayCursor({ active, enabled = true, speedHPerS }: { active: 
 
   // Latest cursor for the animation loop, which must not restart on every frame.
   const cursorRef = useRef(cursorMs)
+  // Cursor values this loop dispatched recently. React may commit one of them after the next animation frame, so a
+  // cursor that is not on this list is a user move (drag / keys), not our own echo arriving late.
+  const ownRef = useRef<number[]>([])
+  const userMoveRef = useRef<number | null>(null)
   useEffect(() => {
     cursorRef.current = cursorMs
+    if (!ownRef.current.includes(cursorMs)) userMoveRef.current = cursorMs
   }, [cursorMs])
 
   useEffect(() => {
     if (!playing) return
     const msPerSecond = speedHPerS === undefined ? (endMs - startMs) / PLAY_SECONDS : speedHPerS * HOUR_MS
     let t = cursorRef.current >= endMs ? startMs : cursorRef.current
-    let sent = NaN
+    userMoveRef.current = null
+    ownRef.current = []
     let last = performance.now()
     let raf = 0
     const tick = (now: number) => {
       // The user dragged or keyed the cursor since the last frame: continue from where they put it.
-      if (!Number.isNaN(sent) && cursorRef.current !== sent) t = cursorRef.current
-      t = Math.min(endMs, t + ((now - last) / 1000) * msPerSecond)
-      sent = t
+      if (userMoveRef.current !== null) {
+        t = userMoveRef.current
+        userMoveRef.current = null
+      }
+      // The first frame's timestamp can precede `performance.now()` (jsdom), so never step backwards.
+      t = Math.min(endMs, t + (Math.max(0, now - last) / 1000) * msPerSecond)
+      ownRef.current = [...ownRef.current.slice(-15), t]
       last = now
       dispatch({ type: 'setCursor', cursorMs: t })
       if (t >= endMs) setRequested(false)

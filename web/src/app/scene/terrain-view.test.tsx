@@ -137,6 +137,19 @@ describe('3D Terrain tab', () => {
     await waitFor(() => expect(scene().beacons.length).toBe(before + 1))
   })
 
+  it('clicking a terrain cell that is already a site says so instead of claiming it added one', async () => {
+    const user = await renderTerrain()
+    await waitFor(() => expect(scene().shadow).not.toBeNull())
+    const pick = () => terrainPanel().getByRole('button', { name: 'pick terrain' })
+    await user.click(pick())
+    await terrainPanel().findByText(/Added custom site/)
+    const count = scene().beacons.length
+    await user.click(pick())
+    expect(await terrainPanel().findByText(/That grid cell is already in the scenario\./)).toBeInTheDocument()
+    expect(terrainPanel().queryByText(/Added custom site/)).not.toBeInTheDocument()
+    expect(scene().beacons.length).toBe(count)
+  })
+
   it('stops rendering while another tab is showing', async () => {
     const user = await renderTerrain()
     expect(scene().active).toBe(true)

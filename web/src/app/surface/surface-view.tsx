@@ -70,7 +70,10 @@ export function SurfaceView({ active }: { active: boolean }) {
 function SurfaceStage({ active, timeBar, onEngineering }: { active: boolean; timeBar: TimeBarController; onEngineering: () => void }) {
   const scenario = useScenario()
   const results = useScenarioResults()
-  const { cursorMs, focusedSiteId } = scenario
+  const { focusedSiteId } = scenario
+  // A hidden Surface tab keeps its last frame instead of recomputing the bodies and HUD on every Play tick.
+  const [cursorMs, setCursorMs] = useState(scenario.cursorMs)
+  if (active && cursorMs !== scenario.cursorMs) setCursorMs(scenario.cursorMs)
   const focused = results.sites.find((r) => r.site.id === focusedSiteId) ?? null
   const [follow, setFollow] = useState(true)
   const [yaw, setYaw] = useState<number | null>(null)

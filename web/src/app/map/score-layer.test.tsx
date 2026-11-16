@@ -4,7 +4,7 @@ import { DEFAULT_VISIBILITY_OPTS, type GridScores } from '../../engine'
 import { fixtureEphemeris, fixtureGrid } from '../../engine/__fixtures__'
 import type { GridWorkerRequest, GridWorkerResponse } from '../../workers/grid-score.worker'
 import { rasterValueAt, pgdaToGridOrder, NO_DATA } from './pgda-raster'
-import { DEBOUNCE_MS, scoresToRaster, useGridScores } from './score-layer'
+import { DEBOUNCE_MS, scoresToRaster, useGridScores, windowScoresToShow, type GridScoresState } from './score-layer'
 
 /** A stand-in worker that records requests; the test answers them by hand. */
 class FakeWorker {
@@ -109,10 +109,84 @@ describe('useGridScores', () => {
     expect(worker.scores()).toHaveLength(1)
   })
 
+  it('does not create the worker until a view first asks for scores', () => {
+    const worker = new FakeWorker()
+    const factory = vi.fn(() => worker as unknown as Worker)
+    const hook = renderHook(
+      ({ on }: { on: boolean }) => useGridScores(fixtureGrid, fixtureEphemeris, T0, T0 + 24 * H, DEFAULT_VISIBILITY_OPTS, on, factory),
+      { initialProps: { on: false } },
+    )
+    act(() => vi.advanceTimersByTime(DEBOUNCE_MS + 1))
+    expect(factory).not.toHaveBeenCalled()
+    hook.rerender({ on: true })
+    expect(factory).toHaveBeenCalledTimes(1)
+    // Hiding again keeps the worker (and its 13 MB) rather than rebuilding it.
+    hook.rerender({ on: false })
+    hook.rerender({ on: true })
+    expect(factory).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports an error instead of throwing when the worker cannot be created', async () => {
+    const factory = () => {
+      throw new Error('module workers unsupported')
+    }
+    const hook = renderHook(() => useGridScores(fixtureGrid, fixtureEphemeris, T0, T0 + 24 * H, DEFAULT_VISIBILITY_OPTS, true, factory))
+    await act(async () => {})
+    const st = hook.result.current
+    expect(st.status).toBe('error')
+    expect(st.status === 'error' && st.message).toBe('module workers unsupported')
+  })
+
+  it('does not rescore unchanged parameters when the view is shown again', () => {
+    const { worker, hook, tick } = setup()
+    tick()
+    const job = worker.scores()[0]
+    worker.reply({ type: 'result', requestId: job.requestId, scores: scoresFor(T0), elapsedMs: 5 })
+    hook.rerender({ startMs: T0, active: false })
+    tick()
+    hook.rerender({ startMs: T0, active: true })
+    tick()
+    expect(worker.scores()).toHaveLength(1)
+    expect(hook.result.current.status).toBe('ready')
+    // A changed window still rescores.
+    hook.rerender({ startMs: T0 + H, active: true })
+    tick()
+    expect(worker.scores()).toHaveLength(2)
+  })
+
   it('terminates the worker on unmount', () => {
     const { worker, hook } = setup()
     hook.unmount()
     expect(worker.terminated).toBe(true)
+  })
+})
+
+describe('windowScoresToShow', () => {
+  const window = { startMs: 100, endMs: 200 }
+  const mine: GridScores = { ...scoresFor(100), endMs: 200 }
+  const other: GridScores = { ...scoresFor(50), endMs: 150 }
+  const ready = (scores: GridScores): GridScoresState => ({ status: 'ready', scores, elapsedMs: 1 })
+
+  it('shows the result for this window as current', () => {
+    expect(windowScoresToShow(ready(mine), window.startMs, window.endMs, true)).toEqual({ scores: mine, stale: false })
+  })
+
+  it('flags a result scored for another window as stale (the debounce gap after a slip)', () => {
+    expect(windowScoresToShow(ready(other), window.startMs, window.endMs, true)).toEqual({ scores: other, stale: true })
+  })
+
+  it('shows the previous result while computing, flagged stale when it was for another window', () => {
+    const st: GridScoresState = { status: 'computing', progress: 0.3, previous: other }
+    expect(windowScoresToShow(st, window.startMs, window.endMs, true)).toEqual({ scores: other, stale: true })
+  })
+
+  it('draws nothing once the mission window is outside the ephemeris', () => {
+    expect(windowScoresToShow(ready(other), window.startMs, window.endMs, false)).toEqual({ scores: null, stale: false })
+    expect(windowScoresToShow(ready(mine), window.startMs, window.endMs, false)).toEqual({ scores: null, stale: false })
+  })
+
+  it('has nothing to show before the first result', () => {
+    expect(windowScoresToShow({ status: 'idle' }, window.startMs, window.endMs, true)).toEqual({ scores: null, stale: false })
   })
 })
 

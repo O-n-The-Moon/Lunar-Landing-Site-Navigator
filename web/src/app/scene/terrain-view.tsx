@@ -9,10 +9,10 @@ import { useCoreData, useDisplayTerrain, useGrid, usePgdaLayers, useTerrainHeigh
 import { rampCss } from '../map/colormaps'
 import { MapView } from '../map/map-view'
 import { pgdaToGridOrder } from '../map/pgda-raster'
-import { useWindowScores } from '../map/score-layer'
+import { useWindowScores, windowScoresToShow } from '../map/score-layer'
 import { usePgdaValues } from '../map/use-pgda-values'
 import { bodyAt } from '../panorama/bodies'
-import { MAX_SITES, slippedLandingMs, useScenario, useScenarioDispatch } from '../state'
+import { MAX_SITES, customSiteId, missionEndMs, slippedLandingMs, useScenario, useScenarioDispatch } from '../state'
 import type { TerrainField } from '../terrain-data'
 import { siteLetter, splitSiteName } from '../ui/names'
 import { formatLatDeg, formatLonDeg, missionInCoverage, useScenarioResults, type SiteResult } from '../use-scenario-results'
@@ -143,7 +143,13 @@ function TerrainStage({ active }: { active: boolean }) {
   const pgdaRaster = usePgdaValues(pgda && overlay?.source === 'pgda' ? pgda.urls[overlay.id === 'pgda-earth' ? 'earth' : 'sun'] : undefined)
   const windowWanted = active && overlay?.source === 'window' && missionInCoverage(ephemeris, slippedLandingMs(scenario), scenario.durationH)
   const scores = useWindowScores(windowWanted)
-  const shownScores = scores.status === 'ready' ? scores.scores : scores.status === 'computing' || scores.status === 'error' ? scores.previous : null
+  const landingMs = slippedLandingMs(scenario)
+  const endMs = missionEndMs(scenario)
+  const inCoverage = missionInCoverage(ephemeris, landingMs, scenario.durationH)
+  const { scores: shownScores, stale: scoresStale } = useMemo(
+    () => windowScoresToShow(scores, landingMs, endMs, inCoverage),
+    [scores, landingMs, endMs, inCoverage],
+  )
   const overlayTexture = useMemo((): SceneTexture | null => {
     if (!overlay || !terrain) return null
     let frame: { originKm: readonly [number, number]; cellKm: number; nx: number; ny: number } | null = null
@@ -240,7 +246,6 @@ function TerrainStage({ active }: { active: boolean }) {
   const [message, setMessage] = useState<string | null>(null)
   const pick = (latDeg: number, lonDeg: number) => {
     if (!grid) return setMessage('The terrain grid is still loading.')
-    if (scenario.sites.length >= MAX_SITES) return setMessage(`Remove a site first (maximum ${MAX_SITES}).`)
     let cell
     try {
       cell = nearestGridCell(grid, latDeg, lonDeg)
@@ -249,6 +254,8 @@ function TerrainStage({ active }: { active: boolean }) {
       throw e
     }
     if (!cell) return setMessage('No terrain data at that spot.')
+    if (scenario.sites.some((s) => s.id === customSiteId(cell))) return setMessage('That grid cell is already in the scenario.')
+    if (scenario.sites.length >= MAX_SITES) return setMessage(`The scenario already has ${MAX_SITES} sites. Remove one first.`)
     dispatch({ type: 'addCustomSite', latDeg, lonDeg, cell })
     setMessage(`Added custom site ${formatLatDeg(latDeg)} ${formatLonDeg(lonDeg)} (snapped ${cell.snapDistKm.toFixed(1)} km).`)
   }
@@ -267,8 +274,10 @@ function TerrainStage({ active }: { active: boolean }) {
     overlay?.source === 'pgda' && pgdaState.status === 'loading' && 'Loading PGDA layer…',
     overlay?.source === 'pgda' && pgdaState.status === 'error' && `Could not load the PGDA layer: ${pgdaState.message}`,
     display.status === 'loading' && 'Loading terrain detail…',
+    display.status === 'error' && 'Terrain detail is unavailable; showing the 2 km terrain.',
     gridState.status === 'loading' && 'Loading terrain shadows…',
     gridState.status === 'error' && `Could not load the terrain grid: ${gridState.message}`,
+    overlay?.source === 'window' && scoresStale && scores.status !== 'computing' && 'Showing the previous window; the new one is scored a moment after the window stops changing.',
     overlay?.source === 'window' && scores.status === 'computing' && `Scoring ${Math.round(scores.progress * 100)} %`,
     overlay?.source === 'window' && !windowWanted && 'The mission window is outside the ephemeris, so there is nothing to score.',
     overlay?.source === 'window' && scores.status === 'unsupported' && 'Window scores need Web Workers, which this browser lacks.',
@@ -304,7 +313,10 @@ function TerrainStage({ active }: { active: boolean }) {
 
         <div className="scene-hud scene-hud-tl">
           <div className="segmented" role="group" aria-label="Terrain overlay">
-            <button type="button" aria-pressed={shadowsOn} onClick={() => setOverlayId(null)} title="Terrain-aware shadows at the cursor time">
+            <button type="button" aria-pressed={shadowsOn} onClick={() => {
+                setOverlayId(null)
+                setMessage(null)
+              }} title="Terrain-aware shadows at the cursor time">
               Live shadows
             </button>
             {OVERLAYS.map((o) => (
@@ -315,6 +327,7 @@ function TerrainStage({ active }: { active: boolean }) {
                 title={o.title}
                 onClick={() => {
                   setOverlayId(o.id)
+                  setMessage(null)
                   dispatch({ type: 'setMapLayer', layer: o.id })
                 }}
               >

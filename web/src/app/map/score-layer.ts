@@ -3,9 +3,10 @@
 // One worker per grid: `init` once (grid + ephemeris), then a debounced `score` whenever the window or options change.
 //
 // The worker can't interrupt a job, so requests are coalesced: at most one job is in flight, and while it runs only
-// the newest parameters are kept and sent when it finishes. Nothing is scored while the map is hidden (`active`).
+// the newest parameters are kept and sent when it finishes. Nothing is scored while the map is hidden (`active`), and the
+// worker is not even created (no ~13 MB copy) until a view first asks for scores.
 // Only the newest request's progress/result is shown; anything older is ignored.
-import { createContext, createElement, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Ephemeris, Grid, GridScores, VisibilityOpts } from '../../engine'
 import type { GridWorkerRequest, GridWorkerResponse } from '../../workers/grid-score.worker'
 import { useCoreData, useGrid } from '../data'
@@ -50,18 +51,32 @@ export function useGridScores(
   const busyRef = useRef(false)
   const pendingRef = useRef<ScoreParams | null>(null)
   const lastScores = useRef<GridScores | null>(null)
+  const lastSentRef = useRef<ScoreParams | null>(null)
+  // Latched on the first request, so the worker costs nothing for someone who never opens a score layer.
+  const [everActive, setEverActive] = useState(false)
+  if (active && !everActive) setEverActive(true)
 
   // One worker per grid. `send` lives here so the message handler can send the pending request.
   const sendRef = useRef<(p: ScoreParams) => void>(() => {})
   useEffect(() => {
-    if (!supported || !grid) return
-    const worker = createWorker()
+    if (!supported || !grid || !everActive) return
+    let worker: Worker
+    try {
+      worker = createWorker()
+    } catch (e) {
+      // A worker that cannot start must not take the whole app down (the provider sits at the root), only the overlay.
+      const message = e instanceof Error ? e.message : 'could not start the grid worker'
+      queueMicrotask(() => setState({ status: 'error', message, previous: lastScores.current }))
+      return
+    }
     workerRef.current = worker
     busyRef.current = false
     pendingRef.current = null
+    lastSentRef.current = null
     const send = (p: ScoreParams) => {
       const requestId = ++requestRef.current
       busyRef.current = true
+      lastSentRef.current = p
       setState({ status: 'computing', progress: 0, previous: lastScores.current })
       worker.postMessage({ type: 'score', requestId, ...p } satisfies GridWorkerRequest)
     }
@@ -102,7 +117,7 @@ export function useGridScores(
       workerRef.current = null
       sendRef.current = () => {}
     }
-  }, [supported, grid, eph, createWorker])
+  }, [supported, grid, everActive, eph, createWorker])
 
   // Debounced scoring of the current window, only while visible.
   useEffect(() => {
@@ -110,6 +125,9 @@ export function useGridScores(
     const timer = window.setTimeout(() => {
       if (!workerRef.current) return
       const p = { startMs, endMs, opts }
+      // Coming back to a view with the same window and options: the scores on screen are already right.
+      const sent = lastSentRef.current
+      if (!busyRef.current && sent && sent.startMs === startMs && sent.endMs === endMs && sent.opts === opts && lastScores.current) return
       if (busyRef.current) pendingRef.current = p
       else sendRef.current(p)
     }, DEBOUNCE_MS)
@@ -117,6 +135,23 @@ export function useGridScores(
   }, [supported, grid, active, startMs, endMs, opts])
 
   return supported ? state : { status: 'unsupported' }
+}
+
+/**
+ * The scores a view may draw for the mission window `[startMs, endMs]`. Out of coverage nothing is drawn (the last
+ * result belongs to another window). Otherwise the newest result, or the previous one while a job runs; `stale` is true
+ * when what is drawn was scored for a different window, so the view says so instead of presenting it as current.
+ */
+export function windowScoresToShow(
+  state: GridScoresState,
+  startMs: number,
+  endMs: number,
+  inCoverage: boolean,
+): { scores: GridScores | null; stale: boolean } {
+  if (!inCoverage) return { scores: null, stale: false }
+  const scores = state.status === 'ready' ? state.scores : state.status === 'computing' || state.status === 'error' ? state.previous : null
+  if (!scores) return { scores: null, stale: false }
+  return { scores, stale: scores.startMs !== startMs || scores.endMs !== endMs }
 }
 
 /**
@@ -160,16 +195,12 @@ export function GridScoresProvider({ children, createWorker }: { children: React
   const opts = useMemo(() => visibilityOpts({ sunThreshold, earthMarginDeg }), [sunThreshold, earthMarginDeg])
   const grid = gridState.status === 'ready' ? gridState.data : null
   const state = useGridScores(grid, ephemeris, startMs, endMs, opts, wanted > 0 && missionInCoverage(ephemeris, startMs, durationH), createWorker)
-  const value = useMemo<WindowScores>(
-    () => ({
-      state,
-      want: () => {
-        setWanted((n) => n + 1)
-        return () => setWanted((n) => n - 1)
-      },
-    }),
-    [state],
-  )
+  // `want` is stable (setWanted is), so a progress message does not make every consumer withdraw and re-register.
+  const want = useCallback(() => {
+    setWanted((n) => n + 1)
+    return () => setWanted((n) => n - 1)
+  }, [])
+  const value = useMemo<WindowScores>(() => ({ state, want }), [state, want])
   return createElement(WindowScoresContext.Provider, { value }, children)
 }
 
