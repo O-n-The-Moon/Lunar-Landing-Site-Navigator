@@ -77,7 +77,7 @@ describe('ValidationReport (fixture validation.json)', () => {
     renderReport()
     const method = screen.getByRole('region', { name: /pgda method/i })
     const def = (term: string) => within(method).getByText(term, { selector: 'dt' }).nextElementSibling
-    expect(def('Observer height')).toHaveTextContent('0 m (assumption, see limits)')
+    expect(def('Observer height')).toHaveTextContent('0 m')
     expect(def('Sensitivity runs')).toHaveTextContent('2 m, 10 m')
     expect(def('Sun')).toHaveTextContent(fixturePgda.method!.sunDefinition)
     expect(def('Earth')).toHaveTextContent(fixturePgda.method!.earthDefinition)
@@ -100,8 +100,21 @@ describe('ValidationReport (fixture validation.json)', () => {
     expect(badges()[0]).toHaveClass('warn')
   })
 
+  it('gives no PGDA verdict when the summary disagrees with its rows, only the inconsistency warning', () => {
+    renderReport(withPgda(fixturePgda.rows, { sitesWithinThreshold: 2, sitesTotal: 2 }))
+    expect(badgeParts(badges()[1])).not.toContainEqual(expect.stringMatching(/^(Pass|Not met)/))
+    expect(screen.getByText(/validation\.json is inconsistent/i)).toBeInTheDocument()
+  })
+
+  it('ignores a target outside 0–1 instead of giving a verdict', () => {
+    renderReport(withPgda(fixturePgda.rows, { sitesWithinThreshold: 1, sitesTotal: 2, targetFractionWithin: 1.5 }))
+    expect(badgeParts(badges()[1])).not.toContainEqual(expect.stringMatching(/^(Pass|Not met)/))
+  })
+
   it('passes the PGDA verdict when the share of sites reaches the target', () => {
-    renderReport(withPgda(fixturePgda.rows, { sitesWithinThreshold: 4, sitesTotal: 5, targetFractionWithin: 0.8 }))
+    const within = (siteId: string) => pgdaRow({ siteId, sunDiffPp: 1, earthDiffPp: 1, explanation: null })
+    const rows = [...['a', 'b', 'c', 'd'].map(within), pgdaRow({ siteId: 'e', sunDiffPp: 9, explanation: 'x' })]
+    renderReport(withPgda(rows, { sitesWithinThreshold: 4, targetFractionWithin: 0.8 }))
     expect(badgeParts(badges()[1])[2]).toBe('Pass: target ≥ 80% of sites')
     expect(badges()[1]).toHaveClass('good')
   })

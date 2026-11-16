@@ -75,7 +75,7 @@ interface VerdictResult {
   target: string
 }
 
-const isTarget = (v: number | undefined): v is number => typeof v === 'number' && Number.isFinite(v)
+const isTarget = (v: number | undefined, max = Infinity): v is number => typeof v === 'number' && v > 0 && v <= max
 
 /** SPEC.md criterion 1: both max errors at or under the target. No verdict for files without the target. */
 function horizonsVerdictOf({ summary }: HorizonsValidation): VerdictResult | null {
@@ -84,10 +84,15 @@ function horizonsVerdictOf({ summary }: HorizonsValidation): VerdictResult | nul
   return { pass: Math.max(summary.maxAzErrDeg, summary.maxElevErrDeg) <= target, target: `target ≤ ${target}°` }
 }
 
-/** SPEC.md criterion 2: share of sites within the threshold at or over the target. No verdict without a target or sites. */
-function pgdaVerdictOf({ summary }: PgdaValidation): VerdictResult | null {
+/**
+ * SPEC.md criterion 2: share of sites within the threshold at or over the target. No verdict without a target or sites,
+ * or when the summary disagrees with its rows (the section then says the file is inconsistent).
+ */
+function pgdaVerdictOf({ summary, rows }: PgdaValidation): VerdictResult | null {
   const target = summary.targetFractionWithin
-  if (!isTarget(target) || summary.sitesTotal === 0) return null
+  if (!isTarget(target, 1) || summary.sitesTotal === 0) return null
+  const rowsWithin = rows.filter((r) => !isOutlier(r, summary.thresholdPp)).length
+  if (rows.length !== summary.sitesTotal || rowsWithin !== summary.sitesWithinThreshold) return null
   return {
     pass: summary.sitesWithinThreshold / summary.sitesTotal >= target,
     target: `target ≥ ${fmtFractionPct(target)}% of sites`,
@@ -228,9 +233,9 @@ function PgdaMethodBlock({ method }: { method: PgdaMethod | null }) {
       <p className="validation-claim">{method.claimLabel}</p>
       <dl className="validation-methods">
         <dt>Observer height</dt>
-        <dd>{observerHeightM === null ? 'unknown' : `${observerHeightM} m (assumption, see limits)`}</dd>
+        <dd>{observerHeightM === null ? 'unknown' : `${observerHeightM} m`}</dd>
         <dt>Sensitivity runs</dt>
-        <dd>{sensitivityHeightsM.length > 0 ? `${sensitivityHeightsM.map((h) => `${h} m`).join(', ')} (not assumptions about PGDA)` : 'none'}</dd>
+        <dd>{sensitivityHeightsM.length > 0 ? sensitivityHeightsM.map((h) => `${h} m`).join(', ') : 'none'}</dd>
         <dt>Sun</dt>
         <dd>{method.sunDefinition}</dd>
         <dt>Earth</dt>

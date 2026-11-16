@@ -16,10 +16,12 @@ Method agreed in #57 (pipeline/DATA_SOURCES.md, SPEC-data-pipeline.md section 5)
 
 The validation.json rows carry the 0 m result only. The sensitivity runs and
 pixel ranges are printed and quoted in each outlier's explanation; METHOD
-records the definitions, height assumption and claim label in the file (#71). Any +/-5 pp result may only be stated
-as CLAIM_LABEL, never as accuracy against truth or as "height-matched".
+records the definitions, height assumption and claim label in the file (#71).
+Any +/-5 pp result may only be stated as CLAIM_LABEL, never as accuracy
+against truth or as "height-matched".
 """
 
+import copy
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -410,7 +412,7 @@ def run(
         f"±{THRESHOLD_PP:g} pp at {PRIMARY_HEIGHT_M} m): {verdict} "
         f"({summary['sitesWithinThreshold']}/{summary['sitesTotal']})"
     )
-    return {"rows": rows, "summary": summary, "method": METHOD}
+    return {"rows": rows, "summary": summary, "method": copy.deepcopy(METHOD)}
 
 
 def main() -> None:
