@@ -17,6 +17,7 @@ Produce every data file in the SPEC.md data contract, offline, with Python. Thes
 | `lunarnav horizons --sites` | `horizon.py`, `sites.py` | `sites.json` |
 | `lunarnav horizons --grid` | `horizon.py`, `grid.py` | `grid.json`, `grid-horizons.bin`, `grid-heights.bin` |
 | `lunarnav pgda` | `pgda.py` | `pgda-sun.png`, `pgda-earth.png`, `pgda-layers.json` |
+| `lunarnav display-terrain` | `display_terrain.py` | `terrain-display.bin`, `terrain-display.json` (3D view only; not part of `build-all`) |
 | `lunarnav validate` | `validate.py` | `validation.json` |
 | `lunarnav golden` | `export.py` | `shared/fixtures/golden.json` |
 | `lunarnav build-all` | `cli.py` | runs ephemeris → sites → grid → pgda |

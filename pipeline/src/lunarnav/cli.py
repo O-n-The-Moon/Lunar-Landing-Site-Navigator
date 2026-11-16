@@ -5,6 +5,7 @@ from collections.abc import Callable, Sequence
 
 from lunarnav import (
     demo,
+    display_terrain,
     ephemeris,
     fetch,
     golden,
@@ -38,6 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
     target.add_argument("--sites", action="store_true", help="curated sites")
     target.add_argument("--grid", action="store_true", help="polar grid")
     sub.add_parser("pgda", help="reproject PGDA layers")
+    sub.add_parser("display-terrain", help="terrain-display.bin (1024^2, drawing only)")
     sub.add_parser("validate", help="write validation.json")
     sub.add_parser("golden", help="write shared/fixtures/golden.json")
     sub.add_parser("demo", help="demo data")
@@ -51,6 +53,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         "fetch": fetch.main,
         "ephemeris": ephemeris.main,
         "pgda": pgda_layers.main,
+        "display-terrain": display_terrain.main,
         "validate": validate.main,
         "golden": golden.main,
         "demo": demo.main,
