@@ -1,5 +1,6 @@
 // Loads the data-contract files (SPEC.md → Data Contract; SPEC-app P0-1).
-// Core files load on startup; the grid and PGDA layers load lazily on first use (Map tab, custom sites).
+// Core files load on startup; the grid, PGDA layers and the 3D terrain heights load lazily on first use (3D Terrain tab,
+// Map tab, custom sites).
 import {
   createContext,
   createElement,
@@ -22,6 +23,7 @@ import {
   type SitesFile,
   type ValidationFile,
 } from '../engine'
+import { gridHeightsField, parseDisplayTerrain, type TerrainField } from './terrain-data'
 
 export type LoadState<T> =
   | { status: 'idle' }
@@ -50,6 +52,10 @@ export interface DataSource {
   kind: 'data' | 'fixtures'
   loadCore(): Promise<CoreData>
   loadGrid(onProgress: (fraction: number | null) => void): Promise<Grid>
+  /** The 2 km surface heights alone (65 KB), so the 3D view can draw before the 12 MB horizon grid arrives. */
+  loadGridHeights(): Promise<TerrainField>
+  /** The 1024² display terrain (SPEC.md → Display assets); rejects when the source has none. */
+  loadDisplayTerrain(): Promise<TerrainField>
   loadPgda(): Promise<PgdaData>
 }
 
@@ -141,6 +147,23 @@ export function fetchDataSource(baseUrl = `${import.meta.env.BASE_URL}data/`, fe
       ])
       return loadGrid(manifest, horizons, heights)
     },
+    async loadGridHeights() {
+      const manifest = (await fetchJson(fetchFn, baseUrl, 'grid.json')) as GridManifest
+      const bytes = await fetchBytes(fetchFn, baseUrl, 'grid-heights.bin')
+      const cells = manifest.nx * manifest.ny
+      if (bytes.byteLength !== cells * 2) throw new Error(`grid-heights.bin: expected ${cells * 2} bytes, got ${bytes.byteLength}`)
+      const view = new DataView(bytes)
+      const heightM = new Int16Array(cells)
+      for (let i = 0; i < cells; i++) heightM[i] = view.getInt16(i * 2, true)
+      return gridHeightsField(manifest, heightM)
+    },
+    async loadDisplayTerrain() {
+      const [manifest, bytes] = await Promise.all([
+        fetchJson(fetchFn, baseUrl, 'terrain-display.json'),
+        fetchBytes(fetchFn, baseUrl, 'terrain-display.bin'),
+      ])
+      return parseDisplayTerrain(manifest, bytes)
+    },
     async loadPgda() {
       const manifest = (await fetchJson(fetchFn, baseUrl, 'pgda-layers.json')) as PgdaLayersManifest
       if (manifest.schemaVersion !== 1) throw new Error('pgda-layers.json: unsupported schemaVersion')
@@ -167,6 +190,13 @@ export function fixtureDataSource(): DataSource {
       const f = await load()
       onProgress(1)
       return f.fixtureGrid
+    },
+    async loadGridHeights() {
+      const f = await load()
+      return gridHeightsField(f.fixtureGrid.manifest, f.fixtureGrid.surfaceHeightM)
+    },
+    async loadDisplayTerrain() {
+      throw new Error('terrain-display: not available in fixtures')
     },
     async loadPgda() {
       const f = await load()
@@ -197,8 +227,12 @@ interface CoreContextValue {
 interface LazyContextValue {
   grid: LoadState<Grid>
   pgda: LoadState<PgdaData>
+  heights: LoadState<TerrainField>
+  display: LoadState<TerrainField>
   requestGrid: () => void
   requestPgda: () => void
+  requestHeights: () => void
+  requestDisplay: () => void
 }
 
 /** A lazily loaded resource plus a retry for the error state. */
@@ -211,7 +245,7 @@ export interface LazyResource<T> {
 const CoreContext = createContext<CoreContextValue | null>(null)
 const LazyContext = createContext<LazyContextValue | null>(null)
 
-type LazyKind = 'grid' | 'pgda'
+type LazyKind = 'grid' | 'pgda' | 'heights' | 'display'
 /**
  * Lazy loads already started, keyed by a per-provider object. Kept outside React state so two
  * consumers asking in the same commit start only one load.
@@ -233,6 +267,8 @@ export function DataProvider({ source, fallback, children }: { source: DataSourc
   const [core, setCore] = useState<LoadState<CoreData>>({ status: 'loading', progress: null })
   const [grid, setGrid] = useState<LoadState<Grid>>({ status: 'idle' })
   const [pgda, setPgda] = useState<LoadState<PgdaData>>({ status: 'idle' })
+  const [heights, setHeights] = useState<LoadState<TerrainField>>({ status: 'idle' })
+  const [display, setDisplay] = useState<LoadState<TerrainField>>({ status: 'idle' })
   const [lazyKey] = useState(() => ({}))
 
   useEffect(() => {
@@ -297,13 +333,35 @@ export function DataProvider({ source, fallback, children }: { source: DataSourc
     )
   }, [active.source, lazyKey])
 
+  const requestHeights = useCallback(() => {
+    if (!startOnce(lazyKey, 'heights')) return
+    setHeights({ status: 'loading', progress: null })
+    active.source.loadGridHeights().then(
+      (data) => setHeights({ status: 'ready', data }),
+      (e) => {
+        allowRetry(lazyKey, 'heights')
+        setHeights({ status: 'error', message: errorMessage(e) })
+      },
+    )
+  }, [active.source, lazyKey])
+
+  // No retry for the display terrain: the 3D view keeps the 2 km mesh, which is a complete fallback.
+  const requestDisplay = useCallback(() => {
+    if (!startOnce(lazyKey, 'display')) return
+    setDisplay({ status: 'loading', progress: null })
+    active.source.loadDisplayTerrain().then(
+      (data) => setDisplay({ status: 'ready', data }),
+      (e) => setDisplay({ status: 'error', message: errorMessage(e) }),
+    )
+  }, [active.source, lazyKey])
+
   const coreValue = useMemo<CoreContextValue>(
     () => ({ core, kind: active.source.kind, fallbackReason: active.fallbackReason }),
     [core, active],
   )
   const lazyValue = useMemo<LazyContextValue>(
-    () => ({ grid, pgda, requestGrid, requestPgda }),
-    [grid, pgda, requestGrid, requestPgda],
+    () => ({ grid, pgda, heights, display, requestGrid, requestPgda, requestHeights, requestDisplay }),
+    [grid, pgda, heights, display, requestGrid, requestPgda, requestHeights, requestDisplay],
   )
   return createElement(
     CoreContext.Provider,
@@ -345,9 +403,27 @@ export function useGrid(enabled = true): LazyResource<Grid> {
   return { state: grid, retry: requestGrid }
 }
 
-/** PGDA v0 map layers; start loading on first use. */
-export function usePgdaLayers(): LazyResource<PgdaData> {
+/** PGDA v0 map layers; start loading on first use, or once `enabled` turns true (the 3D view only needs them for a PGDA overlay). */
+export function usePgdaLayers(enabled = true): LazyResource<PgdaData> {
   const { pgda, requestPgda } = useLazyContext()
-  useEffect(requestPgda, [requestPgda])
+  useEffect(() => {
+    if (enabled) requestPgda()
+  }, [enabled, requestPgda])
   return { state: pgda, retry: requestPgda }
+}
+
+/** The 2 km surface heights alone (for the first 3D frame); starts loading on first use. */
+export function useTerrainHeights(): LazyResource<TerrainField> {
+  const { heights, requestHeights } = useLazyContext()
+  useEffect(requestHeights, [requestHeights])
+  return { state: heights, retry: requestHeights }
+}
+
+/** The 1024² display terrain. Starts loading only when `enabled` (the 3D view enables it once the 2 km mesh is up). */
+export function useDisplayTerrain(enabled: boolean): LoadState<TerrainField> {
+  const { display, requestDisplay } = useLazyContext()
+  useEffect(() => {
+    if (enabled) requestDisplay()
+  }, [enabled, requestDisplay])
+  return display
 }

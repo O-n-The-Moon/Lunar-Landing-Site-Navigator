@@ -1,4 +1,4 @@
-// App shell (SPEC-app → Layout): scenario sidebar + Compare / Opportunity Map / Validation tabs.
+// App shell (SPEC-app → Layout): scenario sidebar + 3D Terrain / Surface / Compare / Opportunity Map / Validation tabs.
 import { useId, useRef, useState, type KeyboardEvent } from 'react'
 import './app.css'
 import { CompareView } from './compare/compare-view'
@@ -9,9 +9,13 @@ import { SitePicker } from './controls/site-picker'
 import { SlipSlider } from './controls/slip-slider'
 import { DataProvider, defaultDataSources, useCoreData, useCoreDataState, type DataSource } from './data'
 import { MapView } from './map/map-view'
+import { GridScoresProvider } from './map/score-layer'
 import { PanoramaPanel } from './panorama/panorama-panel'
+import { TerrainView } from './scene/terrain-view'
+import { SurfaceView } from './surface/surface-view'
 import { ScenarioProvider, createInitialState } from './state'
 import { TimelinePanel } from './timeline/timeline-panel'
+import { ScenarioResultsProvider } from './use-scenario-results'
 import { ValidationPanel } from './validation/validation-panel'
 
 export interface AppProps {
@@ -66,12 +70,18 @@ function ScenarioRoot() {
   const [initialState] = useState(() => createInitialState({ sites: sitesFile.sites }))
   return (
     <ScenarioProvider initialState={initialState}>
-      <Workspace />
+      <ScenarioResultsProvider>
+        <GridScoresProvider>
+          <Workspace />
+        </GridScoresProvider>
+      </ScenarioResultsProvider>
     </ScenarioProvider>
   )
 }
 
 const TABS = [
+  { id: 'terrain', label: '3D Terrain' },
+  { id: 'surface', label: 'Surface' },
   { id: 'compare', label: 'Compare' },
   { id: 'map', label: 'Opportunity Map' },
   { id: 'validation', label: 'Validation' },
@@ -79,9 +89,9 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 
 function Workspace() {
-  const [tab, setTab] = useState<TabId>('compare')
+  const [tab, setTab] = useState<TabId>('terrain')
   // Panels mount on first open (so the grid loads lazily) and then stay mounted.
-  const [opened, setOpened] = useState<ReadonlySet<TabId>>(() => new Set(['compare']))
+  const [opened, setOpened] = useState<ReadonlySet<TabId>>(() => new Set(['terrain']))
   const tabRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({})
   const baseId = useId()
 
@@ -138,12 +148,18 @@ function Workspace() {
             </button>
           ))}
         </div>
+        <div {...panel('terrain')}>{opened.has('terrain') && <TerrainView active={tab === 'terrain'} />}</div>
+        <div {...panel('surface')}>{opened.has('surface') && <SurfaceView active={tab === 'surface'} />}</div>
         <div {...panel('compare')}>
-          <CompareView />
-          <TimelinePanel />
-          <PanoramaPanel />
+          {opened.has('compare') && (
+            <>
+              <CompareView />
+              <TimelinePanel active={tab === 'compare'} />
+              <PanoramaPanel />
+            </>
+          )}
         </div>
-        <div {...panel('map')}>{opened.has('map') && <MapView />}</div>
+        <div {...panel('map')}>{opened.has('map') && <MapView active={tab === 'map'} />}</div>
         <div {...panel('validation')}>{opened.has('validation') && <ValidationPanel />}</div>
       </main>
     </div>

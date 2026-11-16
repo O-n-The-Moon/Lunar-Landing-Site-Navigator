@@ -39,3 +39,11 @@ def test_golden_dispatches_to_implementation(monkeypatch):
     monkeypatch.setattr(cli.golden, "main", lambda: calls.append("golden"))
     cli.main(["golden"])
     assert calls == ["golden"]
+
+
+def test_display_terrain_dispatches_and_is_not_a_build_step(monkeypatch):
+    calls = []
+    monkeypatch.setattr(cli.display_terrain, "main", lambda: calls.append("dt"))
+    cli.main(["display-terrain"])
+    assert calls == ["dt"]
+    assert cli.display_terrain.main not in cli.BUILD_STEPS

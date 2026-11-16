@@ -1,9 +1,11 @@
 import { useEffect, useId, useRef, useState, type PointerEvent, type MouseEvent } from 'react'
-import { colorizeRaster, rampCssGradient, rasterValueAt, type PgdaLayer } from './pgda-raster'
+import { MAP_LAYERS, type MapLayer } from '../state'
+import type { RampName } from './colormaps'
+import { colorizeRaster, rampCssGradient, rasterValueAt } from './pgda-raster'
 import { MOON_RADIUS_KM, gridExtentKm, kmToLatLon, latLonToKm, ringRadiusKm, type GridExtentInput } from './projection'
 
-// Opportunity map v0 (SPEC-app P0-6): polar-stereographic view of the south pole, PGDA average Sun / Earth raster
-// underneath, lat rings, lon spokes and site markers on top. Prop-driven: no engine, no data loading, no scenario state.
+// Opportunity map (SPEC-app P0-6): polar-stereographic view of the south pole, one raster layer (PGDA long-term average
+// Sun / Earth, or this mission window's Sun / Earth / Both score from the 2 km grid) underneath, lat rings, lon spokes and site markers on top. Prop-driven: no engine, no data loading, no scenario state.
 // Layers: a <canvas> holds the raster (one pixel per PGDA cell, scaled by CSS); an SVG in map-km units sits on top, so
 // rings, markers and the pointer math share one coordinate system. Map y points up, SVG y points down: svg y = −yKm.
 
@@ -17,11 +19,11 @@ export interface MapMarker {
 }
 
 export interface OpportunityMapProps {
-  /** Raster placement (the PGDA manifest's originKm, cellKm, nx, ny). */
+  /** Raster placement (the originKm, cellKm, nx, ny of the manifest the values come from). */
   geom: GridExtentInput
-  layer: PgdaLayer
-  onLayerChange: (layer: PgdaLayer) => void
-  /** Decoded 8-bit raster of the shown layer (percent, 255 = no data); null until decoded. */
+  layer: MapLayer
+  onLayerChange: (layer: MapLayer) => void
+  /** 8-bit raster of the shown layer in PNG row order (percent, 255 = no data); null until available. */
   values: ArrayLike<number> | null
   markers: readonly MapMarker[]
   /** A click inside the raster: the planetocentric lat/lon (east-positive) under it. */
@@ -41,7 +43,25 @@ const SPOKES: { lonDeg: number; label: string }[] = [
   { lonDeg: -90, label: '90°W' },
   { lonDeg: -45, label: '45°W' },
 ]
-const LAYER_LABELS: Record<PgdaLayer, string> = { sun: 'Sun average', earth: 'Earth average' }
+
+export interface LayerMeta {
+  label: string
+  ramp: RampName
+  /** `window`: scoreGrid over the mission window (2 km grid, approximate). `pgda`: static long-term average. */
+  source: 'window' | 'pgda'
+}
+
+export const LAYER_META: Record<MapLayer, LayerMeta> = {
+  'pgda-sun': { label: 'PGDA Sun average', ramp: 'sun', source: 'pgda' },
+  'pgda-earth': { label: 'PGDA Earth average', ramp: 'earth', source: 'pgda' },
+  'score-sun': { label: 'Window Sun', ramp: 'sun', source: 'window' },
+  'score-earth': { label: 'Window Earth', ramp: 'earth', source: 'window' },
+  'score-both': { label: 'Window Sun + Earth', ramp: 'both', source: 'window' },
+}
+
+/** Shown under the map for the window-score layers (#76, option (a)). */
+export const SCORE_APPROX_NOTE =
+  'Approximate overview from the 2 km grid; near rims and peaks the horizon can be off by 1–6°. Curated sites are not scored from the grid: use the Compare tab for their numbers.'
 
 /** Unit direction of a meridian on the map (lon 0 = +y, east = +x). */
 const spokeDir = (lonDeg: number) => ({ dx: Math.sin((lonDeg * Math.PI) / 180), dy: Math.cos((lonDeg * Math.PI) / 180) })
@@ -57,6 +77,7 @@ export function OpportunityMap({ geom, layer, onLayerChange, values, markers, on
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [hover, setHover] = useState<{ xKm: number; yKm: number } | null>(null)
   const layerName = useId()
+  const meta = LAYER_META[layer]
 
   const ext = gridExtentKm(geom)
   const widthKm = ext.maxXKm - ext.minXKm
@@ -70,8 +91,8 @@ export function OpportunityMap({ geom, layer, onLayerChange, values, markers, on
     const ctx = canvasRef.current?.getContext('2d')
     if (!ctx) return
     ctx.clearRect(0, 0, geom.nx, geom.ny) // never leave the previous layer's pixels under the new layer's legend
-    if (values) ctx.putImageData(new ImageData(colorizeRaster(values, layer), geom.nx, geom.ny), 0, 0)
-  }, [values, layer, geom.nx, geom.ny])
+    if (values) ctx.putImageData(new ImageData(colorizeRaster(values, meta.ramp), geom.nx, geom.ny), 0, 0)
+  }, [values, meta.ramp, geom.nx, geom.ny])
 
   /** Map km under a pointer event, or null outside the plot or the raster. */
   const toKm = (e: { clientX: number; clientY: number; currentTarget: Element }) => {
@@ -97,7 +118,7 @@ export function OpportunityMap({ geom, layer, onLayerChange, values, markers, on
     readout = formatLatLon(latDeg, lonDeg)
     if (values) {
       const v = rasterValueAt(values, geom, hover.xKm, hover.yKm)
-      readout += v === null ? ' · no data' : ` · PGDA ${LAYER_LABELS[layer]} ${v} %`
+      readout += v === null ? ' · no data' : ` · ${meta.label} ${v} %`
     }
   }
 
@@ -105,15 +126,15 @@ export function OpportunityMap({ geom, layer, onLayerChange, values, markers, on
     <div className="opportunity-map">
       <div className="map-toolbar">
         <div role="radiogroup" aria-label="Layer" className="map-layers">
-          {(Object.keys(LAYER_LABELS) as PgdaLayer[]).map((l) => (
+          {MAP_LAYERS.map((l) => (
             <label key={l}>
-              <input type="radio" name={layerName} checked={layer === l} onChange={() => onLayerChange(l)} /> {LAYER_LABELS[l]}
+              <input type="radio" name={layerName} checked={layer === l} onChange={() => onLayerChange(l)} /> {LAYER_META[l].label}
             </label>
           ))}
         </div>
         <div className="map-legend">
           <span>0 %</span>
-          <span className="map-legend-bar" style={{ background: rampCssGradient(layer) }} aria-hidden="true" />
+          <span className="map-legend-bar" style={{ background: rampCssGradient(meta.ramp) }} aria-hidden="true" />
           <span>100 %</span>
         </div>
       </div>
@@ -124,7 +145,7 @@ export function OpportunityMap({ geom, layer, onLayerChange, values, markers, on
           className="map-overlay"
           viewBox={`${ext.minXKm} ${-ext.maxYKm} ${widthKm} ${heightKm}`}
           role="img"
-          aria-label="Opportunity map of the lunar south pole, polar view, with the PGDA average layer, latitude rings and site markers"
+          aria-label="Opportunity map of the lunar south pole, polar view, with the selected layer, latitude rings and site markers"
           onPointerMove={onMove}
           onPointerLeave={() => setHover(null)}
           onClick={onClick}
@@ -188,8 +209,11 @@ export function OpportunityMap({ geom, layer, onLayerChange, values, markers, on
         {readout}
       </p>
       <p className="hint">
-        Click the map to add that point as a custom site, or type a position under Custom site. Static PGDA long-term average,
-        independent of the landing date. {sourceNote}
+        Click the map to add that point as a custom site, or type a position under Custom site.{' '}
+        {meta.source === 'pgda'
+          ? 'Static PGDA long-term average, independent of the landing date.'
+          : `Percent of the mission window (landing + slip to the end of the mission). ${SCORE_APPROX_NOTE}`}{' '}
+        {sourceNote}
       </p>
     </div>
   )

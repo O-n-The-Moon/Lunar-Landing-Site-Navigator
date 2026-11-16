@@ -1,0 +1,82 @@
+.surface-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.surface-stage {
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+}
+.surface-stage:active {
+  cursor: grabbing;
+}
+.surface-toolbar {
+  display: flex;
+  gap: var(--space-2);
+}
+.surface-hud {
+  gap: 4px;
+}
+.surface-site {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(13, 17, 24, 0.72);
+  backdrop-filter: blur(8px);
+  font-size: 0.8125rem;
+}
+.surface-line {
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(13, 17, 24, 0.72);
+  backdrop-filter: blur(8px);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  border-left: 3px solid var(--text-faint);
+}
+.surface-line[data-body='sun'].is-up {
+  border-left-color: var(--sun);
+  color: var(--sun);
+}
+.surface-line[data-body='earth'].is-up {
+  border-left-color: var(--earth);
+  color: var(--earth);
+}
+.surface-line.is-down {
+  border-left-color: var(--danger);
+  color: var(--danger);
+}
+
+.surface-view {
+  --sun: #f6b73c;
+  --earth: #4ea8ff;
+  --text-faint: #5b6678;
+  --radius-sm: 3px;
+}
+.surface-view .site-letter {
+  display: inline-grid;
+  place-items: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 3px;
+  background: var(--text);
+  color: #05070a;
+  font: 700 0.6875rem/1 var(--font-num);
+}
+.surface-view .time-bar {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.surface-view .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

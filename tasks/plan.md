@@ -3,6 +3,8 @@
 Source spec: [`SPEC.md`](../SPEC.md) (+ `SPEC-data-pipeline.md`, `SPEC-engine.md`, `SPEC-app.md`)
 **Tasks are tracked as GitHub issues** in [O-n-The-Moon/Lunar-Landing-Site-Navigator](https://github.com/O-n-The-Moon/Lunar-Landing-Site-Navigator/issues). Each issue has its acceptance criteria, verification, owned files, dependencies, and branch name. The index below is the ordered map; the issues are the source of truth for task details. Workflow: [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
+**UI v2 (3D Terrain + Surface):** umbrella issue #123; plan [`ui-v2-integration-plan.md`](ui-v2-integration-plan.md) (design source: [`ui-v2-mission-console-plan.md`](ui-v2-mission-console-plan.md)).
+
 ## Overview
 48-hour build of a static web app. Python precomputes Sun/Earth ephemeris and LOLA terrain horizons; the browser turns them into instant, terrain-aware power and DTE answers for south-pole landing sites. Centerpiece: a live slip slider, horizon panorama and opportunity map, all validated against JPL Horizons and PGDA.
 

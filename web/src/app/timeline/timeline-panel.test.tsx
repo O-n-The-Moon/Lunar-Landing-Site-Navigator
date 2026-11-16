@@ -1,8 +1,8 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
 import { fixtureEphemeris, fixtureSitesFile } from '../../engine/__fixtures__'
-import { App } from '../app'
-import { fixtureDataSource } from '../data'
+import { renderAppOnCompare } from '../test-utils'
 import { createInitialState, scenarioReducer, type ScenarioAction } from '../state'
 import { computeScenarioResults } from '../use-scenario-results'
 import { cursorReadout } from './cursor-readout'
@@ -14,7 +14,7 @@ const H_MS = 3_600_000
 
 /** The App on fixture data with a 1-day mission (the fixture ephemeris covers 48 h). */
 async function renderPanel() {
-  render(<App dataSources={{ source: fixtureDataSource() }} />)
+  await renderAppOnCompare()
   const panel = await screen.findByRole('region', { name: 'Timeline' })
   fireEvent.change(screen.getByLabelText(/duration/i), { target: { value: '1' } })
   const fine = within(screen.getByRole('group', { name: /^slip/i })).getByRole('slider', { name: /fine/i })
@@ -36,6 +36,27 @@ const rects = (root: Element, attr: string, band: string) =>
 const total = (rs: { w: number }[]) => rs.reduce((a, r) => a + r.w, 0)
 
 describe('TimelinePanel', () => {
+  it('Play moves the one cursor through the mission, Pause stops it, and leaving the Compare tab pauses it (#33)', async () => {
+    const user = userEvent.setup()
+    const { panel } = await renderPanel()
+    const cursor = () => Number(within(panel).getByRole('slider').getAttribute('aria-valuenow'))
+    const start = cursor()
+    const play = within(panel).getByRole('button', { name: 'Play' })
+    expect(play).toHaveAttribute('aria-pressed', 'false')
+    await user.click(play)
+    const pause = within(panel).getByRole('button', { name: 'Pause' })
+    expect(pause).toHaveAttribute('aria-pressed', 'true')
+    await waitFor(() => expect(cursor()).toBeGreaterThan(start))
+    await user.click(pause)
+    const stopped = cursor()
+    await new Promise((r) => setTimeout(r, 120))
+    expect(cursor()).toBe(stopped)
+
+    await user.click(within(panel).getByRole('button', { name: 'Play' }))
+    await user.click(screen.getByRole('tab', { name: /validation/i }))
+    expect(within(panel).getByRole('button', { name: 'Play', hidden: true })).toHaveAttribute('aria-pressed', 'false')
+  })
+
   it('has one cursor slider for all strips, and moving it moves every strip’s readouts', async () => {
     const { panel } = await renderPanel()
     const strips = within(panel).getAllByRole('figure')

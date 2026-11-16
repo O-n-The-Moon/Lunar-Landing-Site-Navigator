@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { Dispatch, ReactNode } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { diffMetrics, gridSiteContext, missionMetrics, siteContext, type Window } from '../engine'
 import { fixtureEphemeris, fixtureGrid, fixtureSitesFile } from '../engine/__fixtures__'
 import { DataProvider, fixtureDataSource, useCoreDataState, type DataSource } from './data'
@@ -13,7 +13,13 @@ import {
   type ScenarioAction,
   type ScenarioState,
 } from './state'
-import { computeScenarioResults, resolveSite, useScenarioResults, visibilityOpts } from './use-scenario-results'
+import {
+  ScenarioResultsProvider,
+  computeScenarioResults,
+  resolveSite,
+  useScenarioResults,
+  visibilityOpts,
+} from './use-scenario-results'
 
 const core = { ephemeris: fixtureEphemeris, sitesFile: fixtureSitesFile }
 const curated = fixtureSitesFile.sites
@@ -152,7 +158,9 @@ describe('useScenarioResults', () => {
     const wrapper = ({ children }: { children: ReactNode }) => (
       <DataProvider source={source}>
         <CoreGate>
-          <ScenarioProvider initialState={base}>{children}</ScenarioProvider>
+          <ScenarioProvider initialState={base}>
+            <ScenarioResultsProvider>{children}</ScenarioResultsProvider>
+          </ScenarioProvider>
         </CoreGate>
       </DataProvider>
     )
@@ -210,6 +218,28 @@ describe('useScenarioResults', () => {
     expect(result.current).toBe(loading)
     act(() => finish())
     await waitFor(() => expect(result.current.sites.map((x) => x.site.id)).toContain('custom-4-4'))
+  })
+
+  it('gives every consumer the same result object (one engine pass per update)', async () => {
+    const source = fixtureDataSource()
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <DataProvider source={source}>
+        <CoreGate>
+          <ScenarioProvider initialState={base}>
+            <ScenarioResultsProvider>{children}</ScenarioResultsProvider>
+          </ScenarioProvider>
+        </CoreGate>
+      </DataProvider>
+    )
+    const { result } = renderHook(() => ({ a: useScenarioResults(), b: useScenarioResults() }), { wrapper })
+    await waitFor(() => expect(result.current).toBeTruthy())
+    expect(result.current.a).toBe(result.current.b)
+  })
+
+  it('throws outside ScenarioResultsProvider', () => {
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(() => renderHook(() => useScenarioResults())).toThrow(/ScenarioResultsProvider/)
+    quiet.mockRestore()
   })
 
   it('reuses the baseline runs when only the slip changes', async () => {

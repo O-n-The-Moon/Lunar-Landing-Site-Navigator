@@ -281,3 +281,78 @@ function scoreCell(s: SharedSamples, frame: Float64Array, mask: Float64Array, pc
   pct[1] = earthAcc
   pct[2] = bothAcc
 }
+
+/** Per-grid cache for illuminationAt: site frames (position, east, north, up) per cell; `valid[c]` = 0 for no-data. */
+interface CellFrames {
+  frames: Float64Array
+  valid: Uint8Array
+}
+const cellFramesCache = new WeakMap<Grid, CellFrames>()
+
+function cellFramesOf(grid: Grid): CellFrames {
+  const cached = cellFramesCache.get(grid)
+  if (cached) return cached
+  const { nx, ny, heightM } = grid.manifest
+  const frames = new Float64Array(nx * ny * 12)
+  const valid = new Uint8Array(nx * ny)
+  for (let iy = 0; iy < ny; iy++) {
+    for (let ix = 0; ix < nx; ix++) {
+      const c = iy * nx + ix
+      if (isNoData(grid, c)) continue
+      valid[c] = 1
+      const { latDeg, lonDeg } = cellCenterLatLon(grid, ix, iy)
+      const f = siteFrame(latDeg, lonDeg, grid.surfaceHeightM[c], heightM)
+      frames.set(f.positionKm, c * 12)
+      frames.set(f.east, c * 12 + 3)
+      frames.set(f.north, c * 12 + 6)
+      frames.set(f.up, c * 12 + 9)
+    }
+  }
+  const entry = { frames, valid }
+  cellFramesCache.set(grid, entry)
+  return entry
+}
+
+/**
+ * Raw visible Sun-disk fraction (0…1) of every grid cell at one instant, in grid order (`iy · nx + ix`), NaN for
+ * no-data cells. Same geometry as scoreGrid (Sun vector from the ephemeris, topocentric per cell, terrain horizon
+ * interpolated linearly between the two neighbouring bins, angular radius from the Moon-center distance), but with
+ * no hysteresis, since that needs history. For display only (3D shadow layer). Cell frames are cached per grid.
+ * Writes into `out` if given (it must have nx · ny entries), else allocates. Throws RangeError for a wrong-sized
+ * `out` or a time outside the ephemeris.
+ */
+export function illuminationAt(grid: Grid, eph: Ephemeris, tUtcMs: number, out?: Float32Array): Float32Array {
+  const { nx, ny, azBins } = grid.manifest
+  if (out && out.length !== nx * ny) throw new RangeError(`out has ${out.length} entries, expected ${nx * ny}`)
+  const res = out ?? new Float32Array(nx * ny)
+  const sun = bodyVectorKm(eph, 'sun', tUtcMs)
+  const radiusDeg = angularRadiusDeg('sun', Math.hypot(sun[0], sun[1], sun[2]))
+  const { frames, valid } = cellFramesOf(grid)
+  const h = grid.horizonsU8
+  const binsPerDeg = azBins / 360
+  for (let c = 0; c < nx * ny; c++) {
+    if (!valid[c]) {
+      res[c] = NaN
+      continue
+    }
+    const o = c * 12
+    const vx = sun[0] - frames[o]
+    const vy = sun[1] - frames[o + 1]
+    const vz = sun[2] - frames[o + 2]
+    const e = vx * frames[o + 3] + vy * frames[o + 4] + vz * frames[o + 5]
+    const n = vx * frames[o + 6] + vy * frames[o + 7] + vz * frames[o + 8]
+    const u = vx * frames[o + 9] + vy * frames[o + 10] + vz * frames[o + 11]
+    let x = (Math.atan2(e, n) / DEG) * binsPerDeg
+    if (x < 0) x += azBins
+    let i0 = Math.floor(x)
+    const fr = x - i0
+    if (i0 >= azBins) i0 -= azBins
+    const i1 = i0 + 1 === azBins ? 0 : i0 + 1
+    const base = c * azBins
+    const horizonDeg = (h[base + i0] + (h[base + i1] - h[base + i0]) * fr) * 0.1 - 5
+    const aboveDeg = Math.atan2(u, Math.sqrt(e * e + n * n)) / DEG - horizonDeg
+    const d = Math.max(-1, Math.min(1, aboveDeg / radiusDeg))
+    res[c] = d === 1 ? 1 : d === -1 ? 0 : 1 - (Math.acos(d) - d * Math.sqrt(1 - d * d)) / Math.PI
+  }
+  return res
+}

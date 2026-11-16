@@ -1,8 +1,7 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { fixtureSitesFile } from '../../engine/__fixtures__'
-import { App } from '../app'
-import { fixtureDataSource } from '../data'
+import { renderAppOnCompare } from '../test-utils'
 import { renderedRidgeYAt } from './test-helpers'
 
 afterEach(cleanup)
@@ -11,7 +10,7 @@ const plateau = fixtureSitesFile.sites.find((s) => s.id === 'fixture-plateau')
 if (!plateau) throw new Error('fixture-plateau missing')
 
 async function renderApp() {
-  render(<App dataSources={{ source: fixtureDataSource() }} />)
+  await renderAppOnCompare()
   return screen.findByRole('region', { name: 'Horizon panorama' })
 }
 

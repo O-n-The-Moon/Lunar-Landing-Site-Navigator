@@ -35,6 +35,7 @@ diffMetrics(a: MissionMetrics, b: MissionMetrics): MetricDelta          // slip 
 // grid
 scoreGrid(grid: Grid, eph: Ephemeris, startMs: number, endMs: number, opts: VisibilityOpts, onProgress?: (fraction: number) => void): GridScores // Float32Array per metric, NaN on no-data cells; onProgress after each row
 nearestGridCell(grid: Grid, latDeg: number, lonDeg: number): { ix; iy; snapDistKm } | null  // null outside the grid extent or on a no-data cell
+illuminationAt(grid: Grid, eph: Ephemeris, tUtcMs: number, out?: Float32Array): Float32Array // raw visible Sun fraction per cell, NaN on no-data; no hysteresis; display only (3D shadow layer)
 gridSiteContext(eph: Ephemeris, grid: Grid, cell: { ix; iy }): SiteContext  // grid-snapped custom site: cell center + surface height, grid observer height (`manifest.heightM`, 2 m), decoded cell horizon; RangeError outside the grid or on a no-data cell
 ```
 

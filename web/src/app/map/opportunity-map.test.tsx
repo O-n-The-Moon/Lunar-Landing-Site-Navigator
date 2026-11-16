@@ -29,7 +29,7 @@ function renderMap(over: Partial<React.ComponentProps<typeof OpportunityMap>> = 
   render(
     <OpportunityMap
       geom={geom}
-      layer="sun"
+      layer="pgda-sun"
       onLayerChange={onLayerChange}
       values={values}
       markers={markers}
@@ -109,9 +109,32 @@ describe('OpportunityMap', () => {
   it('switches the layer with a labelled control and says which layer is shown', () => {
     const { onLayerChange } = renderMap()
     const group = screen.getByRole('radiogroup', { name: /layer/i })
-    expect(within(group).getByRole('radio', { name: /sun/i })).toBeChecked()
-    fireEvent.click(within(group).getByRole('radio', { name: /earth/i }))
-    expect(onLayerChange).toHaveBeenCalledWith('earth')
+    expect(within(group).getByRole('radio', { name: /PGDA Sun average/i })).toBeChecked()
+    fireEvent.click(within(group).getByRole('radio', { name: /PGDA Earth average/i }))
+    expect(onLayerChange).toHaveBeenCalledWith('pgda-earth')
+  })
+
+  it('offers the three window-score layers next to the two PGDA layers', () => {
+    const { onLayerChange } = renderMap()
+    const group = screen.getByRole('radiogroup', { name: /layer/i })
+    expect(within(group).getAllByRole('radio').map((r) => r.closest('label')?.textContent?.trim())).toEqual([
+      'PGDA Sun average',
+      'PGDA Earth average',
+      'Window Sun',
+      'Window Earth',
+      'Window Sun + Earth',
+    ])
+    fireEvent.click(within(group).getByRole('radio', { name: 'Window Sun + Earth' }))
+    expect(onLayerChange).toHaveBeenCalledWith('score-both')
+  })
+
+  it('on a window-score layer: reads the value with its label, and says it is an approximate 2 km-grid overview', () => {
+    const { plot, at } = renderMap({ layer: 'score-earth' })
+    fireEvent.pointerMove(plot, at(150, 150))
+    expect(screen.getByRole('status')).toHaveTextContent(/Window Earth 13 ?%/)
+    expect(screen.getByText(/approximate overview from the 2 km grid/i)).toBeInTheDocument()
+    expect(screen.getByText(/off by 1–6°/)).toBeInTheDocument()
+    expect(screen.queryByText(/static pgda long-term average/i)).not.toBeInTheDocument()
   })
 
   it('states what the layer is: PGDA, not our terrain-aware window result', () => {

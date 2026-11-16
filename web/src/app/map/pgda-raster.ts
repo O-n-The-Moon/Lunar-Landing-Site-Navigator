@@ -1,6 +1,7 @@
 // PGDA v0 layer helpers (SPEC-app P0-6): value lookup under a map position and the color ramp. Pure: no DOM.
 // Raster layout (pgda-layers.json): 8-bit grayscale, value = percent (0–100), 255 = no data; pixel (column ix, row ny − 1 − iy),
 // so the top PNG row is the highest y and the left column the lowest x.
+import { rampColor, rampCss, type RampName } from './colormaps'
 import type { GridExtentInput } from './projection'
 
 export const NO_DATA = 255
@@ -19,34 +20,11 @@ export function rasterValueAt(values: ArrayLike<number>, geom: GridExtentInput, 
   return v === undefined || !isPercent(v) ? null : v
 }
 
-type Rgb = readonly [number, number, number]
-// Dark at 0 % to bright at 100 %, so "more light / more Earth" reads as brighter. Different hues tell the layers apart.
-const RAMP_STOPS: Record<PgdaLayer, readonly Rgb[]> = {
-  sun: [
-    [20, 24, 34],
-    [124, 72, 22],
-    [255, 214, 102],
-  ],
-  earth: [
-    [20, 24, 34],
-    [18, 92, 142],
-    [130, 224, 255],
-  ],
-}
-
-/** Color of a percentage (clamped to 0–100) on the layer's ramp. */
-export function rampRgb(layer: PgdaLayer, pct: number): [number, number, number] {
-  const stops = RAMP_STOPS[layer]
-  const t = Math.min(1, Math.max(0, pct / 100)) * (stops.length - 1)
-  const i = Math.min(stops.length - 2, Math.floor(t))
-  const f = t - i
-  const a = stops[i]
-  const b = stops[i + 1]
-  return [0, 1, 2].map((k) => Math.round(a[k] + (b[k] - a[k]) * f)) as [number, number, number]
-}
+/** Color of a percentage (clamped to 0–100) on the layer's ramp (the shared ramps in `colormaps.ts`). */
+export const rampRgb = (layer: RampName, pct: number): [number, number, number] => rampColor(layer, pct)
 
 /** RGBA pixels (same order as `values`) for a canvas ImageData; no-data pixels are fully transparent. */
-export function colorizeRaster(values: ArrayLike<number>, layer: PgdaLayer): Uint8ClampedArray<ArrayBuffer> {
+export function colorizeRaster(values: ArrayLike<number>, layer: RampName): Uint8ClampedArray<ArrayBuffer> {
   const lut = Array.from({ length: 101 }, (_, p) => rampRgb(layer, p))
   const out = new Uint8ClampedArray(values.length * 4)
   for (let i = 0; i < values.length; i++) {
@@ -62,18 +40,29 @@ export function colorizeRaster(values: ArrayLike<number>, layer: PgdaLayer): Uin
 }
 
 /** CSS gradient of the ramp, for the legend bar. */
-export function rampCssGradient(layer: PgdaLayer): string {
-  const stops = RAMP_STOPS[layer].map((_, i, all) => {
-    const pct = (i / (all.length - 1)) * 100
-    const [r, g, b] = rampRgb(layer, pct)
-    return `rgb(${r}, ${g}, ${b}) ${pct}%`
-  })
-  return `linear-gradient(to right, ${stops.join(', ')})`
-}
+export const rampCssGradient = (layer: RampName): string => rampCss(layer)
 
 /** Grayscale values from canvas RGBA pixels (the PGDA PNGs are 8-bit grayscale, so the red channel is the value). */
 export function grayFromRgba(rgba: ArrayLike<number>): Uint8Array {
   const out = new Uint8Array(rgba.length / 4)
   for (let i = 0; i < out.length; i++) out[i] = rgba[i * 4]
+  return out
+}
+
+/**
+ * A PGDA layer's values in grid order (`iy · nx + ix`, iy = 0 is the lowest y) as Float32, NaN where there is no valid
+ * value. The decoded PNG is in PNG row order (grid row `iy` is PNG row `ny − 1 − iy`, see the top of this file), so the
+ * rows are flipped here: the 3D overlays and the window-score layers share the grid order.
+ */
+export function pgdaToGridOrder(values: ArrayLike<number>, nx: number, ny: number): Float32Array {
+  if (values.length !== nx * ny) throw new RangeError(`expected ${nx * ny} values (${nx} × ${ny}), got ${values.length}`)
+  const out = new Float32Array(nx * ny)
+  for (let iy = 0; iy < ny; iy++) {
+    const row = (ny - 1 - iy) * nx
+    for (let ix = 0; ix < nx; ix++) {
+      const v = values[row + ix]
+      out[iy * nx + ix] = isPercent(v) ? v : NaN
+    }
+  }
   return out
 }

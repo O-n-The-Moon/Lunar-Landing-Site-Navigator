@@ -1,0 +1,37 @@
+.time-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.time-bar-speeds {
+  display: inline-flex;
+  gap: var(--space-1, 0.25rem);
+}
+.time-bar-speeds button[aria-pressed='true'],
+.play-button[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.cursor-scrub {
+  flex: 1 1 14rem;
+  min-width: 10rem;
+  display: flex;
+}
+.cursor-scrub input {
+  width: 100%;
+}
+.cursor-readout {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.time-bar .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

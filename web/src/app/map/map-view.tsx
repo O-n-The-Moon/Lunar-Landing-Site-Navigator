@@ -1,30 +1,57 @@
-// Opportunity map tab (SPEC-app P0-6). v0: static PGDA average Sun / Earth layers, curated and scenario site markers,
-// hover readout, click → custom site. The window-score layer (v1, scoreGrid in a worker) is a separate issue.
-// Opening this tab starts the lazy loads of the PGDA layers and of the terrain grid (needed to snap a clicked point).
-import { useState } from 'react'
+// Opportunity map tab (SPEC-app P0-6). v0: static PGDA average Sun / Earth layers. v1 (#29): this mission window's
+// Sun / Earth / Both scores for the 2 km grid, from `scoreGrid` in a Web Worker (`score-layer.ts`, debounced 300 ms).
+// Curated and scenario site markers, hover readout, click → custom site.
+// Opening this tab starts the lazy loads of the PGDA layers and of the terrain grid (scoring and snapping a clicked point).
+import { useMemo, useState } from 'react'
 import { nearestGridCell } from '../../engine'
 import { useCoreData, useGrid, usePgdaLayers } from '../data'
 import { customSiteLabel } from '../controls/custom-site'
-import { MAX_SITES, customSiteId, useScenario, useScenarioDispatch } from '../state'
-import { customSiteName } from '../use-scenario-results'
-import { OpportunityMap, type MapMarker } from './opportunity-map'
-import type { PgdaLayer } from './pgda-raster'
+import { MAX_SITES, customSiteId, missionEndMs, slippedLandingMs, useScenario, useScenarioDispatch, type MapLayer } from '../state'
+import { customSiteName, missionInCoverage } from '../use-scenario-results'
+import { LAYER_META, OpportunityMap, type MapMarker } from './opportunity-map'
+import { scoresToRaster, useWindowScores, windowScoresToShow, type GridScoresState } from './score-layer'
 import { usePgdaValues } from './use-pgda-values'
 
-export function MapView() {
+/** `active`: the Map tab is showing. A hidden map does not score (one worker, ~13 MB copied into it, is enough). */
+export function MapView({ active = true }: { active?: boolean }) {
   const { state: pgda, retry: retryPgda } = usePgdaLayers()
   const { state: grid, retry: retryGrid } = useGrid()
-  const { sitesFile } = useCoreData()
-  const { sites, mapLayer } = useScenario()
+  const { sitesFile, ephemeris } = useCoreData()
+  const scenario = useScenario()
+  const { sites, mapLayer: layer } = scenario
   const dispatch = useScenarioDispatch()
-  // v0 shows the two PGDA layers; the window-score layers (`score-*`) arrive with v1, so they fall back to Sun here.
-  const layer: PgdaLayer = mapLayer === 'pgda-earth' ? 'earth' : 'sun'
-  const setLayer = (l: PgdaLayer) => {
+  const setLayer = (l: MapLayer) => {
     setMessage(null) // an old "Added …" / "already in the scenario" no longer describes what is on screen
-    dispatch({ type: 'setMapLayer', layer: l === 'earth' ? 'pgda-earth' : 'pgda-sun' })
+    dispatch({ type: 'setMapLayer', layer: l })
   }
   const [message, setMessage] = useState<string | null>(null)
-  const values = usePgdaValues(pgda.status === 'ready' ? pgda.data.urls[layer] : undefined)
+  const meta = LAYER_META[layer]
+  const pgdaValues = usePgdaValues(
+    pgda.status === 'ready' && meta.source === 'pgda' ? pgda.data.urls[meta.ramp === 'earth' ? 'earth' : 'sun'] : undefined,
+  )
+
+  // Window scores: the slipped mission window, from the one shared scoring job (see `GridScoresProvider`), wanted only
+  // while this tab shows a window layer.
+  const gridData = grid.status === 'ready' ? grid.data : null
+  const inCoverage = missionInCoverage(ephemeris, slippedLandingMs(scenario), scenario.durationH)
+  const scores = useWindowScores(active && meta.source === 'window' && inCoverage)
+  const landingMs = slippedLandingMs(scenario)
+  const endMs = missionEndMs(scenario)
+  const { scores: shownScores, stale: scoresStale } = useMemo(
+    () => windowScoresToShow(scores, landingMs, endMs, inCoverage),
+    [scores, landingMs, endMs, inCoverage],
+  )
+  const scoreRaster = useMemo(() => {
+    if (!gridData || !shownScores) return null
+    const field = layer === 'score-sun' ? shownScores.sunPct : layer === 'score-earth' ? shownScores.earthPct : shownScores.bothPct
+    return scoresToRaster(field, gridData.manifest.nx, gridData.manifest.ny)
+  }, [gridData, shownScores, layer])
+
+  // Each layer is drawn in its own file's geometry; before that file is there, the other one keeps the map on screen.
+  const pgdaGeom = pgda.status === 'ready' ? pgda.data.manifest : null
+  const gridGeom = gridData ? gridData.manifest : null
+  const geom = meta.source === 'pgda' ? (pgdaGeom ?? gridGeom) : (gridGeom ?? pgdaGeom)
+  const values = meta.source === 'pgda' ? (pgdaGeom ? pgdaValues : null) : scoreRaster
 
   const inScenario = new Set(sites.map((s) => s.id))
   const markers: MapMarker[] = [
@@ -49,19 +76,24 @@ export function MapView() {
   return (
     <section className="map-view" aria-label="Opportunity map">
       <h3>Opportunity map</h3>
-      {pgda.status === 'ready' && (
+      {geom && (
         <OpportunityMap
-          geom={pgda.data.manifest}
+          geom={geom}
           layer={layer}
           onLayerChange={setLayer}
           values={values}
           markers={markers}
           onPickPoint={pickPoint}
-          sourceNote={`Source: ${pgda.data.manifest.source}, ${pgda.data.manifest.resolutionM} m, observer height ${
-            pgda.data.manifest.observerHeightM === null ? 'not documented by PGDA' : `${pgda.data.manifest.observerHeightM} m`
-          }.`}
+          sourceNote={
+            pgda.status === 'ready'
+              ? `Source: ${pgda.data.manifest.source}, ${pgda.data.manifest.resolutionM} m, observer height ${
+                  pgda.data.manifest.observerHeightM === null ? 'not documented by PGDA' : `${pgda.data.manifest.observerHeightM} m`
+                }.`
+              : ''
+          }
         />
       )}
+      {meta.source === 'window' && <p role="status">{scoreStatus(scores, gridData !== null, inCoverage, scoresStale)}</p>}
       {(pgda.status === 'idle' || pgda.status === 'loading') && <p role="status">Loading PGDA layers…</p>}
       {pgda.status === 'error' && (
         <p role="alert">
@@ -86,4 +118,16 @@ export function MapView() {
       )}
     </section>
   )
+}
+
+/** One line on the state of the window-score job (the grid itself has its own status line below the map). */
+function scoreStatus(scores: GridScoresState, gridReady: boolean, inCoverage: boolean, stale: boolean): string {
+  if (!inCoverage) return 'The mission window is outside the ephemeris, so there is nothing to score.'
+  if (scores.status === 'unsupported') return 'Window scores need Web Workers, which this browser lacks.'
+  if (!gridReady) return 'Window scores wait for the terrain grid.'
+  if (scores.status === 'error') return `Scoring failed: ${scores.message}`
+  if (scores.status === 'computing') return `Scoring the 2 km grid… ${Math.round(scores.progress * 100)} %`
+  if (stale) return 'Showing the previous window; the new one is scored a moment after the window stops changing.'
+  if (scores.status === 'ready') return `Scored the 2 km grid in ${(scores.elapsedMs / 1000).toFixed(1)} s.`
+  return 'Scoring starts a moment after the window stops changing.'
 }

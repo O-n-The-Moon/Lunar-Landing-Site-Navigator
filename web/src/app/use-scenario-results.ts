@@ -1,5 +1,5 @@
 // Derived engine results for the current scenario (SPEC-app → State: derived results in useMemo).
-import { useMemo } from 'react'
+import { createContext, createElement, useContext, useMemo, type ReactNode } from 'react'
 import {
   DEFAULT_VISIBILITY_OPTS,
   diffMetrics,
@@ -270,7 +270,7 @@ function useGridForSetups(refs: readonly ScenarioSite[]): GridAvailability {
  * `computeScenarioResults`, memoized per stage: moving the cursor recomputes nothing, and the slip slider
  * only recomputes the slipped runs.
  */
-export function useScenarioResults(): ScenarioResults {
+function useComputeResults(): ScenarioResults {
   const data = useCoreData()
   const { sites: refs, observerHeightM, landingMs, durationH, slipH, sunThreshold, earthMarginDeg } = useScenario()
   const grid = useGridForSetups(refs)
@@ -285,4 +285,21 @@ export function useScenarioResults(): ScenarioResults {
     () => assembleResults({ landingMs, slipH, durationH }, opts, data.ephemeris, setups, baseline, slipped),
     [landingMs, slipH, durationH, opts, data.ephemeris, setups, baseline, slipped],
   )
+}
+
+const ResultsContext = createContext<ScenarioResults | null>(null)
+
+/**
+ * Runs the engine once for the whole app (inside `ScenarioProvider`, after core data is loaded); every view reads
+ * the same results, so a slip step is one engine pass however many views are mounted (#97).
+ */
+export function ScenarioResultsProvider({ children }: { children: ReactNode }) {
+  return createElement(ResultsContext.Provider, { value: useComputeResults() }, children)
+}
+
+/** The shared results from `ScenarioResultsProvider`. */
+export function useScenarioResults(): ScenarioResults {
+  const results = useContext(ResultsContext)
+  if (!results) throw new Error('useScenarioResults must be used inside <ScenarioResultsProvider>')
+  return results
 }

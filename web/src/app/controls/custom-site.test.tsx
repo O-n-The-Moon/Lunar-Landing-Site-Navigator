@@ -1,7 +1,7 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { App } from '../app'
+import { renderAppOnCompare } from '../test-utils'
 import { fixtureDataSource, type DataSource } from '../data'
 import { customSiteLabel } from './custom-site'
 
@@ -14,7 +14,7 @@ afterEach(cleanup)
  */
 async function renderCustomSite(source: DataSource = fixtureDataSource()) {
   const user = userEvent.setup()
-  render(<App dataSources={{ source }} />)
+  await renderAppOnCompare(source)
   const group = await screen.findByRole('group', { name: /custom site/i })
   fireEvent.change(screen.getByLabelText(/duration/i), { target: { value: '1' } })
   const lat = within(group).getByLabelText(/latitude/i)
@@ -52,14 +52,16 @@ describe('CustomSite', () => {
     expect(header).toHaveTextContent(/observer 2 m · snapped 0\.6 km/)
   })
 
-  it('does not load the terrain grid until the user types a coordinate (tabbing past is not enough)', async () => {
+  // The 3D Terrain tab (the default) streams the horizon grid after first paint, so the grid load is already under way
+  // when the form is first used; typing a coordinate must share that load, never start a second one.
+  it('shares the one terrain-grid load: tabbing past or typing a coordinate does not start another', async () => {
     const fixtures = fixtureDataSource()
     const source: DataSource = { ...fixtures, loadGrid: vi.fn(fixtures.loadGrid) }
-    const { user, lat } = await renderCustomSite(source)
+    const { user, lat, add } = await renderCustomSite(source)
     await user.click(lat)
     await user.tab()
-    expect(source.loadGrid).not.toHaveBeenCalled()
-    await user.type(lat, '-8') // a lone '-' is not a number yet, so the first digit starts the load
+    await user.type(lat, '-8') // a lone '-' is not a number yet, so the first digit is what the form reacts to
+    await waitFor(() => expect(add).toBeEnabled())
     expect(source.loadGrid).toHaveBeenCalledTimes(1)
   })
 
@@ -144,13 +146,17 @@ describe('CustomSite', () => {
 
   it('shows a grid load error with a retry', async () => {
     const fixtures = fixtureDataSource()
-    const loadGrid = vi.fn<DataSource['loadGrid']>().mockRejectedValueOnce(new Error('grid.json: HTTP 503'))
-    loadGrid.mockImplementation(fixtures.loadGrid)
+    let healthy = false // the 503 lasts until the user retries
+    const loadGrid = vi.fn<DataSource['loadGrid']>((onProgress) =>
+      healthy ? fixtures.loadGrid(onProgress) : Promise.reject(new Error('grid.json: HTTP 503')),
+    )
     const { user, group, lat } = await renderCustomSite({ ...fixtures, loadGrid })
-    await user.type(lat, '-8') // a lone '-' is not a number yet, so the first digit starts the load
+    await user.type(lat, '-8') // a lone '-' is not a number yet, so the first digit asks for the grid
     expect(await within(group).findByRole('alert')).toHaveTextContent(/grid\.json: HTTP 503/)
+    healthy = true
+    const before = loadGrid.mock.calls.length
     await user.click(within(group).getByRole('button', { name: /retry/i }))
     await waitFor(() => expect(within(group).getByRole('button', { name: /add/i })).toBeEnabled())
-    expect(loadGrid).toHaveBeenCalledTimes(2)
+    expect(loadGrid.mock.calls.length).toBe(before + 1) // one retry, one more load
   })
 })

@@ -102,6 +102,7 @@ cd pipeline && uv sync && uv run pytest && uv run ruff check . && uv run ruff fo
 cd pipeline && uv sync
 uv run lunarnav fetch
 uv run lunarnav build-all    # ephemeris, sites, grid, PGDA layers → web/public/data/
+uv run lunarnav display-terrain  # → web/public/data/terrain-display.* (3D view only)
 uv run lunarnav validate     # → web/public/data/validation.json
 uv run lunarnav golden       # → shared/fixtures/golden.json
 ```
