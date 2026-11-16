@@ -16,9 +16,12 @@ import {
   RGBAFormat,
   SRGBColorSpace,
   Vector3,
+  type Mesh,
+  type MeshBasicMaterial,
   type ShaderMaterial,
 } from 'three'
 import type { Vec3 } from '../../engine'
+import { pulseAt } from './beacon-pulse'
 import { rhoKm, type MapFrame } from './frame'
 import { SIGNAL_META, type SiteSignal } from './site-status'
 import { applyTerrainState, createTerrainMaterial } from './terrain-material'
@@ -249,43 +252,77 @@ function Graticule({ frame }: { frame: MapFrame }) {
   )
 }
 
+/** One beacon: a post, a head and a label. A change of state sends a pulse out of the head (skipped for reduced motion). */
+function BeaconMarker({ b, onFocus }: { b: SceneBeacon; onFocus: (id: string) => void }) {
+  const meta = SIGNAL_META[b.signal]
+  const top: Vec3 = [b.base[0], b.base[1] + 10, b.base[2]]
+  const shell = useRef<Mesh>(null)
+  const lastSignal = useRef(b.signal)
+  const startedAt = useRef<number | null>(null)
+  const invalidate = useThree((s) => s.invalidate)
+  useEffect(() => {
+    if (lastSignal.current === b.signal) return
+    lastSignal.current = b.signal
+    if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    startedAt.current = performance.now()
+    invalidate()
+  }, [b.signal, invalidate])
+  useFrame(() => {
+    const m = shell.current
+    if (!m) return
+    const p = startedAt.current === null ? null : pulseAt(performance.now() - startedAt.current)
+    if (!p) {
+      startedAt.current = null
+      m.visible = false
+      return
+    }
+    m.visible = true
+    m.scale.setScalar(p.scale)
+    ;(m.material as MeshBasicMaterial).opacity = p.opacity
+    invalidate() // frameloop = demand: keep drawing until the pulse ends
+  })
+  return (
+    <group>
+      <mesh position={[b.base[0], b.base[1] + 5, b.base[2]]} renderOrder={8}>
+        <cylinderGeometry args={[0.3, 0.3, 10, 8]} />
+        <meshBasicMaterial color={meta.color} depthTest={false} transparent opacity={0.9} />
+      </mesh>
+      <mesh position={top} renderOrder={9}>
+        <sphereGeometry args={[1.3, 16, 12]} />
+        <meshBasicMaterial color={meta.color} depthTest={false} />
+      </mesh>
+      <mesh ref={shell} position={top} renderOrder={7} visible={false}>
+        <sphereGeometry args={[1.3, 16, 12]} />
+        <meshBasicMaterial color={meta.color} depthTest={false} transparent opacity={0} />
+      </mesh>
+      <Html position={top} center={false} className="scene-html" zIndexRange={[20, 10]} style={{ transform: 'translate(10px, -50%)' }}>
+        <button
+          type="button"
+          className={`beacon-label${b.focused ? ' is-focused' : ''}`}
+          data-signal={b.signal}
+          onClick={() => onFocus(b.id)}
+          title={`${b.name}: ${meta.label}. Click to fly to this site.`}
+          aria-label={`${b.letter}, ${b.name}: ${meta.label}. Fly to site.`}
+        >
+          <span className="beacon-letter" style={{ background: meta.color }}>
+            {b.letter}
+          </span>
+          <span className="beacon-name">{b.name}</span>
+          <span className="beacon-state" style={{ color: meta.color }}>
+            {meta.short}
+          </span>
+        </button>
+      </Html>
+    </group>
+  )
+}
+
 function Beacons({ beacons, onFocus }: { beacons: SceneBeacon[]; onFocus: (id: string) => void }) {
   return (
     <group>
-      {beacons.map((b) => {
-        const meta = SIGNAL_META[b.signal]
-        const top: Vec3 = [b.base[0], b.base[1] + 10, b.base[2]]
-        return (
-          <group key={b.id}>
-            <mesh position={[b.base[0], b.base[1] + 5, b.base[2]]} renderOrder={8}>
-              <cylinderGeometry args={[0.3, 0.3, 10, 8]} />
-              <meshBasicMaterial color={meta.color} depthTest={false} transparent opacity={0.9} />
-            </mesh>
-            <mesh position={top} renderOrder={9}>
-              <sphereGeometry args={[1.3, 16, 12]} />
-              <meshBasicMaterial color={meta.color} depthTest={false} />
-            </mesh>
-            <Html position={top} center={false} className="scene-html" zIndexRange={[20, 10]} style={{ transform: 'translate(10px, -50%)' }}>
-              <button
-                type="button"
-                className={`beacon-label${b.focused ? ' is-focused' : ''}`}
-                data-signal={b.signal}
-                onClick={() => onFocus(b.id)}
-                title={`${b.name}: ${meta.label}. Click to fly to this site.`}
-                aria-label={`${b.letter}, ${b.name}: ${meta.label}. Fly to site.`}
-              >
-                <span className="beacon-letter" style={{ background: meta.color }}>
-                  {b.letter}
-                </span>
-                <span className="beacon-name">{b.name}</span>
-                <span className="beacon-state" style={{ color: meta.color }}>
-                  {meta.short}
-                </span>
-              </button>
-            </Html>
-          </group>
-        )
-      })}
+      {beacons.map((b) => (
+        <BeaconMarker key={b.id} b={b} onFocus={onFocus} />
+      ))}
     </group>
   )
 }

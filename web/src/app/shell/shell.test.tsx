@@ -101,3 +101,103 @@ describe('scenario rail', () => {
     }
   })
 })
+
+describe('cinema keys', () => {
+  const deck = () => screen.queryByRole('region', { name: 'Mission deck' })
+
+  it('] hides the deck and a button (or ] again) brings it back', async () => {
+    const user = userEvent.setup()
+    await renderApp()
+    expect(deck()).toBeInTheDocument()
+    await user.keyboard(']')
+    expect(deck()).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /show deck/i }))
+    expect(deck()).toBeInTheDocument()
+    await user.keyboard(']]')
+    expect(deck()).toBeInTheDocument()
+    await user.click(within(deck()!).getByRole('button', { name: /hide/i }))
+    expect(deck()).not.toBeInTheDocument()
+  })
+
+  it('] and [ are not shortcuts while typing, or with a modifier', async () => {
+    const user = userEvent.setup()
+    await renderApp()
+    await user.click(screen.getByLabelText('Duration (days)'))
+    await user.keyboard(']')
+    await user.keyboard('[[')
+    expect(deck()).toBeInTheDocument()
+    expect(railToggle()).toHaveAttribute('aria-expanded', 'true')
+    await user.click(document.body)
+    await user.keyboard('{Control>}]{/Control}')
+    expect(deck()).toBeInTheDocument()
+  })
+
+  it('] still works right after using a slider, and keeps focus on the deck button it swaps', async () => {
+    const user = userEvent.setup()
+    await renderApp()
+    screen.getAllByRole('slider')[0].focus()
+    await user.keyboard(']')
+    expect(deck()).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /show deck/i }))
+    expect(deck()).toBeInTheDocument()
+    await vi.waitFor(() => expect(within(deck()!).getByRole('button', { name: /hide/i })).toHaveFocus())
+  })
+
+  it('the shortcuts do nothing while a modal is open', async () => {
+    const user = userEvent.setup()
+    await renderApp()
+    const modal = document.createElement('div')
+    modal.setAttribute('aria-modal', 'true')
+    document.body.append(modal)
+    try {
+      await user.keyboard('[[')
+      await user.keyboard(']')
+      expect(deck()).toBeInTheDocument()
+      expect(railToggle()).toHaveAttribute('aria-expanded', 'true')
+    } finally {
+      modal.remove()
+    }
+    await user.keyboard(']')
+    expect(deck()).not.toBeInTheDocument()
+  })
+})
+
+describe('narrow screens: one panel over the stage at a time', () => {
+  const narrow = () => vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(max-width: 768px)' }))
+  afterEach(() => vi.unstubAllGlobals())
+  const menu = () => screen.getByRole('button', { name: 'Scenario menu' })
+  const detailsButton = () => within(screen.getByRole('region', { name: 'Mission deck' })).getByRole('button', { name: 'Details' })
+
+  it('Esc closes the rail drawer and returns focus to the menu button', async () => {
+    narrow()
+    const user = userEvent.setup()
+    await renderApp()
+    await user.click(menu())
+    expect(menu()).toHaveAttribute('aria-expanded', 'true')
+    await user.keyboard('{Escape}')
+    expect(menu()).toHaveAttribute('aria-expanded', 'false')
+    expect(menu()).toHaveFocus()
+  })
+
+  it('opening the rail closes Details, and opening Details closes the rail', async () => {
+    narrow()
+    const user = userEvent.setup()
+    await renderApp()
+    await user.click(detailsButton())
+    expect(screen.getByRole('dialog', { name: 'Details' })).toBeInTheDocument()
+    await user.click(menu())
+    expect(screen.queryByRole('dialog', { name: 'Details' })).not.toBeInTheDocument()
+    expect(menu()).toHaveAttribute('aria-expanded', 'true')
+    await user.click(detailsButton())
+    expect(screen.getByRole('dialog', { name: 'Details' })).toBeInTheDocument()
+    expect(menu()).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('on a wide screen both can stay open together', async () => {
+    const user = userEvent.setup()
+    await renderApp()
+    await user.click(detailsButton())
+    expect(railToggle()).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('dialog', { name: 'Details' })).toBeInTheDocument()
+  })
+})

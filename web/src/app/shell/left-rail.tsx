@@ -4,10 +4,13 @@
 // The controls stay mounted while folded (`hidden`), so their state survives.
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react'
 import { ChevronIcon, MenuIcon } from '../ui/icons'
+import { useShortcut } from './shortcuts'
 
 export interface RailState {
   open: boolean
   toggle: () => void
+  /** Folds the rail without moving focus (something else took its place over the stage). */
+  hide: () => void
   /** Folds the rail (used once a scenario is set) and moves focus to its toggle, which stays visible. */
   close: () => void
   bodyId: string
@@ -16,24 +19,24 @@ export interface RailState {
   menuId: string
 }
 
-/** True when a keystroke belongs to a text field or a native control, not to a shortcut. */
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
-}
-
 /** Must match the drawer breakpoint in shell.css. */
 const NARROW_QUERY = '(max-width: 768px)'
 
+/** True while the rail is a drawer over the stage. */
+export function isNarrowViewport(): boolean {
+  return typeof matchMedia === 'function' && matchMedia(NARROW_QUERY).matches
+}
+
 /** Open on wide screens; closed on narrow ones, where it would cover the stage as a drawer. */
 function railStartsOpen(): boolean {
-  return !(typeof matchMedia === 'function' && matchMedia(NARROW_QUERY).matches)
+  return !isNarrowViewport()
 }
 
 export function useRail(): RailState {
   const [open, setOpen] = useState(railStartsOpen)
   const bodyId = useId()
   const toggle = useCallback(() => setOpen((o) => !o), [])
+  const hide = useCallback(() => setOpen(false), [])
   const toggleId = useId()
   const menuId = useId()
   const close = useCallback(() => {
@@ -45,17 +48,21 @@ export function useRail(): RailState {
     ;(toggle && toggle.offsetParent !== null ? toggle : (menu ?? toggle))?.focus()
   }, [toggleId, menuId])
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== '[' || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || isTypingTarget(e.target)) return
-      e.preventDefault()
-      toggle()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [toggle])
+  useShortcut('[', toggle)
 
-  return { open, toggle, close, bodyId, toggleId, menuId }
+  // As a drawer over the stage (narrow screens) Esc closes it, like the Details drawer.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || !isNarrowViewport()) return
+      e.preventDefault()
+      close()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, close])
+
+  return { open, toggle, hide, close, bodyId, toggleId, menuId }
 }
 
 export function LeftRail({ rail, children }: { rail: RailState; children: ReactNode }) {

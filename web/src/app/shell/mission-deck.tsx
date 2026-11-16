@@ -6,7 +6,7 @@ import { Deck } from './deck'
 import { DetailsButton, type DetailsState } from './details-drawer'
 import { SiteRows } from './site-rows'
 
-export function MissionDeck({ details }: { details: DetailsState }) {
+export function MissionDeck({ details, onHide }: { details: DetailsState; onHide: () => void }) {
   const preset = useActivePreset()
   return (
     <Deck>
@@ -14,6 +14,9 @@ export function MissionDeck({ details }: { details: DetailsState }) {
         <SlipSlider tryDays={preset?.targetSlipDays} />
         <TimeBar />
         <DetailsButton details={details} />
+        <button type="button" className="deck-hide" aria-keyshortcuts="]" title="Hide the deck (])" onClick={onHide}>
+          Hide <kbd>]</kbd>
+        </button>
       </div>
       <SiteRows />
     </Deck>
