@@ -104,6 +104,14 @@ describe('loadGrid', () => {
     expect(Array.from(grid.surfaceHeightM)).toEqual([-1200, 3400])
   })
 
+  it('rejects a missing or malformed dems list', () => {
+    const missing: Partial<GridManifest> = { ...manifest }
+    delete missing.dems
+    expect(() => loadGrid(missing as GridManifest, horizons, heights)).toThrow(/grid\.json: dems/)
+    expect(() => loadGrid({ ...manifest, dems: [] }, horizons, heights)).toThrow(/grid\.json: dems/)
+    expect(() => loadGrid({ ...manifest, dems: [{ file: 'X', role: '', resolutionM: 80 }] }, horizons, heights)).toThrow(/dems\[0\]\.role/)
+  })
+
   it('copies the horizons so the caller may transfer or reuse its buffer', () => {
     const buf = new Uint8Array([0, 50, 255, 10, 20, 30]).buffer
     const grid = loadGrid(manifest, buf, heights)
@@ -173,6 +181,7 @@ describe('parseSites', () => {
     expect(() => parseSites({ ...clone(), dems: [] })).toThrow(/dems/)
     expect(() => parseSites({ ...clone(), dems: [{ file: 'X', role: 'near field' }] })).toThrow(/dems\[0\]\.resolutionM/)
     expect(() => parseSites({ ...clone(), dems: [{ file: '', role: 'near field', resolutionM: 80 }] })).toThrow(/dems\[0\]\.file/)
+    expect(() => parseSites({ ...clone(), dems: [{ file: 'X', role: '', resolutionM: 80 }] })).toThrow(/dems\[0\]\.role/)
     expect(() => parseSites({ ...clone(), dems: [{ file: 'X', role: 'near field', resolutionM: 0 }] })).toThrow(/dems\[0\]\.resolutionM/)
   })
 

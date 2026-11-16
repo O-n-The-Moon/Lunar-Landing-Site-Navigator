@@ -60,6 +60,7 @@ export function loadGrid(manifest: GridManifest, horizons: ArrayBuffer, heights:
     if (!isPositiveInt(manifest[key])) fail(file, `${key} must be a positive integer, got ${manifest[key]}`)
   }
   if (!(manifest.cellKm > 0)) fail(file, `cellKm must be positive, got ${manifest.cellKm}`)
+  parseDems(file, manifest.dems)
 
   const cells = manifest.nx * manifest.ny
   if (horizons.byteLength !== cells * manifest.azBins) {
@@ -108,8 +109,12 @@ function parseSite(raw: unknown, path: string, heightsM: number[], azBins: numbe
   return raw as unknown as Site
 }
 
-function parseDem(raw: unknown, path: string): void {
-  const file = 'sites.json'
+function parseDems(file: string, dems: unknown): void {
+  if (!Array.isArray(dems) || dems.length === 0) fail(file, 'dems must be a non-empty array')
+  dems.forEach((dem, i) => parseDem(file, dem, `dems[${i}]`))
+}
+
+function parseDem(file: string, raw: unknown, path: string): void {
   if (!isRecord(raw)) fail(file, `${path} must be an object`)
   for (const key of ['file', 'role'] as const) {
     if (typeof raw[key] !== 'string' || raw[key].length === 0) fail(file, `${path}.${key} must be a non-empty string`)
@@ -129,9 +134,7 @@ export function parseSites(json: unknown): SitesFile {
   if (!isNumberArray(heightsM) || !heightsM.includes(2)) {
     fail(file, 'heightsM must be a number array that includes the default 2 m observer height')
   }
-  const { dems } = json
-  if (!Array.isArray(dems) || dems.length === 0) fail(file, 'dems must be a non-empty array')
-  dems.forEach((dem, i) => parseDem(dem, `dems[${i}]`))
+  parseDems(file, json.dems)
   if (!Array.isArray(sites)) fail(file, 'sites must be an array')
 
   const azBins = 360 / azStepDeg
