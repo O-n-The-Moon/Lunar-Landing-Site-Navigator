@@ -6,7 +6,7 @@ A web tool for mission planners that compares lunar south pole landing sites by 
 
 Built for the NASA Space Apps Challenge by team **O(n) the Moon**.
 
-**Live demo:** https://lunar-landing-site-navigator-sooty.vercel.app
+**Live demo:** [Lunar Landing Site Navigator](https://lunar-landing-site-nav.vercel.app/)
 
 ## Why this exists
 
