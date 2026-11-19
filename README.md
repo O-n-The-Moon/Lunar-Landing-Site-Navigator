@@ -1,10 +1,10 @@
-# Lunar Landing Site Navigator
+# Lunar Landing Site Navigator (South Pole)
+
+Built for the [NASA Space Apps Challenge](https://www.spaceappschallenge.org/) by team **O(n) the Moon**.
 
 **Launch slipped? See what it costs your landing site, and why.**
 
 A web tool for mission planners that compares lunar south pole landing sites by **Sun visibility (power)** and **Earth visibility (direct-to-Earth comms)**, using real terrain. Drag the **slip slider** to move the landing date and watch every number update live.
-
-Built for the NASA Space Apps Challenge by team **O(n) the Moon**.
 
 **Live demo:** [Lunar Landing Site Navigator](https://lunar-landing-site-nav.vercel.app/)
 
